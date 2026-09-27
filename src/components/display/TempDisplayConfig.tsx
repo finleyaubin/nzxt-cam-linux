@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useApp } from '../../context/AppContext'
 import { LCDCircularPreview } from '../ui/LCDCircularPreview'
 import { Dropdown } from '../ui/Dropdown'
@@ -104,6 +104,7 @@ export function TempDisplayConfig() {
   const [s, setS] = useState<Settings>(DEFAULT)
   const [status, setStatus] = useState<'idle' | 'applying' | 'done' | 'error'>('idle')
   const [rotation, setRotation] = useState(0)
+  useEffect(() => { api.getLcdOrientation().then(setRotation) }, [])
 
   const rotate = async () => {
     const next = (rotation + 90) % 360
