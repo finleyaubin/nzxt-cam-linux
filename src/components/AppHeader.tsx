@@ -58,7 +58,7 @@ function WinBtn({ onClick, title, children, danger }: { onClick: () => void; tit
     <button
       onClick={onClick}
       title={title}
-      style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3a3a3a', transition: 'all 130ms' }}
+      style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7f7f7f', transition: 'all 130ms' }}
       onMouseEnter={e => {
         const b = e.currentTarget as HTMLButtonElement
         b.style.background = danger ? '#ff475720' : '#1e1e1e'
@@ -67,7 +67,7 @@ function WinBtn({ onClick, title, children, danger }: { onClick: () => void; tit
       onMouseLeave={e => {
         const b = e.currentTarget as HTMLButtonElement
         b.style.background = 'transparent'
-        b.style.color = '#3a3a3a'
+        b.style.color = '#7f7f7f'
       }}
     >
       {children}

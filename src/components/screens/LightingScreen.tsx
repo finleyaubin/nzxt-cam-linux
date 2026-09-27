@@ -86,7 +86,7 @@ function FanIcon({ color, size = 42 }: { color: string; size?: number }) {
 function ColorSwatch({ color, selected, onSelect }: { color: string; selected: boolean; onSelect: (c: string) => void }) {
   return (
     <div onClick={() => onSelect(color)} style={{
-      width: 22, height: 22, borderRadius: 4, background: color, cursor: 'pointer',
+      width: 22, height: 22, borderRadius: 8, background: color, cursor: 'pointer',
       border: `2px solid ${selected ? '#fff' : 'transparent'}`,
       boxShadow: selected ? `0 0 8px ${color}` : 'none',
       transition: 'all 140ms',
@@ -167,7 +167,7 @@ function RingDeviceRow({ name, sub, isFan, accent }: {
 
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#e8e8e8' }}>{name}</div>
-          <div style={{ fontSize: 10, color: '#484848', marginTop: 2 }}>{sub}</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 2 }}>{sub}</div>
         </div>
         <div style={{ width: 120 }}>
           <BrightnessRow value={brightness} onChange={setBrightness} accent={accent}/>
@@ -179,7 +179,7 @@ function RingDeviceRow({ name, sub, isFan, accent }: {
           width={140} small accent={accent}
         />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 10, color: '#484848' }}>Sync</span>
+          <span style={{ fontSize: 10, color: '#7f7f7f' }}>Sync</span>
           <ToggleSwitch on={sync} onChange={setSync} size="sm" color={accent}/>
         </div>
       </div>
@@ -188,7 +188,7 @@ function RingDeviceRow({ name, sub, isFan, accent }: {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
           {RING_MODES.map(m => (
             <div key={m.id} onClick={() => setEffect(m.id)} style={{
-              padding: '4px 10px', borderRadius: 5, fontSize: 11, cursor: 'pointer', fontWeight: 600,
+              padding: '4px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer', fontWeight: 600,
               background: effect === m.id ? `${accent}22` : '#1c1c1c',
               color: effect === m.id ? accent : '#555',
               border: `1px solid ${effect === m.id ? `${accent}55` : '#2a2a2a'}`,
@@ -207,7 +207,7 @@ function RingDeviceRow({ name, sub, isFan, accent }: {
           <div style={{ display: 'flex', gap: 5 }}>
             {SPEEDS.map(s => (
               <div key={s.id} onClick={() => setSpeed(s.id)} style={{
-                padding: '4px 10px', borderRadius: 5, fontSize: 11, cursor: 'pointer', fontWeight: 600,
+                padding: '4px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer', fontWeight: 600,
                 background: speed === s.id ? `${accent}22` : '#1c1c1c',
                 color: speed === s.id ? accent : '#555',
                 border: `1px solid ${speed === s.id ? `${accent}55` : '#2a2a2a'}`,
@@ -222,7 +222,7 @@ function RingDeviceRow({ name, sub, isFan, accent }: {
             display: 'flex', alignItems: 'center', gap: 7,
             background: connected ? accent : '#252525', border: 'none',
             color: connected ? '#fff' : '#555',
-            borderRadius: 6, padding: '6px 16px', fontSize: 12, fontWeight: 700,
+            borderRadius: 8, padding: '6px 16px', fontSize: 12, fontWeight: 700,
             cursor: connected ? 'pointer' : 'not-allowed',
             boxShadow: connected ? `0 0 12px ${accent}44` : 'none', transition: 'all 140ms',
           }}>
@@ -257,7 +257,7 @@ export function LightingScreen() {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, color: '#555' }}>RGB Auto Sync</span>
+            <span style={{ fontSize: 11, color: '#9a9a9a' }}>RGB Auto Sync</span>
             <ToggleSwitch on={autoSync} onChange={setAutoSync} color={accent}/>
           </div>
         </div>

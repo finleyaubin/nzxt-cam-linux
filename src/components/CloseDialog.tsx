@@ -34,7 +34,7 @@ export function CloseDialog() {
       background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
     }}>
       <div style={{
-        background: '#111', border: '1px solid #222', borderRadius: 16,
+        background: '#111', border: '1px solid #222', borderRadius: 12,
         padding: 28, width: 320, display: 'flex', flexDirection: 'column', gap: 20,
         boxShadow: '0 32px 80px rgba(0,0,0,0.8)',
       }}>
@@ -42,26 +42,26 @@ export function CloseDialog() {
           <div style={{ fontSize: 15, fontWeight: 800, color: '#f0f0f0', marginBottom: 6, letterSpacing: '-0.2px' }}>
             Close window?
           </div>
-          <div style={{ fontSize: 12, color: '#555', lineHeight: 1.6 }}>
+          <div style={{ fontSize: 12, color: '#9a9a9a', lineHeight: 1.6 }}>
             {t('close_sub')}
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button onClick={hideWindow} style={{
-            padding: '10px 0', borderRadius: 9, border: 'none',
+            padding: '10px 0', borderRadius: 8, border: 'none',
             background: accent, color: '#fff', fontSize: 13, fontWeight: 700,
             cursor: 'pointer', boxShadow: `0 0 18px ${accent}44`, transition: 'all 140ms',
           }}>
             {t('close_bg')}
           </button>
           <button onClick={quitApp} style={{
-            padding: '10px 0', borderRadius: 9, border: '1px solid #252525',
-            background: 'transparent', color: '#555', fontSize: 13, fontWeight: 600,
+            padding: '10px 0', borderRadius: 8, border: '1px solid #252525',
+            background: 'transparent', color: '#9a9a9a', fontSize: 13, fontWeight: 600,
             cursor: 'pointer', transition: 'all 140ms',
           }}
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#ff4757'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#ff475733' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#555'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#252525' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9a9a9a'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#252525' }}
           >
             {t('close_quit')}
           </button>

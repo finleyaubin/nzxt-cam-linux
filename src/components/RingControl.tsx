@@ -50,9 +50,9 @@ type ChannelDef = {
 }
 
 const CHANNELS: ChannelDef[] = [
-  { id: 'ch01', icon: '⭕', label: 'Ring AIO',     hint: 'Channel 0x01 — ring around the LCD' },
-  { id: 'ch02', icon: '🌀', label: 'Fans', hint: 'Channel 0x02 — fans / external accessories' },
-  { id: 'ch07', icon: '🔆', label: 'All',           hint: 'Channel 0x07 — all channels at once' },
+  { id: 'ch01', icon: '⭕', label: 'Ring AIO',     hint: 'Channel 0x01 - ring around the LCD' },
+  { id: 'ch02', icon: '🌀', label: 'Fans', hint: 'Channel 0x02 - fans / external accessories' },
+  { id: 'ch07', icon: '🔆', label: 'All',           hint: 'Channel 0x07 - all channels at once' },
 ]
 
 const SWATCHES = [
@@ -118,7 +118,7 @@ export function RingControl() {
 
       {/* Channel selector */}
       <div>
-        <p className="text-xs text-gray-500 mb-2 uppercase tracking-widest">LED target</p>
+        <p className="text-xs text-gray-400 mb-2 uppercase tracking-widest">LED target</p>
         <div className="grid grid-cols-4 gap-2">
           {CHANNELS.map((ch) => (
             <button
@@ -127,8 +127,8 @@ export function RingControl() {
               title={ch.hint}
               className={`flex flex-col items-center gap-1 py-3 rounded-xl text-xs font-medium transition-all ${
                 channel === ch.id
-                  ? 'bg-[#00d4ff] text-[#0a0a0f] shadow-[0_0_12px_rgba(0,212,255,0.4)]'
-                  : 'bg-[#111118] text-gray-400 border border-[#1e1e2e] hover:border-[#00d4ff44] hover:text-gray-200'
+                  ? 'bg-[#00d4ff] text-[#0a0a0a] shadow-[0_0_12px_rgba(0,212,255,0.4)]'
+                  : 'bg-[#111111] text-gray-400 border border-[#1e1e1e] hover:border-[#00d4ff44] hover:text-gray-200'
               }`}
             >
               <span className="text-xl">{ch.icon}</span>
@@ -136,7 +136,7 @@ export function RingControl() {
             </button>
           ))}
         </div>
-        <p className="text-xs text-gray-600 mt-1.5">
+        <p className="text-xs text-gray-400 mt-1.5">
           {CHANNELS.find((c) => c.id === channel)?.hint}
         </p>
         {channel === 'ch01' && (
@@ -148,7 +148,7 @@ export function RingControl() {
 
       {/* Mode grid */}
       <div>
-        <p className="text-xs text-gray-500 mb-2 uppercase tracking-widest">Animation</p>
+        <p className="text-xs text-gray-400 mb-2 uppercase tracking-widest">Animation</p>
         <div className="grid grid-cols-4 gap-2">
           {MODES.map((m) => (
             <button
@@ -157,21 +157,21 @@ export function RingControl() {
               title={m.description}
               className={`px-3 py-2.5 rounded-xl text-xs font-medium transition-all text-center ${
                 selectedMode === m.id
-                  ? 'bg-[#00d4ff] text-[#0a0a0f] shadow-[0_0_12px_rgba(0,212,255,0.4)]'
-                  : 'bg-[#111118] text-gray-400 border border-[#1e1e2e] hover:border-[#00d4ff44] hover:text-gray-200'
+                  ? 'bg-[#00d4ff] text-[#0a0a0a] shadow-[0_0_12px_rgba(0,212,255,0.4)]'
+                  : 'bg-[#111111] text-gray-400 border border-[#1e1e1e] hover:border-[#00d4ff44] hover:text-gray-200'
               }`}
             >
               {m.label}
             </button>
           ))}
         </div>
-        <p className="text-xs text-gray-600 mt-1.5">{modeDef.description}</p>
+        <p className="text-xs text-gray-400 mt-1.5">{modeDef.description}</p>
       </div>
 
       {/* Single color */}
       {modeDef.hasColor && (
         <div>
-          <p className="text-xs text-gray-500 mb-2 uppercase tracking-widest">Color</p>
+          <p className="text-xs text-gray-400 mb-2 uppercase tracking-widest">Color</p>
           <div className="flex flex-wrap gap-2 mb-3">
             {SWATCHES.map((hex) => (
               <button
@@ -179,7 +179,7 @@ export function RingControl() {
                 onClick={() => setColor(hex)}
                 className={`w-9 h-9 rounded-xl transition-all ${
                   color === hex
-                    ? 'ring-2 ring-white ring-offset-1 ring-offset-[#0a0a0f] scale-110'
+                    ? 'ring-2 ring-white ring-offset-1 ring-offset-[#0a0a0a] scale-110'
                     : 'hover:scale-110'
                 }`}
                 style={{ backgroundColor: hex }}
@@ -191,7 +191,7 @@ export function RingControl() {
               type="color"
               value={color}
               onChange={(e) => setColor(e.target.value)}
-              className="w-12 h-12 rounded-xl cursor-pointer border-2 border-[#1e1e2e] bg-transparent p-0.5"
+              className="w-12 h-12 rounded-xl cursor-pointer border-2 border-[#1e1e1e] bg-transparent p-0.5"
             />
             <input
               type="text"
@@ -199,9 +199,9 @@ export function RingControl() {
               onChange={(e) => {
                 if (/^#[0-9a-fA-F]{0,6}$/.test(e.target.value)) setColor(e.target.value)
               }}
-              className="w-32 bg-[#111118] border border-[#1e1e2e] rounded-lg px-3 py-2 text-sm font-mono text-gray-300 focus:outline-none focus:border-[#00d4ff]"
+              className="w-32 bg-[#111111] border border-[#1e1e1e] rounded-lg px-3 py-2 text-sm font-mono text-gray-300 focus:outline-none focus:border-[#00d4ff]"
             />
-            <div className="w-8 h-8 rounded-lg border border-[#1e1e2e]" style={{ backgroundColor: color }} />
+            <div className="w-8 h-8 rounded-lg border border-[#1e1e1e]" style={{ backgroundColor: color }} />
           </div>
         </div>
       )}
@@ -209,7 +209,7 @@ export function RingControl() {
       {/* Multi-color (Fading) */}
       {modeDef.hasMultiColor && (
         <div>
-          <p className="text-xs text-gray-500 mb-2 uppercase tracking-widest">
+          <p className="text-xs text-gray-400 mb-2 uppercase tracking-widest">
             Colors ({multiColors.length}/8)
           </p>
           <div className="flex flex-col gap-2">
@@ -219,13 +219,13 @@ export function RingControl() {
                   type="color"
                   value={hex}
                   onChange={(e) => updateColor(i, e.target.value)}
-                  className="w-10 h-10 rounded-lg cursor-pointer border border-[#1e1e2e] bg-transparent p-0.5"
+                  className="w-10 h-10 rounded-lg cursor-pointer border border-[#1e1e1e] bg-transparent p-0.5"
                 />
                 <div className="flex-1 h-8 rounded-lg" style={{ backgroundColor: hex }} />
                 {multiColors.length > 2 && (
                   <button
                     onClick={() => removeColor(i)}
-                    className="text-gray-600 hover:text-red-400 text-xl leading-none transition-colors"
+                    className="text-gray-400 hover:text-red-400 text-xl leading-none transition-colors"
                   >
                     ×
                   </button>
@@ -247,7 +247,7 @@ export function RingControl() {
       {/* Speed */}
       {modeDef.hasSpeed && (
         <div>
-          <p className="text-xs text-gray-500 mb-2 uppercase tracking-widest">Speed</p>
+          <p className="text-xs text-gray-400 mb-2 uppercase tracking-widest">Speed</p>
           <div className="flex gap-2">
             {SPEEDS.map((s) => (
               <button
@@ -255,8 +255,8 @@ export function RingControl() {
                 onClick={() => setSpeed(s.id)}
                 className={`flex-1 py-2 rounded-xl text-xs font-medium transition-all ${
                   speed === s.id
-                    ? 'bg-[#00d4ff] text-[#0a0a0f]'
-                    : 'bg-[#111118] text-gray-400 border border-[#1e1e2e] hover:border-[#00d4ff44] hover:text-gray-200'
+                    ? 'bg-[#00d4ff] text-[#0a0a0a]'
+                    : 'bg-[#111111] text-gray-400 border border-[#1e1e1e] hover:border-[#00d4ff44] hover:text-gray-200'
                 }`}
               >
                 {s.label}
@@ -271,13 +271,13 @@ export function RingControl() {
         <button
           onClick={handleApply}
           disabled={!connected || sending}
-          className="px-6 py-3 rounded-xl text-sm font-semibold transition-all bg-[#00d4ff] text-[#0a0a0f] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(0,212,255,0.3)]"
+          className="px-6 py-3 rounded-xl text-sm font-semibold transition-all bg-[#00d4ff] text-[#0a0a0a] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(0,212,255,0.3)]"
         >
           {sending ? 'Sending...' : '💡 Apply'}
         </button>
         {lastSent && !error && (
           <span className="text-xs text-green-400">
-            ✓ {CHANNELS.find((c) => c.id === lastSent.channel)?.label} — {MODES.find((m) => m.id === lastSent.mode)?.label}
+            ✓ {CHANNELS.find((c) => c.id === lastSent.channel)?.label} - {MODES.find((m) => m.id === lastSent.mode)?.label}
           </span>
         )}
       </div>

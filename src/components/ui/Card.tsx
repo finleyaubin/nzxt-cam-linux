@@ -15,7 +15,7 @@ export function Card({ children, style = {}, glow = true, noBorder, accent = '#9
       onMouseEnter={() => glow && setHov(true)}
       onMouseLeave={() => glow && setHov(false)}
       style={{
-        background: '#161616', borderRadius: 10,
+        background: '#161616', borderRadius: 12,
         border: noBorder ? 'none' : `1px solid ${hov ? `${accent}55` : '#232323'}`,
         boxShadow: hov ? `0 0 30px ${accent}0a` : 'none',
         transition: 'border-color 200ms, box-shadow 200ms',

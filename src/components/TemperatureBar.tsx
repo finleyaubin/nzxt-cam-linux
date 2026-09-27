@@ -7,7 +7,7 @@ function TempItem({ label, value, color, max = 100 }: { label: string; value: nu
   return (
     <div className="flex items-center gap-3">
       <span className="text-gray-400 text-sm w-12">{label}</span>
-      <div className="flex-1 h-2 bg-[#1e1e2e] rounded-full overflow-hidden">
+      <div className="flex-1 h-2 bg-[#1e1e1e] rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-500"
           style={{ width: `${pct}%`, backgroundColor: isHot ? '#ff4444' : color }}
@@ -28,12 +28,12 @@ export function TemperatureBar() {
   const { temperatures } = state
 
   return (
-    <div className="bg-[#111118] border border-[#1e1e2e] rounded-xl p-4 space-y-3">
+    <div className="bg-[#111111] border border-[#1e1e1e] rounded-xl p-4 space-y-3">
       <TempItem label="CPU" value={temperatures.cpu} color="#00ff88" />
       <TempItem label="GPU" value={temperatures.gpu} color="#00ff88" />
       <TempItem label="Liquid" value={temperatures.liquid} color="#00d4ff" max={50} />
       {temperatures.pumpRpm > 0 && (
-        <div className="flex items-center gap-3 pt-1 border-t border-[#1e1e2e]">
+        <div className="flex items-center gap-3 pt-1 border-t border-[#1e1e1e]">
           <span className="text-gray-400 text-sm w-12">Pump</span>
           <span className="text-gray-300 text-sm font-mono">{temperatures.pumpRpm} RPM</span>
         </div>

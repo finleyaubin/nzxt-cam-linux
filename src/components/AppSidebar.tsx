@@ -32,7 +32,7 @@ function NavItem({ id, label, Icon, isActive, accent }: {
         display: 'flex', alignItems: 'center', gap: 10,
         padding: '9px 11px',
         paddingLeft: isActive ? 9 : 11,
-        borderRadius: 7, marginBottom: 2, cursor: 'pointer',
+        borderRadius: 8, marginBottom: 2, cursor: 'pointer',
         color: isActive ? '#f0f0f0' : '#484848',
         background: isActive ? `${accent}18` : 'transparent',
         borderLeft: isActive ? `2px solid ${accent}` : '2px solid transparent',
@@ -40,7 +40,7 @@ function NavItem({ id, label, Icon, isActive, accent }: {
         whiteSpace: 'nowrap',
       }}
       onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLDivElement).style.color = '#b0b0b0'; (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.028)' } }}
-      onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLDivElement).style.color = '#484848'; (e.currentTarget as HTMLDivElement).style.background = 'transparent' } }}
+      onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLDivElement).style.color = '#7f7f7f'; (e.currentTarget as HTMLDivElement).style.background = 'transparent' } }}
     >
       <span style={{ flexShrink: 0, opacity: isActive ? 1 : 0.55 }}><Icon/></span>
       <span>{label}</span>
@@ -76,7 +76,7 @@ export function AppSidebar() {
               <div style={{ fontSize: 13, fontWeight: 900, color: '#f0f0f0', letterSpacing: '-0.3px' }}>
                 <span style={{ color: accent }}>NZXT</span>CAM
               </div>
-              <div style={{ fontSize: 9, color: '#2e2e2e', marginTop: 4, letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 700 }}>Linux</div>
+              <div style={{ fontSize: 9, color: '#7f7f7f', marginTop: 4, letterSpacing: '1.5px', textTransform: 'uppercase', fontWeight: 700 }}>Linux</div>
             </div>
           </div>
 
@@ -95,7 +95,7 @@ export function AppSidebar() {
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '9px 11px',
                 paddingLeft: section === 'settings' ? 9 : 11,
-                borderRadius: 7, cursor: 'pointer',
+                borderRadius: 8, cursor: 'pointer',
                 color: section === 'settings' ? '#f0f0f0' : '#484848',
                 background: section === 'settings' ? `${accent}18` : 'transparent',
                 borderLeft: section === 'settings' ? `2px solid ${accent}` : '2px solid transparent',
@@ -103,7 +103,7 @@ export function AppSidebar() {
                 whiteSpace: 'nowrap', marginBottom: 4,
               }}
               onMouseEnter={e => { if (section !== 'settings') { (e.currentTarget as HTMLDivElement).style.color = '#b0b0b0'; (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.028)' } }}
-              onMouseLeave={e => { if (section !== 'settings') { (e.currentTarget as HTMLDivElement).style.color = '#484848'; (e.currentTarget as HTMLDivElement).style.background = 'transparent' } }}
+              onMouseLeave={e => { if (section !== 'settings') { (e.currentTarget as HTMLDivElement).style.color = '#7f7f7f'; (e.currentTarget as HTMLDivElement).style.background = 'transparent' } }}
             >
               <span style={{ flexShrink: 0, opacity: section === 'settings' ? 1 : 0.55 }}><IGear/></span>
               <span>Settings</span>
@@ -115,12 +115,12 @@ export function AppSidebar() {
               title="Collapse menu"
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
-                padding: '7px 11px', borderRadius: 7, cursor: 'pointer',
-                color: '#2e2e2e', fontSize: 11, fontWeight: 600,
+                padding: '7px 11px', borderRadius: 8, cursor: 'pointer',
+                color: '#7f7f7f', fontSize: 11, fontWeight: 600,
                 transition: 'all 140ms', whiteSpace: 'nowrap',
               }}
-              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.color = '#666'; (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.025)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.color = '#2e2e2e'; (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.color = '#9a9a9a'; (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.025)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.color = '#7f7f7f'; (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
             >
               <IChevronLeft/>
               <span>Collapse</span>
@@ -146,12 +146,12 @@ export function AppSidebar() {
           borderLeft: 'none',
           borderRadius: '0 7px 7px 0',
           cursor: 'pointer',
-          color: '#484848',
+          color: '#7f7f7f',
           transition: 'opacity 240ms 60ms, transform 280ms cubic-bezier(0.4, 0, 0.2, 1), color 140ms, background 140ms',
           boxShadow: '3px 0 12px rgba(0,0,0,0.4)',
         }}
         onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.color = '#aaa'; (e.currentTarget as HTMLDivElement).style.background = '#222' }}
-        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.color = '#484848'; (e.currentTarget as HTMLDivElement).style.background = '#161616' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.color = '#7f7f7f'; (e.currentTarget as HTMLDivElement).style.background = '#161616' }}
       >
         <IChevronRight/>
       </div>

@@ -17,9 +17,9 @@ export function LCDPreview() {
     if (currentMode === 'temperatures') {
       return (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#080808', padding: 12 }}>
-          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#333', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 10 }}>NZXT KRAKEN</div>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#7f7f7f', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 10 }}>NZXT KRAKEN</div>
           <div style={{ marginBottom: 8, textAlign: 'center' }}>
-            <div style={{ fontSize: 9, color: '#484848', marginBottom: 2 }}>CPU</div>
+            <div style={{ fontSize: 9, color: '#7f7f7f', marginBottom: 2 }}>CPU</div>
             <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 28, fontWeight: 700, color: temperatures.cpu > 80 ? '#ff4757' : '#00e87a', lineHeight: 1 }}>
               {Math.round(temperatures.cpu)}°
             </div>
@@ -30,13 +30,13 @@ export function LCDPreview() {
               { label: 'LIQ', value: temperatures.liquid, color: '#00bcd4' },
             ].map(({ label, value, color }) => (
               <div key={label} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 8, color: '#484848', marginBottom: 2 }}>{label}</div>
+                <div style={{ fontSize: 8, color: '#7f7f7f', marginBottom: 2 }}>{label}</div>
                 <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700, color, lineHeight: 1 }}>{Math.round(value)}°</div>
               </div>
             ))}
           </div>
           {temperatures.pumpRpm > 0 && (
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: '#2e2e2e', marginTop: 8 }}>{temperatures.pumpRpm} RPM</div>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: '#7f7f7f', marginTop: 8 }}>{temperatures.pumpRpm} RPM</div>
           )}
         </div>
       )
@@ -48,8 +48,8 @@ export function LCDPreview() {
 
     return (
       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#080808', gap: 10 }}>
-        <span style={{ color: '#252525' }}><IScreen/></span>
-        <span style={{ fontSize: 10, color: '#2a2a2a', fontWeight: 500 }}>No content</span>
+        <span style={{ color: '#7f7f7f' }}><IScreen/></span>
+        <span style={{ fontSize: 10, color: '#7f7f7f', fontWeight: 500 }}>No content</span>
       </div>
     )
   }
@@ -63,7 +63,7 @@ export function LCDPreview() {
       }}>
         {renderContent()}
       </div>
-      <div style={{ fontSize: 10, color: '#2e2e2e', fontFamily: 'JetBrains Mono, monospace' }}>Preview LCD 480×480</div>
+      <div style={{ fontSize: 10, color: '#7f7f7f', fontFamily: 'JetBrains Mono, monospace' }}>Preview LCD 480×480</div>
     </div>
   )
 }

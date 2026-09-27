@@ -22,7 +22,7 @@ function LivePreview({ applied, temperatures }: {
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#252525" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
           <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
         </svg>
-        <span style={{ fontSize: 10, color: '#252525', fontWeight: 500 }}>Not found</span>
+        <span style={{ fontSize: 10, color: '#7f7f7f', fontWeight: 500 }}>Not found</span>
       </div>
     )
   }
@@ -48,7 +48,7 @@ function LivePreview({ applied, temperatures }: {
       border: '1px solid #1e1e1e', boxShadow: '0 0 0 4px #111, 0 0 0 5px #1a1a1a',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
     }}>
-      <span style={{ fontSize: 10, color: '#252525' }}>Not found</span>
+      <span style={{ fontSize: 10, color: '#7f7f7f' }}>Not found</span>
     </div>
   )
 }
@@ -111,11 +111,11 @@ export function LCDScreen() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Mode selector */}
           <Card style={{ padding: '14px 18px' }} accent={accent}>
-            <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 12, fontWeight: 700 }}>Display mode</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 12, fontWeight: 700 }}>Display mode</div>
             <div style={{ display: 'flex', gap: 6 }}>
               {MODES.map(({ id, label, Icon }) => (
                 <button key={id} onClick={() => dispatch({ type: 'SET_MODE', payload: id })} style={{
-                  display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 7,
+                  display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 8,
                   border: `1px solid ${currentMode === id ? `${accent}55` : '#252525'}`,
                   background: currentMode === id ? `${accent}14` : '#111',
                   color: currentMode === id ? accent : '#555',
@@ -139,7 +139,7 @@ export function LCDScreen() {
             <TempDisplayConfig/>
           ) : (
             <Card style={{ padding: 20 }} accent={accent}>
-              <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14, fontWeight: 700 }}>LCD content</div>
+              <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14, fontWeight: 700 }}>LCD content</div>
               <div style={{ display: 'flex', gap: 20 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                   <LCDPreview/>
@@ -175,13 +175,13 @@ export function LCDScreen() {
         {/* Right: preview + info — hidden in temperatures mode (TempDisplayConfig has its own) */}
         {currentMode !== 'temperatures' && <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Card style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }} accent={accent}>
-            <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>Live Preview</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>Live Preview</div>
             <LivePreview applied={state.lcdApplied} temperatures={temperatures}/>
-            <div style={{ fontSize: 10, color: '#2e2e2e', fontFamily: 'JetBrains Mono, monospace' }}>480 × 480 px</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', fontFamily: 'JetBrains Mono, monospace' }}>480 × 480 px</div>
           </Card>
 
           <Card style={{ padding: 16 }} accent={accent}>
-            <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>Display Info</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>Display Info</div>
             {[
               { label: 'Resolution', val: '480 × 480' },
               { label: 'Interface',  val: 'USB Direct' },
@@ -189,7 +189,7 @@ export function LCDScreen() {
               { label: 'Status',     val: deviceStatus.connected ? deviceStatus.productName : 'Not connected' },
             ].map(({ label, val }) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 9, alignItems: 'center' }}>
-                <span style={{ fontSize: 11, color: '#484848' }}>{label}</span>
+                <span style={{ fontSize: 11, color: '#7f7f7f' }}>{label}</span>
                 <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#888' }}>{val}</span>
               </div>
             ))}

@@ -42,7 +42,7 @@ function SaveDialog({ onSave, onCancel }: {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(4px)' }}>
-      <div style={{ background: '#111', border: '1px solid #222', borderRadius: 14, padding: 24, width: 340, display: 'flex', flexDirection: 'column', gap: 18, boxShadow: '0 32px 80px rgba(0,0,0,0.8)' }}>
+      <div style={{ background: '#111', border: '1px solid #222', borderRadius: 12, padding: 24, width: 340, display: 'flex', flexDirection: 'column', gap: 18, boxShadow: '0 32px 80px rgba(0,0,0,0.8)' }}>
         <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', letterSpacing: '-0.2px' }}>New profile</div>
 
         <input
@@ -59,7 +59,7 @@ function SaveDialog({ onSave, onCancel }: {
         />
 
         <div>
-          <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700, marginBottom: 10 }}>Include in profile</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700, marginBottom: 10 }}>Include in profile</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[
               { key: 'lcd', label: 'Current LCD mode', val: includeLcd, set: setIncludeLcd },
@@ -72,7 +72,7 @@ function SaveDialog({ onSave, onCancel }: {
                 transition: 'all 140ms',
               }}>
                 <div style={{
-                  width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                  width: 16, height: 16, borderRadius: 8, flexShrink: 0,
                   background: val ? accent : 'transparent',
                   border: `1.5px solid ${val ? accent : '#3a3a3a'}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -89,7 +89,7 @@ function SaveDialog({ onSave, onCancel }: {
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onCancel} style={{
             flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid #222',
-            background: 'transparent', color: '#555', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 140ms',
+            background: 'transparent', color: '#9a9a9a', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 140ms',
           }}>Cancel</button>
           <button onClick={() => name.trim() && onSave(name.trim(), includeLcd, includeRing)} disabled={!name.trim()} style={{
             flex: 1, padding: '9px 0', borderRadius: 8, border: 'none',
@@ -179,8 +179,8 @@ export function ProfileManager() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700 }}>Saved profiles</div>
-          <div style={{ fontSize: 11, color: '#2e2e2e', marginTop: 4 }}>Save your LCD + Ring setup in one click</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700 }}>Saved profiles</div>
+          <div style={{ fontSize: 11, color: '#7f7f7f', marginTop: 4 }}>Save your LCD + Ring setup in one click</div>
         </div>
         <button onClick={() => setShowSaveDialog(true)} style={{
           display: 'flex', alignItems: 'center', gap: 7,
@@ -194,9 +194,9 @@ export function ProfileManager() {
 
       {/* Profile list */}
       {profiles.length === 0 ? (
-        <div style={{ padding: '28px 20px', borderRadius: 10, border: '1px dashed #1e1e1e', textAlign: 'center' }}>
-          <div style={{ fontSize: 12, color: '#2e2e2e', fontWeight: 500 }}>No profiles</div>
-          <div style={{ fontSize: 11, color: '#222', marginTop: 5 }}>Create a profile to save your setup</div>
+        <div style={{ padding: '28px 20px', borderRadius: 12, border: '1px dashed #1e1e1e', textAlign: 'center' }}>
+          <div style={{ fontSize: 12, color: '#7f7f7f', fontWeight: 500 }}>No profiles</div>
+          <div style={{ fontSize: 11, color: '#7f7f7f', marginTop: 5 }}>Create a profile to save your setup</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -204,15 +204,15 @@ export function ProfileManager() {
             <div key={p.name} style={{
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '11px 14px', background: '#0d0d0d',
-              border: '1px solid #1a1a1a', borderRadius: 9, transition: 'border-color 140ms',
+              border: '1px solid #1a1a1a', borderRadius: 8, transition: 'border-color 140ms',
             }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#d0d0d0', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
-                <div style={{ fontSize: 10, color: '#3a3a3a' }}>{LCD_TYPE_LABEL[p.lcdType] ?? p.lcdType}</div>
+                <div style={{ fontSize: 10, color: '#7f7f7f' }}>{LCD_TYPE_LABEL[p.lcdType] ?? p.lcdType}</div>
               </div>
               <button onClick={() => handleApply(p.name)} disabled={!connected || applying === p.name} style={{
                 display: 'flex', alignItems: 'center', gap: 6,
-                padding: '5px 12px', borderRadius: 6, border: `1px solid ${accent}33`,
+                padding: '5px 12px', borderRadius: 8, border: `1px solid ${accent}33`,
                 background: `${accent}12`, color: accent,
                 fontSize: 11, fontWeight: 700, cursor: connected ? 'pointer' : 'not-allowed',
                 opacity: !connected ? 0.4 : 1, transition: 'all 130ms',
@@ -220,12 +220,12 @@ export function ProfileManager() {
                 <IPlay/>{applying === p.name ? 'Sending…' : 'Apply'}
               </button>
               <button onClick={() => handleDelete(p.name)} style={{
-                width: 30, height: 30, borderRadius: 6, border: '1px solid #1e1e1e',
-                background: 'transparent', color: '#3a3a3a', cursor: 'pointer',
+                width: 30, height: 30, borderRadius: 8, border: '1px solid #1e1e1e',
+                background: 'transparent', color: '#7f7f7f', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 130ms',
               }}
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#ff475733'; (e.currentTarget as HTMLButtonElement).style.color = '#ff4757'; (e.currentTarget as HTMLButtonElement).style.background = '#ff475712' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#1e1e1e'; (e.currentTarget as HTMLButtonElement).style.color = '#3a3a3a'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#1e1e1e'; (e.currentTarget as HTMLButtonElement).style.color = '#7f7f7f'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
               ><ITrash/></button>
             </div>
           ))}
@@ -235,15 +235,15 @@ export function ProfileManager() {
       {/* Autostart */}
       {profiles.length > 0 && (
         <div>
-          <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700, marginBottom: 8 }}>Autostart — Hyprland</div>
-          <div style={{ fontSize: 11, color: '#2e2e2e', marginBottom: 10, lineHeight: 1.6 }}>
-            Add to <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#484848' }}>~/.config/hypr/hyprland.conf</span> to launch a profile at startup:
+          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700, marginBottom: 8 }}>Autostart - Hyprland</div>
+          <div style={{ fontSize: 11, color: '#7f7f7f', marginBottom: 10, lineHeight: 1.6 }}>
+            Add to <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#7f7f7f' }}>~/.config/hypr/hyprland.conf</span> to launch a profile at startup:
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {profiles.map(p => (
               <div key={p.name} onClick={() => copyCmd(p.name)} title="Click to copy" style={{
                 display: 'flex', alignItems: 'center', gap: 10,
-                padding: '8px 12px', borderRadius: 7,
+                padding: '8px 12px', borderRadius: 8,
                 background: '#0a0a0a', border: `1px solid ${copied === p.name ? `${accent}44` : '#181818'}`,
                 cursor: 'pointer', transition: 'all 130ms',
               }}
@@ -251,7 +251,7 @@ export function ProfileManager() {
               onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = copied === p.name ? `${accent}44` : '#181818'}
               >
                 <span style={{ color: copied === p.name ? accent : '#3a3a3a', flexShrink: 0 }}><ICopy/></span>
-                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#484848', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#7f7f7f', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {autoStartCmd(p.name)}
                 </span>
                 {copied === p.name && <span style={{ fontSize: 10, color: accent, fontWeight: 700, flexShrink: 0 }}>Copied</span>}

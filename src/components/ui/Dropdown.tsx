@@ -23,7 +23,7 @@ export function Dropdown({ value, options, onChange, width = 160, small, accent 
     <div ref={ref} style={{ position: 'relative', width, flexShrink: 0 }}>
       <div onClick={() => setOpen(o => !o)} style={{
         background: '#1c1c1c', border: `1px solid ${open ? accent : '#2c2c2c'}`,
-        borderRadius: 6, height: h, padding: `0 28px 0 10px`,
+        borderRadius: 8, height: h, padding: `0 28px 0 10px`,
         cursor: 'pointer', fontSize: fs, color: '#ddd',
         display: 'flex', alignItems: 'center',
         position: 'relative', userSelect: 'none', transition: 'border-color 140ms',
@@ -32,7 +32,7 @@ export function Dropdown({ value, options, onChange, width = 160, small, accent 
         <span style={{
           position: 'absolute', right: 9, top: '50%',
           transform: `translateY(-50%) rotate(${open ? 180 : 0}deg)`,
-          transition: 'transform 140ms', color: '#555', fontSize: 9, lineHeight: 1,
+          transition: 'transform 140ms', color: '#9a9a9a', fontSize: 9, lineHeight: 1,
         }}>▾</span>
       </div>
       {open && (
@@ -44,7 +44,7 @@ export function Dropdown({ value, options, onChange, width = 160, small, accent 
         }}>
           {options.map(opt => (
             <div key={opt} onClick={() => { onChange(opt); setOpen(false) }} style={{
-              padding: '8px 10px', borderRadius: 5, cursor: 'pointer', fontSize: fs,
+              padding: '8px 10px', borderRadius: 8, cursor: 'pointer', fontSize: fs,
               color: opt === value ? accent : '#b8b8b8',
               background: opt === value ? `${accent}1a` : 'transparent',
               transition: 'background 80ms',

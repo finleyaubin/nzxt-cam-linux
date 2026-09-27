@@ -13,7 +13,7 @@ function gaugeColor(v: number, isTemp = false) {
 function Stat({ label, val }: { label: string; val: string }) {
   return (
     <div style={{ marginBottom: 8 }}>
-      <div style={{ fontSize: 9, color: '#404040', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 9, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 2 }}>{label}</div>
       <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#c4c4c4', fontWeight: 500 }}>{val}</div>
     </div>
   )
@@ -32,14 +32,14 @@ function TempCard({ id, title, sub, value, max, tempUnit, hist }: {
           <CircularGauge value={value} max={max} size={130} stroke={10} color={gc}/>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 12 }}>
             <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 30, fontWeight: 700, color: '#f2f2f2', lineHeight: 1 }}>
-              {disp}<span style={{ fontSize: 14, color: '#3a3a3a', fontWeight: 400 }}>{unit}</span>
+              {disp}<span style={{ fontSize: 14, color: '#7f7f7f', fontWeight: 400 }}>{unit}</span>
             </div>
-            <div style={{ fontSize: 9, color: '#3a3a3a', marginTop: 5, letterSpacing: '1.2px', textTransform: 'uppercase' }}>Temp</div>
+            <div style={{ fontSize: 9, color: '#7f7f7f', marginTop: 5, letterSpacing: '1.2px', textTransform: 'uppercase' }}>Temp</div>
           </div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: '#f0f0f0', marginBottom: 2, letterSpacing: '-0.3px' }}>{title}</div>
-          <div style={{ fontSize: 10, color: '#3e3e3e', marginBottom: 16, fontWeight: 500 }}>{sub}</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', marginBottom: 16, fontWeight: 500 }}>{sub}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
             <Stat label="Value" val={`${disp}${unit}`}/>
             <Stat label="Max" val={`${max}${unit}`}/>
@@ -64,7 +64,7 @@ function PumpCard({ rpm, hist }: { rpm: number; hist: number[] }) {
           <CircularGauge value={rpmPct} size={90} stroke={8} color={gc}/>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 8 }}>
             <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 14, fontWeight: 700, color: '#f2f2f2', lineHeight: 1 }}>{Math.round(rpm)}</div>
-            <div style={{ fontSize: 8, color: '#3a3a3a', marginTop: 4, letterSpacing: '1px' }}>RPM</div>
+            <div style={{ fontSize: 8, color: '#7f7f7f', marginTop: 4, letterSpacing: '1px' }}>RPM</div>
           </div>
         </div>
         <div>
@@ -95,13 +95,13 @@ function StorageCard() {
           <div key={label} style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center' }}>
               <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: c, fontWeight: 600 }}>{label}</span>
-              <span style={{ fontSize: 9, color: '#484848' }}>{fmt(used)} / {fmt(total)}</span>
+              <span style={{ fontSize: 9, color: '#7f7f7f' }}>{fmt(used)} / {fmt(total)}</span>
             </div>
             <ProgressBar value={pct} max={100} color={c} height={3}/>
           </div>
         )
       })}
-      <div style={{ fontSize: 9, color: '#2a2a2a', marginTop: 8 }}>* Approximate data</div>
+      <div style={{ fontSize: 9, color: '#7f7f7f', marginTop: 8 }}>* Approximate data</div>
     </Card>
   )
 }
@@ -132,7 +132,7 @@ export function MonitoringScreen() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>Monitoring</div>
         {deviceStatus.connected && (
-          <div style={{ fontSize: 11, color: '#484848', background: '#111', border: '1px solid #1e1e1e', padding: '4px 12px', borderRadius: 20 }}>
+          <div style={{ fontSize: 11, color: '#7f7f7f', background: '#111', border: '1px solid #1e1e1e', padding: '4px 12px', borderRadius: 20 }}>
             {deviceStatus.productName}
           </div>
         )}
@@ -157,8 +157,8 @@ export function MonitoringScreen() {
           { label: 'Pump',   val: `${Math.round(temperatures.pumpRpm)} RPM` },
         ].map(({ label, val }) => (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 9, color: '#3a3a3a', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700 }}>{label}</span>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#555', fontWeight: 500 }}>{val}</span>
+            <span style={{ fontSize: 9, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700 }}>{label}</span>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#9a9a9a', fontWeight: 500 }}>{val}</span>
           </div>
         ))}
       </div>
