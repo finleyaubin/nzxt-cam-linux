@@ -128,6 +128,8 @@ export const api = {
   },
 
   // --- Ring LED ---
+  setLcdOrientation: (degrees: number) =>
+    invoke<CommandResult>('set_lcd_orientation', { degrees }),
   sendRing: (mode: RingMode, channel: RingChannel) =>
     invoke<CommandResult>('send_ring', { mode, channel }),
 

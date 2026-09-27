@@ -103,6 +103,13 @@ export function TempDisplayConfig() {
   const { accent, temperatures, deviceStatus } = state
   const [s, setS] = useState<Settings>(DEFAULT)
   const [status, setStatus] = useState<'idle' | 'applying' | 'done' | 'error'>('idle')
+  const [rotation, setRotation] = useState(0)
+
+  const rotate = async () => {
+    const next = (rotation + 90) % 360
+    const res = await api.setLcdOrientation(next)
+    if (res.success) setRotation(next)
+  }
 
   const upd = <K extends keyof Settings>(k: K, v: Settings[K]) => setS(prev => ({ ...prev, [k]: v }))
 
@@ -229,7 +236,7 @@ export function TempDisplayConfig() {
               {status === 'applying' ? 'Sending…' : status === 'done' ? 'Applied ✓' : status === 'error' ? 'Error' : 'Apply to LCD'}
             </button>
 
-            <button onClick={() => {}} style={{
+            <button onClick={rotate} style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '7px 14px', borderRadius: 8, border: '1px solid #252525',
               background: 'transparent', color: '#555', fontSize: 12, fontWeight: 600,
@@ -266,7 +273,7 @@ export function TempDisplayConfig() {
             { label: 'Resolution', val: '480 × 480' },
             { label: 'Interface',  val: 'USB Direct' },
             { label: 'Brightness', val: '100%' },
-            { label: 'Rotation',   val: '0°' },
+            { label: 'Rotation',   val: `${rotation}°` },
           ].map(({ label, val }) => (
             <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 9, alignItems: 'center' }}>
               <span style={{ fontSize: 11, color: '#484848' }}>{label}</span>

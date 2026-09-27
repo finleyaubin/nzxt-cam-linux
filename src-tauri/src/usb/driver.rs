@@ -257,6 +257,13 @@ impl KrakenDriver {
         Ok(())
     }
 
+    pub async fn set_lcd_orientation(&self, degrees: u16) -> Result<()> {
+        let mut g = self.0.hw.lock().await;
+        let hw = g.as_mut().ok_or_else(|| anyhow!("Pas connecté"))?;
+        // ponytail: brightness pinned at 100%, add a param when a brightness control exists
+        write_cmd(hw, &[0x30, 0x02, 0x01, 100, 0x00, 0x00, 0x01, ((degrees / 90) % 4) as u8]).await
+    }
+
     // ========================================================================
     // Public actions
     // ========================================================================

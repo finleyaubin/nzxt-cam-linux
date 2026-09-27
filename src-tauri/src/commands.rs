@@ -491,6 +491,14 @@ pub async fn set_pump_profile(
     }
 }
 
+#[tauri::command]
+pub async fn set_lcd_orientation(degrees: u16, state: State<'_, AppState>) -> Result<CommandResult, String> {
+    match state.driver.set_lcd_orientation(degrees).await {
+        Ok(_) => Ok(CommandResult::ok()),
+        Err(e) => Ok(CommandResult::fail(e)),
+    }
+}
+
 // ============================================================================
 // Ring LED
 // ============================================================================

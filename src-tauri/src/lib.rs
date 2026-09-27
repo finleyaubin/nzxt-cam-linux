@@ -162,6 +162,7 @@ pub fn run() {
             commands::get_config,
             commands::save_config,
             commands::set_pump_profile,
+            commands::set_lcd_orientation,
             commands::get_gpu_fan_status,
             commands::set_gpu_fan_curve,
             commands::set_gpu_fan_auto,
