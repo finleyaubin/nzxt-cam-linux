@@ -53,7 +53,7 @@ const initialState: AppState = {
   compact: false,
   tempUnit: '°C',
   deviceStatus: { connected: false, productName: 'Not detected', pid: null, error: null, lcdControllable: false },
-  temperatures: { cpu: 0, gpu: 0, liquid: 0, pumpRpm: 0 },
+  temperatures: { cpu: 0, gpu: 0, liquid: 0, pumpRpm: 0, sensor1: 0, sensor2: 0, sensor3: 0 },
   currentMode: 'image',
   currentImagePath: null,
   currentGifPath: null,

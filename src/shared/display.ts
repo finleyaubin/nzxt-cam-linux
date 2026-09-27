@@ -9,28 +9,37 @@
 
 export const LCD_SIZE = 640
 
-export type MetricId = 'cpu' | 'gpu' | 'liquid' | 'pump'
+export type MetricId = 'cpu' | 'gpu' | 'liquid' | 'pump' | 'sensor1' | 'sensor2' | 'sensor3'
 export type ElementType = 'gauge' | 'bar' | 'text'
 
 export const METRIC_LABELS: Record<MetricId, string> = {
   cpu: 'CPU',
   gpu: 'GPU',
   liquid: 'Liquid',
-  pump: 'Pump'
+  pump: 'Pump',
+  sensor1: 'Sensor 1',
+  sensor2: 'Sensor 2',
+  sensor3: 'Sensor 3'
 }
 
 export const METRIC_UNIT: Record<MetricId, string> = {
   cpu: '°',
   gpu: '°',
   liquid: '°',
-  pump: ''
+  pump: '',
+  sensor1: '°',
+  sensor2: '°',
+  sensor3: '°'
 }
 
 export const METRIC_MAX: Record<MetricId, number> = {
   cpu: 100,
   gpu: 100,
   liquid: 60,
-  pump: 3000
+  pump: 3000,
+  sensor1: 100,
+  sensor2: 100,
+  sensor3: 100
 }
 
 interface ElementBase {
