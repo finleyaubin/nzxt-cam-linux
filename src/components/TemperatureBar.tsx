@@ -31,10 +31,10 @@ export function TemperatureBar() {
     <div className="bg-[#111118] border border-[#1e1e2e] rounded-xl p-4 space-y-3">
       <TempItem label="CPU" value={temperatures.cpu} color="#00ff88" />
       <TempItem label="GPU" value={temperatures.gpu} color="#00ff88" />
-      <TempItem label="Liquide" value={temperatures.liquid} color="#00d4ff" max={50} />
+      <TempItem label="Liquid" value={temperatures.liquid} color="#00d4ff" max={50} />
       {temperatures.pumpRpm > 0 && (
         <div className="flex items-center gap-3 pt-1 border-t border-[#1e1e2e]">
-          <span className="text-gray-400 text-sm w-12">Pompe</span>
+          <span className="text-gray-400 text-sm w-12">Pump</span>
           <span className="text-gray-300 text-sm font-mono">{temperatures.pumpRpm} RPM</span>
         </div>
       )}

@@ -82,7 +82,7 @@ impl GpuFanController {
 
     /// Set a predefined or manual curve — starts the loop.
     pub fn set_curve(&self, pts: Vec<(u8, u8)>) -> Result<()> {
-        let (hwmon, _) = find_amdgpu_hwmon().ok_or_else(|| anyhow!("GPU AMD introuvable"))?;
+        let (hwmon, _) = find_amdgpu_hwmon().ok_or_else(|| anyhow!("AMD GPU not found"))?;
         // Switch to manual first
         fs::write(PathBuf::from(&hwmon).join("pwm1_enable"), b"1\n")
             .map_err(|e| anyhow!("pwm_enable: {e}"))?;
@@ -95,7 +95,7 @@ impl GpuFanController {
     pub fn set_auto(&self) -> Result<()> {
         self.stop();
         *self.0.curve.lock() = None;
-        let (hwmon, _) = find_amdgpu_hwmon().ok_or_else(|| anyhow!("GPU AMD introuvable"))?;
+        let (hwmon, _) = find_amdgpu_hwmon().ok_or_else(|| anyhow!("AMD GPU not found"))?;
         fs::write(PathBuf::from(&hwmon).join("pwm1_enable"), b"2\n")
             .map_err(|e| anyhow!("pwm_enable auto: {e}"))?;
         Ok(())
@@ -227,8 +227,8 @@ fn make_label(driver: &str, hwmon_path: &PathBuf, pwm_idx: u8) -> String {
 
 fn friendly_driver(d: &str) -> &str {
     match d {
-        "nct6775" | "nct6776" | "nct6779" => "Carte mère",
-        "it87" => "Carte mère",
+        "nct6775" | "nct6776" | "nct6779" => "Motherboard",
+        "it87" => "Motherboard",
         "asus" | "asusec" => "ASUS EC",
         other => other,
     }

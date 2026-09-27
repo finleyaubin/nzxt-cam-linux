@@ -66,8 +66,8 @@ pub fn run() {
             image_io::set_lcd_rotation(config::load().lcd_rotation);
 
             // Tray icon — left click toggles window, right click shows menu.
-            let show_item = MenuItem::with_id(app, "show", "Afficher la fenêtre", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?;
+            let show_item = MenuItem::with_id(app, "show", "Show window", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
             let _tray = TrayIconBuilder::new()
@@ -184,7 +184,7 @@ pub fn run() {
             commands::set_autostart,
         ])
         .run(tauri::generate_context!())
-        .expect("erreur lors du démarrage de Tauri");
+        .expect("error while starting Tauri");
 }
 
 /// Apply a profile directly via the driver (used at startup, before Tauri State is accessible).

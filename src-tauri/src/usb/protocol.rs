@@ -8,7 +8,7 @@ pub fn product_name(pid: u16) -> &'static str {
     match pid {
         0x3008 => "Kraken Elite 280",
         0x3009 => "Kraken Elite 360",
-        0x300c => "Kraken Elite RGB 280",
+        0x300c => "Kraken 2023 Elite",
         0x300e => "Kraken Elite RGB 360",
         0x3012 => "Kraken Elite V2",
         _ => "Kraken (unknown)",

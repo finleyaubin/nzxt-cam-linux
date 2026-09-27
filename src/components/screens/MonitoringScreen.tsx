@@ -41,7 +41,7 @@ function TempCard({ id, title, sub, value, max, tempUnit, hist }: {
           <div style={{ fontSize: 16, fontWeight: 800, color: '#f0f0f0', marginBottom: 2, letterSpacing: '-0.3px' }}>{title}</div>
           <div style={{ fontSize: 10, color: '#3e3e3e', marginBottom: 16, fontWeight: 500 }}>{sub}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
-            <Stat label="Valeur" val={`${disp}${unit}`}/>
+            <Stat label="Value" val={`${disp}${unit}`}/>
             <Stat label="Max" val={`${max}${unit}`}/>
           </div>
         </div>
@@ -68,7 +68,7 @@ function PumpCard({ rpm, hist }: { rpm: number; hist: number[] }) {
           </div>
         </div>
         <div>
-          <Stat label="Vitesse" val={`${Math.round(rpm)} RPM`}/>
+          <Stat label="Speed" val={`${Math.round(rpm)} RPM`}/>
           <Stat label="Source" val="Liquid Cooling"/>
         </div>
       </div>
@@ -101,7 +101,7 @@ function StorageCard() {
           </div>
         )
       })}
-      <div style={{ fontSize: 9, color: '#2a2a2a', marginTop: 8 }}>* Données approximatives</div>
+      <div style={{ fontSize: 9, color: '#2a2a2a', marginTop: 8 }}>* Approximate data</div>
     </Card>
   )
 }
@@ -144,7 +144,7 @@ export function MonitoringScreen() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
-        <TempCard id="liq" title="Liquide" sub="Liquid coolant temperature" value={temperatures.liquid} max={60} tempUnit={tempUnit} hist={liqH}/>
+        <TempCard id="liq" title="Liquid" sub="Liquid coolant temperature" value={temperatures.liquid} max={60} tempUnit={tempUnit} hist={liqH}/>
         <PumpCard rpm={temperatures.pumpRpm} hist={pumpH}/>
         <StorageCard/>
       </div>

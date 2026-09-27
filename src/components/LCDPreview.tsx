@@ -49,7 +49,7 @@ export function LCDPreview() {
     return (
       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#080808', gap: 10 }}>
         <span style={{ color: '#252525' }}><IScreen/></span>
-        <span style={{ fontSize: 10, color: '#2a2a2a', fontWeight: 500 }}>Aucun contenu</span>
+        <span style={{ fontSize: 10, color: '#2a2a2a', fontWeight: 500 }}>No content</span>
       </div>
     )
   }

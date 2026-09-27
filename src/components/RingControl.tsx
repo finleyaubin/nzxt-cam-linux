@@ -22,23 +22,23 @@ type ModeDef = {
 
 const MODES: ModeDef[] = [
   { id: 'off',          label: 'Off',         hasColor: false, hasMultiColor: false, hasSpeed: false, description: 'LEDs off' },
-  { id: 'fixed',        label: 'Fixe',          hasColor: true,  hasMultiColor: false, hasSpeed: false, description: 'Couleur statique' },
-  { id: 'breathing',    label: 'Respiration',   hasColor: true,  hasMultiColor: false, hasSpeed: true,  description: 'Fondu doux' },
-  { id: 'pulse',        label: 'Pulse',         hasColor: true,  hasMultiColor: false, hasSpeed: true,  description: 'Flash rapide' },
+  { id: 'fixed',        label: 'Fixed',         hasColor: true,  hasMultiColor: false, hasSpeed: false, description: 'Static color' },
+  { id: 'breathing',    label: 'Breathing',     hasColor: true,  hasMultiColor: false, hasSpeed: true,  description: 'Soft fade' },
+  { id: 'pulse',        label: 'Pulse',         hasColor: true,  hasMultiColor: false, hasSpeed: true,  description: 'Quick flash' },
   { id: 'fading',       label: 'Fading',       hasColor: false, hasMultiColor: true,  hasSpeed: true,  description: 'Multi-color transition' },
-  { id: 'spectrumWave', label: 'Spectre',        hasColor: false, hasMultiColor: false, hasSpeed: true,  description: 'Auto rainbow' },
+  { id: 'spectrumWave', label: 'Spectrum',        hasColor: false, hasMultiColor: false, hasSpeed: true,  description: 'Auto rainbow' },
   { id: 'rainbowFlow',  label: 'Rainbow Flow',  hasColor: false, hasMultiColor: false, hasSpeed: true,  description: 'Flowing rainbow' },
   { id: 'rainbowPulse', label: 'Rainbow Pulse', hasColor: false, hasMultiColor: false, hasSpeed: true,  description: 'Pulsing rainbow' },
   { id: 'superRainbow', label: 'Super Rainbow', hasColor: false, hasMultiColor: false, hasSpeed: true,  description: 'Super rainbow' },
-  { id: 'marquee',      label: 'Marquee',       hasColor: true,  hasMultiColor: false, hasSpeed: true,  description: 'Couleur tournante' },
-  { id: 'staryNight',   label: 'Étoiles',       hasColor: true,  hasMultiColor: false, hasSpeed: true,  description: 'Scintillement' },
+  { id: 'marquee',      label: 'Marquee',       hasColor: true,  hasMultiColor: false, hasSpeed: true,  description: 'Rotating color' },
+  { id: 'staryNight',   label: 'Starry Night',  hasColor: true,  hasMultiColor: false, hasSpeed: true,  description: 'Twinkling' },
 ]
 
 const SPEEDS: { id: RingSpeed; label: string }[] = [
   { id: 'slowest', label: 'Slowest' },
-  { id: 'slower',  label: 'Lent' },
+  { id: 'slower',  label: 'Slow' },
   { id: 'normal',  label: 'Normal' },
-  { id: 'faster',  label: 'Rapide' },
+  { id: 'faster',  label: 'Fast' },
   { id: 'fastest', label: 'Max' },
 ]
 
@@ -51,8 +51,8 @@ type ChannelDef = {
 
 const CHANNELS: ChannelDef[] = [
   { id: 'ch01', icon: '⭕', label: 'Ring AIO',     hint: 'Channel 0x01 — ring around the LCD' },
-  { id: 'ch02', icon: '🌀', label: 'Ventilateurs', hint: 'Channel 0x02 — fans / external accessories' },
-  { id: 'ch07', icon: '🔆', label: 'Tout',          hint: 'Channel 0x07 — all channels at once' },
+  { id: 'ch02', icon: '🌀', label: 'Fans', hint: 'Channel 0x02 — fans / external accessories' },
+  { id: 'ch07', icon: '🔆', label: 'All',           hint: 'Channel 0x07 — all channels at once' },
 ]
 
 const SWATCHES = [
@@ -118,7 +118,7 @@ export function RingControl() {
 
       {/* Channel selector */}
       <div>
-        <p className="text-xs text-gray-500 mb-2 uppercase tracking-widest">Cible LED</p>
+        <p className="text-xs text-gray-500 mb-2 uppercase tracking-widest">LED target</p>
         <div className="grid grid-cols-4 gap-2">
           {CHANNELS.map((ch) => (
             <button
@@ -237,7 +237,7 @@ export function RingControl() {
                 onClick={addColor}
                 className="text-xs text-[#00d4ff] hover:text-white transition-colors mt-1 text-left"
               >
-                + Ajouter une couleur
+                + Add a color
               </button>
             )}
           </div>
@@ -247,7 +247,7 @@ export function RingControl() {
       {/* Speed */}
       {modeDef.hasSpeed && (
         <div>
-          <p className="text-xs text-gray-500 mb-2 uppercase tracking-widest">Vitesse</p>
+          <p className="text-xs text-gray-500 mb-2 uppercase tracking-widest">Speed</p>
           <div className="flex gap-2">
             {SPEEDS.map((s) => (
               <button

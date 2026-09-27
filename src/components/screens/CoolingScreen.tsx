@@ -99,7 +99,7 @@ function FanCurveChart({ chartId, tempSource, currentTemp, accent, pts, onChange
       <div style={{ fontSize: 11, color: '#555', marginBottom: 6, fontFamily: 'JetBrains Mono, monospace' }}>
         {tempSource}: <span style={{ color: curveColor }}>{Math.round(currentTemp)}°</span>
         {!editable && <span style={{ color: '#2a2a2a', marginLeft: 10, fontSize: 10 }}>(read-only — preset profile)</span>}
-        {editable && <span style={{ color: '#2a2a2a', marginLeft: 10, fontSize: 10 }}>glissez les points pour modifier</span>}
+        {editable && <span style={{ color: '#2a2a2a', marginLeft: 10, fontSize: 10 }}>drag points to edit</span>}
       </div>
       <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H}`}
         style={{ overflow: 'visible', cursor: drag !== null ? 'grabbing' : 'default' }}
@@ -150,7 +150,7 @@ function FanCurveChart({ chartId, tempSource, currentTemp, accent, pts, onChange
 type ProfileId = 'auto' | 'silent' | 'balanced' | 'performance' | 'turbo' | 'manual'
 
 const PROFILES: Record<Exclude<ProfileId, 'auto' | 'manual'>, { label: string; color: string; pts: FanPoint[] }> = {
-  silent:      { label: 'Silencieux',   color: '#4fc3f7', pts: [{ t: 20, s: 20 }, { t: 30, s: 22 }, { t: 40, s: 25 }, { t: 50, s: 32 }, { t: 60, s: 42 }, { t: 70, s: 55 }, { t: 80, s: 65 }] },
+  silent:      { label: 'Silent',       color: '#4fc3f7', pts: [{ t: 20, s: 20 }, { t: 30, s: 22 }, { t: 40, s: 25 }, { t: 50, s: 32 }, { t: 60, s: 42 }, { t: 70, s: 55 }, { t: 80, s: 65 }] },
   balanced:    { label: 'Balanced',    color: '#00e87a', pts: [{ t: 20, s: 25 }, { t: 30, s: 26 }, { t: 40, s: 30 }, { t: 50, s: 47 }, { t: 60, s: 65 }, { t: 70, s: 80 }] },
   performance: { label: 'Performance',  color: '#ffb347', pts: [{ t: 20, s: 35 }, { t: 30, s: 40 }, { t: 40, s: 50 }, { t: 50, s: 65 }, { t: 60, s: 80 }, { t: 70, s: 95 }, { t: 80, s: 100 }] },
   turbo:       { label: 'Turbo',        color: '#ff4757', pts: [{ t: 20, s: 60 }, { t: 30, s: 70 }, { t: 40, s: 80 }, { t: 50, s: 90 }, { t: 60, s: 100 }] },
@@ -169,7 +169,7 @@ interface GpuFanStatus {
 type GpuProfileId = 'auto' | 'silent' | 'balanced' | 'performance' | 'turbo' | 'manual'
 
 const GPU_PROFILES: Record<Exclude<GpuProfileId, 'auto' | 'manual'>, { label: string; color: string; pts: FanPoint[] }> = {
-  silent:      { label: 'Silencieux',  color: '#4fc3f7', pts: [{ t: 30, s: 0 }, { t: 50, s: 20 }, { t: 60, s: 30 }, { t: 70, s: 45 }, { t: 80, s: 60 }, { t: 90, s: 80 }] },
+  silent:      { label: 'Silent',      color: '#4fc3f7', pts: [{ t: 30, s: 0 }, { t: 50, s: 20 }, { t: 60, s: 30 }, { t: 70, s: 45 }, { t: 80, s: 60 }, { t: 90, s: 80 }] },
   balanced:    { label: 'Balanced',   color: '#00e87a', pts: [{ t: 30, s: 20 }, { t: 50, s: 30 }, { t: 60, s: 45 }, { t: 70, s: 60 }, { t: 80, s: 80 }, { t: 90, s: 100 }] },
   performance: { label: 'Performance', color: '#ffb347', pts: [{ t: 30, s: 35 }, { t: 50, s: 50 }, { t: 60, s: 65 }, { t: 70, s: 80 }, { t: 80, s: 95 }, { t: 90, s: 100 }] },
   turbo:       { label: 'Turbo',       color: '#ff4757', pts: [{ t: 30, s: 60 }, { t: 50, s: 75 }, { t: 60, s: 85 }, { t: 70, s: 95 }, { t: 80, s: 100 }] },
@@ -217,7 +217,7 @@ function GpuFanSection({ accent }: { accent: string }) {
     <Card style={{ padding: '16px 20px', border: `1px solid #2a2020` }} glow={false} accent={accent}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>RX 6700 XT — Ventilateurs GPU</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>RX 6700 XT — GPU fans</div>
           <div style={{ fontSize: 10, color: '#383838', marginTop: 3 }}>Control via hwmon · GPU temp source</div>
           {error && <div style={{ fontSize: 10, color: '#ff4757', marginTop: 4 }}>{error}</div>}
           {!status.controllable && !error && (
@@ -237,7 +237,7 @@ function GpuFanSection({ accent }: { accent: string }) {
         {(Object.entries(GPU_PROFILES) as [Exclude<GpuProfileId, 'auto' | 'manual'>, typeof GPU_PROFILES[keyof typeof GPU_PROFILES]][]).map(([id, p]) => (
           <ProfileButton key={id} id={id} label={p.label} color={p.color} active={profile === id} onClick={() => handleProfileClick(id)}/>
         ))}
-        <ProfileButton id="manual" label="Manuel" color={accent} active={profile === 'manual'} onClick={() => handleProfileClick('manual')}/>
+        <ProfileButton id="manual" label="Manual" color={accent} active={profile === 'manual'} onClick={() => handleProfileClick('manual')}/>
       </div>
 
       {profile !== 'auto' && (
@@ -271,7 +271,7 @@ interface FanChannel {
 type CaseFanProfileId = 'auto' | 'silent' | 'balanced' | 'performance' | 'turbo' | 'manual'
 
 const CASE_PROFILES: Record<Exclude<CaseFanProfileId, 'auto' | 'manual'>, { label: string; color: string; pts: FanPoint[] }> = {
-  silent:      { label: 'Silencieux',  color: '#4fc3f7', pts: [{ t: 30, s: 0 }, { t: 40, s: 20 }, { t: 50, s: 30 }, { t: 60, s: 45 }, { t: 70, s: 65 }, { t: 80, s: 85 }] },
+  silent:      { label: 'Silent',      color: '#4fc3f7', pts: [{ t: 30, s: 0 }, { t: 40, s: 20 }, { t: 50, s: 30 }, { t: 60, s: 45 }, { t: 70, s: 65 }, { t: 80, s: 85 }] },
   balanced:    { label: 'Balanced',   color: '#00e87a', pts: [{ t: 30, s: 20 }, { t: 40, s: 30 }, { t: 50, s: 45 }, { t: 60, s: 60 }, { t: 70, s: 80 }, { t: 80, s: 100 }] },
   performance: { label: 'Performance', color: '#ffb347', pts: [{ t: 30, s: 35 }, { t: 40, s: 50 }, { t: 50, s: 65 }, { t: 60, s: 80 }, { t: 70, s: 95 }, { t: 80, s: 100 }] },
   turbo:       { label: 'Turbo',       color: '#ff4757', pts: [{ t: 30, s: 60 }, { t: 40, s: 75 }, { t: 50, s: 85 }, { t: 60, s: 95 }, { t: 70, s: 100 }] },
@@ -382,7 +382,7 @@ function CaseFanSection({ accent }: { accent: string }) {
             {(Object.entries(CASE_PROFILES) as [Exclude<CaseFanProfileId, 'auto' | 'manual'>, typeof CASE_PROFILES[keyof typeof CASE_PROFILES]][]).map(([id, p]) => (
               <ProfileButton key={id} id={id} label={p.label} color={p.color} active={profile === id} onClick={() => handleProfileClick(id)}/>
             ))}
-            <ProfileButton id="manual" label="Manuel" color={accent} active={profile === 'manual'} onClick={() => handleProfileClick('manual')}/>
+            <ProfileButton id="manual" label="Manual" color={accent} active={profile === 'manual'} onClick={() => handleProfileClick('manual')}/>
           </div>
 
           {profile !== 'auto' && (
@@ -490,9 +490,9 @@ export function CoolingScreen() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>
-              {deviceStatus.connected ? deviceStatus.productName : 'Kraken Elite V2'} — Pompe
+              {deviceStatus.connected ? deviceStatus.productName : 'Kraken Elite V2'} — Pump
             </div>
-            <div style={{ fontSize: 10, color: '#383838', marginTop: 3 }}>Watercooling · contrôle CPU &amp; liquide</div>
+            <div style={{ fontSize: 10, color: '#383838', marginTop: 3 }}>Watercooling · CPU &amp; liquid control</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700, color: '#f0f0f0' }}>{temperatures.pumpRpm}</span>
@@ -505,7 +505,7 @@ export function CoolingScreen() {
           {(Object.entries(PROFILES) as [Exclude<ProfileId, 'auto' | 'manual'>, typeof PROFILES[keyof typeof PROFILES]][]).map(([id, p]) => (
             <ProfileButton key={id} id={id} label={p.label} color={p.color} active={profile === id} onClick={() => setProfile(id)}/>
           ))}
-          <ProfileButton id="manual" label="Manuel" color={accent} active={profile === 'manual'} onClick={() => setProfile('manual')}/>
+          <ProfileButton id="manual" label="Manual" color={accent} active={profile === 'manual'} onClick={() => setProfile('manual')}/>
         </div>
 
         {profile !== 'auto' && (

@@ -99,7 +99,7 @@ pub async fn send_color(
 pub async fn send_image(path: String, state: State<'_, AppState>) -> Result<CommandResult, String> {
     let bytes = tokio::fs::read(&path)
         .await
-        .map_err(|e| format!("Lecture fichier image: {e}"))?;
+        .map_err(|e| format!("Read image file: {e}"))?;
     let rgba = match image_io::image_to_device_rgba(&bytes) {
         Ok(b) => b,
         Err(e) => return Ok(CommandResult::fail(e)),
@@ -120,7 +120,7 @@ pub async fn send_image(path: String, state: State<'_, AppState>) -> Result<Comm
 pub async fn send_gif(path: String, state: State<'_, AppState>) -> Result<CommandResult, String> {
     let bytes = tokio::fs::read(&path)
         .await
-        .map_err(|e| format!("Lecture fichier GIF: {e}"))?;
+        .map_err(|e| format!("Read GIF file: {e}"))?;
     // Resize GIF in a blocking task — image decoding can be heavy.
     let resized = match tokio::task::spawn_blocking(move || image_io::resize_gif(&bytes)).await {
         Ok(Ok(b)) => b,
@@ -601,8 +601,8 @@ pub fn get_autostart() -> bool {
 
 #[tauri::command]
 pub fn set_autostart(enabled: bool) -> Result<(), String> {
-    let home = dirs::home_dir().ok_or("Home dir introuvable")?;
-    let exe = bin_path().ok_or("Binaire introuvable")?;
+    let home = dirs::home_dir().ok_or("Home dir not found")?;
+    let exe = bin_path().ok_or("Binary not found")?;
     let exe_str = exe.to_string_lossy();
 
     let service_dir  = home.join(".config/systemd/user");

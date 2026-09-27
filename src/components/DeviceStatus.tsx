@@ -11,7 +11,7 @@ export function DeviceStatus() {
       />
       <span className={deviceStatus.connected ? 'text-[#00d4ff]' : 'text-red-400'}>
         {deviceStatus.productName}
-        {deviceStatus.connected && !deviceStatus.lcdControllable && ' (LCD indisponible)'}
+        {deviceStatus.connected && !deviceStatus.lcdControllable && ' (LCD unavailable)'}
       </span>
       {deviceStatus.error && (
         <span className="text-yellow-500 text-xs ml-2 truncate max-w-[200px]" title={deviceStatus.error}>

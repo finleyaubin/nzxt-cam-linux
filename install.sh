@@ -59,7 +59,7 @@ cat > "$DESKTOP_FILE" << DESKTOP
 [Desktop Entry]
 Name=nzxtcam-v1
 GenericName=LCD Controller
-Comment=Contrôle l'écran LCD du NZXT Kraken Elite V2
+Comment=Control the LCD of NZXT Kraken Elite coolers
 Exec=$INSTALL_BIN
 Icon=$APP
 Terminal=false

@@ -111,7 +111,7 @@ export function LCDScreen() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Mode selector */}
           <Card style={{ padding: '14px 18px' }} accent={accent}>
-            <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 12, fontWeight: 700 }}>Mode d'affichage</div>
+            <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 12, fontWeight: 700 }}>Display mode</div>
             <div style={{ display: 'flex', gap: 6 }}>
               {MODES.map(({ id, label, Icon }) => (
                 <button key={id} onClick={() => dispatch({ type: 'SET_MODE', payload: id })} style={{
@@ -139,7 +139,7 @@ export function LCDScreen() {
             <TempDisplayConfig/>
           ) : (
             <Card style={{ padding: 20 }} accent={accent}>
-              <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14, fontWeight: 700 }}>Contenu LCD</div>
+              <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14, fontWeight: 700 }}>LCD content</div>
               <div style={{ display: 'flex', gap: 20 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                   <LCDPreview/>
