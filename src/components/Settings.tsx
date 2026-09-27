@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { AIO_DEVICES } from '@shared/devices'
-import { api, AppSettings, GpuSource, TempSensor } from '../lib/api'
+import { api, AppSettings, GpuSource, Sensor } from '../lib/api'
 import { useApp } from '../context/AppContext'
 
 const GITHUB_ISSUES_URL = 'https://github.com/cypherxdev77/nzxt-cam-linux/issues/new?template=device_support.md'
@@ -43,7 +43,7 @@ function SectionHeader({ icon, title, description }: { icon: React.ReactNode; ti
 }
 
 function SensorSelect({ label, emptyLabel, value, sensors, onChange }: {
-  label: string; emptyLabel: string; value: string | null; sensors: TempSensor[]; onChange: (v: string | null) => void
+  label: string; emptyLabel: string; value: string | null; sensors: Sensor[]; onChange: (v: string | null) => void
 }) {
   return (
     <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -53,7 +53,7 @@ function SensorSelect({ label, emptyLabel, value, sensors, onChange }: {
         border: '1px solid #1e1e1e', fontSize: 12,
       }}>
         <option value="">{emptyLabel}</option>
-        {sensors.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+        {sensors.map(s => <option key={s.id} value={s.id}>{s.label} [{s.unit}]</option>)}
       </select>
     </label>
   )
@@ -123,13 +123,13 @@ export function Settings() {
   const accent = state.accent
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [gpus, setGpus] = useState<GpuSource[]>([])
-  const [sensors, setSensors] = useState<TempSensor[]>([])
+  const [sensors, setSensors] = useState<Sensor[]>([])
   const [requested, setRequested] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     api.getSettings().then(setSettings)
     api.listGpuSources().then(setGpus)
-    api.listTempSensors().then(setSensors)
+    api.listSensors().then(setSensors)
   }, [])
 
   const update = useCallback(async (patch: Partial<AppSettings>) => {
@@ -204,9 +204,9 @@ export function Settings() {
       <Divider/>
 
       {/* Sensors */}
-      <SectionHeader icon={<IChip/>} title="Sensors" description="Pick which sensor feeds CPU, and bind Sensor 1–3 for use on LCD gauges, bars and text ({sensor1} etc.)."/>
+      <SectionHeader icon={<IChip/>} title="Sensors" description="Pick which temperature feeds CPU, and bind Sensor 1–3 to any temperature, load, clock, power, fan or memory reading for LCD gauges, bars and text ({sensor1} etc.)."/>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <SensorSelect label="CPU source" emptyLabel="Automatic" value={settings?.cpuSource ?? null} sensors={sensors} onChange={v => update({ cpuSource: v })}/>
+        <SensorSelect label="CPU source" emptyLabel="Automatic" value={settings?.cpuSource ?? null} sensors={sensors.filter(s => s.unit === '°')} onChange={v => update({ cpuSource: v })}/>
         {[0, 1, 2].map(i => (
           <SensorSelect key={i} label={`Sensor ${i + 1}`} emptyLabel="None" value={settings?.sensorSources?.[i] ?? null} sensors={sensors} onChange={v => {
             const next = [0, 1, 2].map(j => settings?.sensorSources?.[j] ?? null)

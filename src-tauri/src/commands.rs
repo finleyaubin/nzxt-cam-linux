@@ -268,8 +268,8 @@ pub fn list_gpu_sources() -> Vec<GpuSource> {
 }
 
 #[tauri::command]
-pub fn list_temp_sensors() -> Vec<sensors::all::TempSensor> {
-    sensors::all::list_temp_sensors()
+pub fn list_sensors() -> Vec<sensors::all::Sensor> {
+    sensors::all::list_sensors()
 }
 
 #[tauri::command]

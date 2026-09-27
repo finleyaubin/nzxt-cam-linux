@@ -30,6 +30,10 @@ fn read_slot(slot: usize) -> f64 {
         .unwrap_or(0.0)
 }
 
+pub fn slot_unit(slot: usize) -> &'static str {
+    SENSOR_SOURCES.read().get(slot).cloned().flatten().map_or("", |id| all::unit_of(&id))
+}
+
 pub fn get_gpu_source() -> Option<String> {
     SELECTED_GPU.read().clone()
 }

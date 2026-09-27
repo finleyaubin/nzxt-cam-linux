@@ -158,7 +158,7 @@ pub fn run() {
             commands::save_display_config,
             commands::render_display_preview,
             commands::list_gpu_sources,
-            commands::list_temp_sensors,
+            commands::list_sensors,
             commands::get_settings,
             commands::save_settings,
             commands::open_external,
