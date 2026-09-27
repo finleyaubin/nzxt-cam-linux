@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import QRCode from 'qrcode'
 import { useApp } from '../../context/AppContext'
+import { Heart, Copy, Check, QrCode, X } from '@phosphor-icons/react'
 
-const IHeart = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-const ICopy = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-const ICheck = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-const IQR = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="5" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="16" y="5" width="3" height="3" fill="currentColor" stroke="none"/><rect x="5" y="16" width="3" height="3" fill="currentColor" stroke="none"/><path d="M14 14h3v3h-3z" fill="currentColor" stroke="none"/><path d="M17 17h4"/><path d="M17 21v-4"/><path d="M21 17h-1v4"/></svg>
+const IHeart = () => <Heart size={14} weight="fill" />
+const ICopy = () => <Copy size={13} weight="regular" />
+const ICheck = () => <Check size={13} weight="regular" />
+const IQR = () => <QrCode size={13} weight="regular" />
 
 function QRModal({ name, symbol, color, address, onClose }: { name: string, symbol: string, color: string, address: string, onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -28,7 +29,7 @@ function QRModal({ name, symbol, color, address, onClose }: { name: string, symb
             <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>{name}</div>
             <div style={{ fontSize: 9, color: '#7f7f7f', fontWeight: 700 }}>{symbol}</div>
           </div>
-          <button onClick={onClose} style={{ marginLeft: 16, background: 'none', border: 'none', color: '#7f7f7f', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
+          <button onClick={onClose} style={{ marginLeft: 16, background: 'none', border: 'none', color: '#7f7f7f', fontSize: 22, cursor: 'pointer', lineHeight: 1, display: 'flex' }}><X size={16} weight="regular" /></button>
         </div>
         <div style={{ padding: 10, background: '#0f0f0f', borderRadius: 12, border: `1px solid ${color}33` }}>
           <canvas ref={canvasRef} style={{ display: 'block', borderRadius: 8 }}/>
@@ -66,11 +67,11 @@ function DonatePanel({ onClose }: { onClose: () => void }) {
             <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 2 }}>NZXTCAM Linux · Open Source</div>
           </div>
         </div>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#7f7f7f', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}>×</button>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#7f7f7f', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '0 4px', display: 'flex' }}><X size={16} weight="regular" /></button>
       </div>
       <div style={{ padding: '12px 18px', background: '#0d0d0d', borderBottom: '1px solid #1a1a1a' }}>
         <p style={{ fontSize: 11, color: '#9a9a9a', lineHeight: 1.6 }}>
-          This project is open source and developed for free. If you appreciate it and want to support its development, any contribution is welcome. 🙏
+          This project is open source and developed for free. If you appreciate it and want to support its development, any contribution is welcome.
         </p>
       </div>
       <div style={{ padding: '12px 14px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -135,7 +136,7 @@ export function DonateWidget() {
           width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#7f7f7f', cursor: 'pointer', fontSize: 14, lineHeight: 1,
           boxShadow: '0 4px 16px rgba(0,0,0,0.6)', transition: 'all 180ms', flexShrink: 0,
-        }}>×</button>
+        }}><X size={11} weight="regular" /></button>
       </div>
     </div>
   )

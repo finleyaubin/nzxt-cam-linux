@@ -7,6 +7,7 @@ import { Settings } from '../Settings'
 import { ProfileManager } from '../ProfileManager'
 import { api } from '../../lib/api'
 import type { Lang } from '../../i18n/translations'
+import { GithubLogo, Bug, ChatCircle, Copy, Check, CaretRight } from '@phosphor-icons/react'
 
 const ACCENT_COLORS = [
   { name: 'Violet', c: '#9d4edd' },
@@ -23,26 +24,11 @@ const WALLETS = [
   { id: 'sol', name: 'Solana',   symbol: 'SOL',      color: '#9945ff', icon: '◎', address: '7nA4q7dDXujLe6SbBX6hx91dMkwTMKcttCX1SNP1bc2v' },
 ]
 
-const IGithub = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.34-3.369-1.34-.454-1.154-1.11-1.462-1.11-1.462-.908-.62.069-.607.069-.607 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.268 2.75 1.026A9.578 9.578 0 0 1 12 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.026 2.747-1.026.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/>
-  </svg>
-)
-const IBug = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M8 2l1.5 1.5"/><path d="M14.5 3.5L16 2"/><path d="M9 9h6"/><path d="M9 12h6"/>
-    <path d="M12 21c-3.314 0-6-2.686-6-6V9a3 3 0 0 1 6 0v6"/><path d="M12 21c3.314 0 6-2.686 6-6V9a3 3 0 0 0-6 0v6"/>
-    <line x1="3" y1="10" x2="6" y2="10"/><line x1="18" y1="10" x2="21" y2="10"/>
-    <line x1="3" y1="15" x2="6" y2="15"/><line x1="18" y1="15" x2="21" y2="15"/>
-  </svg>
-)
-const IChat = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-  </svg>
-)
-const ICopy = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-const ICheck = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+const IGithub = () => <GithubLogo size={16} weight="fill" />
+const IBug = () => <Bug size={16} weight="regular" />
+const IChat = () => <ChatCircle size={16} weight="regular" />
+const ICopy = () => <Copy size={13} weight="regular" />
+const ICheck = () => <Check size={13} weight="regular" />
 
 function SupportTab({ accent }: { accent: string }) {
   const { t } = useLanguage()
@@ -76,7 +62,7 @@ function SupportTab({ accent }: { accent: string }) {
             <div style={{ fontSize: 13, fontWeight: 700, color: '#d0d0d0', marginBottom: 2 }}>{title}</div>
             <div style={{ fontSize: 10, color: '#7f7f7f' }}>{desc}</div>
           </div>
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <CaretRight size={13} weight="regular" color="#7f7f7f" />
         </div>
       ))}
 

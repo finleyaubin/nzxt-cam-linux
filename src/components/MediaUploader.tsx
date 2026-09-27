@@ -1,20 +1,11 @@
 import { useApp } from '../context/AppContext'
 import { useIPC } from '../hooks/useIPC'
 import { api } from '../lib/api'
+import { UploadSimple, Thermometer } from '@phosphor-icons/react'
 
-const IUpload = () => (
-  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-    <polyline points="17 8 12 3 7 8"/>
-    <line x1="12" y1="3" x2="12" y2="15"/>
-  </svg>
-)
+const IUpload = () => <UploadSimple size={28} weight="regular" />
 
-const IThermo = () => (
-  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
-  </svg>
-)
+const IThermo = () => <Thermometer size={28} weight="regular" />
 
 export function MediaUploader() {
   const { state, dispatch } = useApp()

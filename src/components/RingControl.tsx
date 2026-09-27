@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
 import { api, RingMode, RingChannel, RingSpeed } from '../lib/api'
+import { CircleNotch, Fan, Sun, Lightbulb, Check, X } from '@phosphor-icons/react'
 
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '')
@@ -44,15 +45,15 @@ const SPEEDS: { id: RingSpeed; label: string }[] = [
 
 type ChannelDef = {
   id: RingChannel
-  icon: string
+  icon: ReactNode
   label: string
   hint: string
 }
 
 const CHANNELS: ChannelDef[] = [
-  { id: 'ch01', icon: '⭕', label: 'Ring AIO',     hint: 'Channel 0x01 - ring around the LCD' },
-  { id: 'ch02', icon: '🌀', label: 'Fans', hint: 'Channel 0x02 - fans / external accessories' },
-  { id: 'ch07', icon: '🔆', label: 'All',           hint: 'Channel 0x07 - all channels at once' },
+  { id: 'ch01', icon: <CircleNotch size={20} weight="regular" />, label: 'Ring AIO',     hint: 'Channel 0x01 - ring around the LCD' },
+  { id: 'ch02', icon: <Fan size={20} weight="regular" />, label: 'Fans', hint: 'Channel 0x02 - fans / external accessories' },
+  { id: 'ch07', icon: <Sun size={20} weight="regular" />, label: 'All',           hint: 'Channel 0x07 - all channels at once' },
 ]
 
 const SWATCHES = [
@@ -131,7 +132,7 @@ export function RingControl() {
                   : 'bg-[#111111] text-gray-400 border border-[#1e1e1e] hover:border-[#00d4ff44] hover:text-gray-200'
               }`}
             >
-              <span className="text-xl">{ch.icon}</span>
+              {ch.icon}
               <span>{ch.label}</span>
             </button>
           ))}
@@ -141,7 +142,7 @@ export function RingControl() {
         </p>
         {channel === 'ch01' && (
           <p className="text-xs text-yellow-500/80 mt-1">
-            Try ⭕ Ring AIO for the white ring around the LCD screen
+            Try Ring AIO for the white ring around the LCD screen
           </p>
         )}
       </div>
@@ -227,7 +228,7 @@ export function RingControl() {
                     onClick={() => removeColor(i)}
                     className="text-gray-400 hover:text-red-400 text-xl leading-none transition-colors"
                   >
-                    ×
+                    <X size={16} weight="regular" />
                   </button>
                 )}
               </div>
@@ -273,11 +274,11 @@ export function RingControl() {
           disabled={!connected || sending}
           className="px-6 py-3 rounded-xl text-sm font-semibold transition-all bg-[#00d4ff] text-[#0a0a0a] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(0,212,255,0.3)]"
         >
-          {sending ? 'Sending...' : '💡 Apply'}
+          {sending ? 'Sending...' : <span className="inline-flex items-center gap-1.5"><Lightbulb size={14} weight="regular" />Apply</span>}
         </button>
         {lastSent && !error && (
-          <span className="text-xs text-green-400">
-            ✓ {CHANNELS.find((c) => c.id === lastSent.channel)?.label} - {MODES.find((m) => m.id === lastSent.mode)?.label}
+          <span className="text-xs text-green-400 inline-flex items-center gap-1">
+            <Check size={12} weight="regular" />{CHANNELS.find((c) => c.id === lastSent.channel)?.label} - {MODES.find((m) => m.id === lastSent.mode)?.label}
           </span>
         )}
       </div>

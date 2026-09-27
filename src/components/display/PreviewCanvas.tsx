@@ -1,12 +1,13 @@
 import { useRef, useState, useCallback } from 'react'
 import { DisplayConfig, DisplayElement, LCD_SIZE } from '@shared/display'
+import { Gauge, Rectangle, TextT } from '@phosphor-icons/react'
 
 const CANVAS_PX = 440
 
-const TYPE_ICON: Record<DisplayElement['type'], string> = {
-  gauge: '◠',
-  bar: '▭',
-  text: 'T'
+const TYPE_ICON: Record<DisplayElement['type'], React.ReactNode> = {
+  gauge: <Gauge size={12} weight="regular" />,
+  bar: <Rectangle size={12} weight="regular" />,
+  text: <TextT size={12} weight="regular" />
 }
 
 interface Props {

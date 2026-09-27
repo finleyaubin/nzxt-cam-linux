@@ -1,4 +1,5 @@
 import { useApp } from '../context/AppContext'
+import { Warning } from '@phosphor-icons/react'
 
 export function DeviceStatus() {
   const { state } = useApp()
@@ -15,7 +16,7 @@ export function DeviceStatus() {
       </span>
       {deviceStatus.error && (
         <span className="text-yellow-500 text-xs ml-2 truncate max-w-[200px]" title={deviceStatus.error}>
-          ⚠ {deviceStatus.error}
+          <Warning size={12} weight="regular" className="inline align-[-2px] mr-1" />{deviceStatus.error}
         </span>
       )}
     </div>

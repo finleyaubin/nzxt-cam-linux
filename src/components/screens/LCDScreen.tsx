@@ -7,6 +7,7 @@ import { LCDPreview } from '../LCDPreview'
 import { api } from '../../lib/api'
 import { useState } from 'react'
 import { Temperatures } from '../../lib/api'
+import { Monitor, Image, Gif, Thermometer, Play, Check } from '@phosphor-icons/react'
 
 function LivePreview({ applied, temperatures }: {
   applied: { mode: 'image' | 'gif' | 'temperatures'; url?: string } | null
@@ -19,9 +20,7 @@ function LivePreview({ applied, temperatures }: {
         border: '1px solid #1e1e1e', boxShadow: '0 0 0 4px #111, 0 0 0 5px #1a1a1a',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
       }}>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#252525" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-        </svg>
+        <Monitor size={28} weight="regular" color="#7f7f7f" />
         <span style={{ fontSize: 10, color: '#7f7f7f', fontWeight: 500 }}>Not found</span>
       </div>
     )
@@ -53,21 +52,9 @@ function LivePreview({ applied, temperatures }: {
   )
 }
 
-const IImage = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-  </svg>
-)
-const IGif = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="6" width="20" height="12" rx="2"/><path d="M10 9v6M6 9h4M14 9v6h3M17 12h-3"/>
-  </svg>
-)
-const IThermo = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
-  </svg>
-)
+const IImage = () => <Image size={14} weight="regular" />
+const IGif = () => <Gif size={14} weight="regular" />
+const IThermo = () => <Thermometer size={14} weight="regular" />
 
 const MODES = [
   { id: 'image',        label: 'Image',        Icon: IImage  },
@@ -163,10 +150,10 @@ export function LCDScreen() {
                 boxShadow: deviceStatus.connected ? `0 0 16px ${accent}44` : 'none',
                 transition: 'all 140ms',
               }}>
-                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <Play size={13} weight="fill" />
                 {applying ? 'Sending…' : applied ? 'Applied to LCD' : 'Apply to LCD'}
               </button>
-              {applied && <span style={{ fontSize: 11, color: '#00e87a' }}>✓</span>}
+              {applied && <Check size={11} weight="regular" color="#00e87a" />}
               {!deviceStatus.connected && <span style={{ fontSize: 11, color: '#ffb347' }}>Device not connected</span>}
             </div>
           )}

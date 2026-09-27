@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
 import { api, Profile, ProfileLcd, ProfileSummary } from '../lib/api'
+import { Plus, Play, Trash, Copy, Check } from '@phosphor-icons/react'
 
 const LCD_TYPE_LABEL: Record<string, string> = {
   image:        'Image',
@@ -9,26 +10,10 @@ const LCD_TYPE_LABEL: Record<string, string> = {
   none:         'LCD unchanged',
 }
 
-const IPlus = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-  </svg>
-)
-const IPlay = () => (
-  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-    <polygon points="5 3 19 12 5 21 5 3"/>
-  </svg>
-)
-const ITrash = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
-  </svg>
-)
-const ICopy = () => (
-  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-  </svg>
-)
+const IPlus = () => <Plus size={12} weight="regular" />
+const IPlay = () => <Play size={11} weight="fill" />
+const ITrash = () => <Trash size={12} weight="regular" />
+const ICopy = () => <Copy size={11} weight="regular" />
 
 function SaveDialog({ onSave, onCancel }: {
   onSave: (name: string, includeLcd: boolean, includeRing: boolean) => void
@@ -78,7 +63,7 @@ function SaveDialog({ onSave, onCancel }: {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   transition: 'all 140ms',
                 }}>
-                  {val && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                  {val && <Check size={9} weight="regular" color="#fff" />}
                 </div>
                 <span style={{ fontSize: 12, fontWeight: 600, color: val ? '#d0d0d0' : '#555' }}>{label}</span>
               </div>
@@ -264,7 +249,7 @@ export function ProfileManager() {
       {/* Feedback */}
       {success && (
         <div style={{ fontSize: 11, color: '#00e87a', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <Check size={12} weight="regular" />
           {success}
         </div>
       )}

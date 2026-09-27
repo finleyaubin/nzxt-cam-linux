@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext'
 import { CircularGauge } from '../ui/CircularGauge'
 import { Card } from '../ui/Card'
 import { Dropdown } from '../ui/Dropdown'
+import { GraphicsCard } from '@phosphor-icons/react'
 
 interface FanPoint { t: number; s: number }
 
@@ -537,9 +538,7 @@ export function CoolingScreen() {
       <Card style={{ padding: '14px 20px' }} glow={false} accent={accent}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, background: '#111', border: '1px solid #222', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#484848" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M6 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
-            </svg>
+            <GraphicsCard size={18} weight="regular" color="#7f7f7f" />
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#9a9a9a' }}>GPU - Independent fans</div>

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { CaretDown } from '@phosphor-icons/react'
 
 interface Props {
   value: string
@@ -32,8 +33,8 @@ export function Dropdown({ value, options, onChange, width = 160, small, accent 
         <span style={{
           position: 'absolute', right: 9, top: '50%',
           transform: `translateY(-50%) rotate(${open ? 180 : 0}deg)`,
-          transition: 'transform 140ms', color: '#9a9a9a', fontSize: 9, lineHeight: 1,
-        }}>▾</span>
+          transition: 'transform 140ms', color: '#9a9a9a', display: 'flex',
+        }}><CaretDown size={10} weight="regular" /></span>
       </div>
       {open && (
         <div style={{

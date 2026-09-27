@@ -1,11 +1,13 @@
+import type { ReactNode } from 'react'
 import { useApp } from '../context/AppContext'
+import { Image, FilmStrip, Thermometer } from '@phosphor-icons/react'
 
 type Mode = 'image' | 'gif' | 'temperatures'
 
-const modes: { id: Mode; label: string; icon: string }[] = [
-  { id: 'image', label: 'Image', icon: '🖼️' },
-  { id: 'gif', label: 'GIF', icon: '🎬' },
-  { id: 'temperatures', label: 'Temperatures', icon: '🌡️' }
+const modes: { id: Mode; label: string; icon: ReactNode }[] = [
+  { id: 'image', label: 'Image', icon: <Image size={16} weight="regular" /> },
+  { id: 'gif', label: 'GIF', icon: <FilmStrip size={16} weight="regular" /> },
+  { id: 'temperatures', label: 'Temperatures', icon: <Thermometer size={16} weight="regular" /> }
 ]
 
 export function ModeSelector() {

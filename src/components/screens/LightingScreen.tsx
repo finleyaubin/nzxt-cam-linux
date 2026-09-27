@@ -5,6 +5,7 @@ import { Dropdown } from '../ui/Dropdown'
 import { Slider } from '../ui/Slider'
 import { ToggleSwitch } from '../ui/ToggleSwitch'
 import { api, RingMode, RingChannel, RingSpeed } from '../../lib/api'
+import { Fan, Sun, Play } from '@phosphor-icons/react'
 
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '')
@@ -57,27 +58,12 @@ function FanIcon({ color, size = 42 }: { color: string; size?: number }) {
   return (
     <>
       <style>{`@keyframes fan-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-      <div style={{ width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <svg width={size} height={size} viewBox="0 0 42 42"
-          style={{ animation: 'fan-spin 1.4s linear infinite', transformOrigin: '50% 50%' }}>
-          {/* hub */}
-          <circle cx="21" cy="21" r="4" fill={color} opacity="0.9"/>
-          <circle cx="21" cy="21" r="2" fill="#111"/>
-          {/* 3 blades at 0°, 120°, 240° */}
-          {[0, 120, 240].map(deg => {
-            const rad = (deg - 90) * Math.PI / 180
-            const bx = 21 + 11 * Math.cos(rad), by = 21 + 11 * Math.sin(rad)
-            const tx1 = 21 + 7 * Math.cos(rad - 0.55), ty1 = 21 + 7 * Math.sin(rad - 0.55)
-            const tx2 = 21 + 7 * Math.cos(rad + 0.55), ty2 = 21 + 7 * Math.sin(rad + 0.55)
-            return (
-              <path key={deg}
-                d={`M21,21 L${tx1.toFixed(1)},${ty1.toFixed(1)} Q${bx.toFixed(1)},${by.toFixed(1)} ${tx2.toFixed(1)},${ty2.toFixed(1)} Z`}
-                fill={color} opacity="0.85"
-                style={{ filter: `drop-shadow(0 0 3px ${color}88)` }}
-              />
-            )
-          })}
-        </svg>
+      <div style={{
+        width: size, height: size, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        animation: 'fan-spin 1.4s linear infinite', transformOrigin: '50% 50%',
+        filter: `drop-shadow(0 0 3px ${color}88)`,
+      }}>
+        <Fan size={Math.round(size * 0.6)} weight="fill" color={color} />
       </div>
     </>
   )
@@ -99,11 +85,7 @@ function BrightnessRow({ value, onChange, accent }: { value: number; onChange: (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
       <div style={{ width: 7, height: 7, borderRadius: '50%', border: '1px solid #444' }}/>
       <div style={{ flex: 1 }}><Slider value={value} min={0} max={100} onChange={onChange} color={accent}/></div>
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#555" strokeWidth="2" strokeLinecap="round">
-        <circle cx="12" cy="12" r="5"/>
-        <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-      </svg>
+      <Sun size={14} weight="regular" color="#7f7f7f" />
     </div>
   )
 }
@@ -226,7 +208,7 @@ function RingDeviceRow({ name, sub, isFan, accent }: {
             cursor: connected ? 'pointer' : 'not-allowed',
             boxShadow: connected ? `0 0 12px ${accent}44` : 'none', transition: 'all 140ms',
           }}>
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <Play size={12} weight="fill" />
             {sending ? 'Sending…' : 'Apply'}
           </button>
           {lastApplied && <span style={{ fontSize: 11, color: '#00e87a' }}>Applied</span>}

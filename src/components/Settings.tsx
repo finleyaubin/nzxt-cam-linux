@@ -2,33 +2,14 @@ import { useEffect, useState, useCallback } from 'react'
 import { AIO_DEVICES } from '@shared/devices'
 import { api, AppSettings, GpuSource, Sensor } from '../lib/api'
 import { useApp } from '../context/AppContext'
+import { Cpu, Clock, Monitor, Drop } from '@phosphor-icons/react'
 
 const GITHUB_ISSUES_URL = 'https://github.com/cypherxdev77/nzxt-cam-linux/issues/new?template=device_support.md'
 
-const IChip = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="9" y="9" width="6" height="6" rx="1"/><rect x="2" y="2" width="20" height="20" rx="3"/>
-    <line x1="9" y1="2" x2="9" y2="5"/><line x1="15" y1="2" x2="15" y2="5"/>
-    <line x1="9" y1="19" x2="9" y2="22"/><line x1="15" y1="19" x2="15" y2="22"/>
-    <line x1="2" y1="9" x2="5" y2="9"/><line x1="2" y1="15" x2="5" y2="15"/>
-    <line x1="19" y1="9" x2="22" y2="9"/><line x1="19" y1="15" x2="22" y2="15"/>
-  </svg>
-)
-const IClock = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-  </svg>
-)
-const IMonitor = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-  </svg>
-)
-const IDroplet = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
-  </svg>
-)
+const IChip = () => <Cpu size={13} weight="regular" />
+const IClock = () => <Clock size={13} weight="regular" />
+const IMonitor = () => <Monitor size={13} weight="regular" />
+const IDroplet = () => <Drop size={13} weight="regular" />
 
 function SectionHeader({ icon, title, description }: { icon: React.ReactNode; title: string; description?: string }) {
   return (
@@ -263,7 +244,7 @@ export function Settings() {
                       }}
                       onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#3a3a3a'; (e.currentTarget as HTMLButtonElement).style.color = '#888' }}
                       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#222'; (e.currentTarget as HTMLButtonElement).style.color = '#7f7f7f' }}
-                      >{requested.has(d.id) ? '✓ Request sent' : "Request support"}</button>
+                      >{requested.has(d.id) ? 'Request sent' : "Request support"}</button>
                     )}
                   </div>
                 )

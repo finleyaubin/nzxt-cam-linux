@@ -52,7 +52,7 @@ export const translations = {
     elements: 'Elements',
     properties: 'Properties',
     no_elements: 'No elements',
-    apply_error: '✕ Error: retry',
+    apply_error: 'Error: retry',
     select_element: 'Select an element (handle on preview or list on the left) to edit it.',
 
     // Element Inspector
@@ -87,7 +87,7 @@ export const translations = {
     fx_fading_desc: 'Multi-color transition',
     fx_rainbow_pulse_desc: 'Pulsing rainbow',
     fx_marquee_desc: 'Rotating color',
-    ring_tip: 'Try ⭕ Ring AIO for the white ring around the LCD screen',
+    ring_tip: 'Try Ring AIO for the white ring around the LCD screen',
 
     // Cooling
     preset_balanced: 'Balanced',
@@ -152,7 +152,7 @@ export const translations = {
     device_draft: 'Draft',
     device_active: 'Active',
     device_select: 'Select',
-    request_sent: '✓ Request sent',
+    request_sent: 'Request sent',
     request_support: 'Request support',
     lcd_info: 'LCD resolution: 480 × 480 px · Interface: USB Direct · Firmware: Kraken Elite V2',
 
@@ -166,7 +166,7 @@ export const translations = {
     collapse: 'Collapse',
 
     // Donate
-    donate_text: "This project is open source and developed for free. If you appreciate it and want to support its development, any contribution is welcome. 🙏",
+    donate_text: "This project is open source and developed for free. If you appreciate it and want to support its development, any contribution is welcome.",
 
     // Error
     unknown_error: 'Unknown error',
@@ -220,7 +220,7 @@ export const translations = {
     elements: 'Éléments',
     properties: 'Propriétés',
     no_elements: 'Aucun élément',
-    apply_error: '✕ Erreur: réessayer',
+    apply_error: 'Erreur: réessayer',
     select_element: "Sélectionne un élément (poignée sur l'aperçu ou liste à gauche) pour l'éditer.",
 
     metric: 'Métrique',
@@ -252,7 +252,7 @@ export const translations = {
     fx_fading_desc: 'Transition multi-couleurs',
     fx_rainbow_pulse_desc: 'Arc-en-ciel pulsé',
     fx_marquee_desc: 'Couleur tournante',
-    ring_tip: "Essayez ⭕ Ring AIO pour le ring blanc autour de l'écran LCD",
+    ring_tip: "Essayez Ring AIO pour le ring blanc autour de l'écran LCD",
 
     preset_balanced: 'Équilibré',
     preset_readonly: '(lecture seule: profil prédéfini)',
@@ -311,7 +311,7 @@ export const translations = {
     device_draft: 'Brouillon',
     device_active: 'Actif',
     device_select: 'Sélectionner',
-    request_sent: '✓ Demande envoyée',
+    request_sent: 'Demande envoyée',
     request_support: "Demander l'accès",
     lcd_info: 'Résolution LCD : 480 × 480 px · Interface : USB Direct · Firmware : Kraken Elite V2',
 
@@ -322,7 +322,7 @@ export const translations = {
     sidebar_expand: 'Ouvrir le menu',
     collapse: 'Réduire',
 
-    donate_text: "Ce projet est open source et développé bénévolement. Si vous l'appréciez et souhaitez soutenir son développement, toute contribution est la bienvenue. 🙏",
+    donate_text: "Ce projet est open source et développé bénévolement. Si vous l'appréciez et souhaitez soutenir son développement, toute contribution est la bienvenue.",
 
     unknown_error: 'Erreur inconnue',
     error: 'Erreur',
