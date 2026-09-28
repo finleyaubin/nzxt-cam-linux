@@ -51,6 +51,8 @@ interface Settings {
   bgImage:       string | null
   bgDim:         number
   showLogo:      boolean
+  logoText:      string
+  logoSize:      number
   logoColor:     string
   showViz:       boolean
   vizType:       VizType
@@ -66,7 +68,7 @@ interface Settings {
 }
 
 const DEFAULT: Settings = {
-  bg: '#000000', bgImage: null, bgDim: 40, showLogo: true, logoColor: '#ffffff',
+  bg: '#000000', bgImage: null, bgDim: 40, showLogo: true, logoText: 'NZXT', logoSize: 40, logoColor: '#ffffff',
   showViz: true, vizType: 'gauge', layers: [],
   barSegmented: false, thickness: 40, corners: 20, gradient: false, gradientColor: '#00bcd4',
   primaryMetric: 'liquid', numberColor: '#ffffff', textColor: '#ffffff',
@@ -130,7 +132,7 @@ function buildConfig(s: Settings, sensors: BoundSensor[]): DisplayConfig {
     })
   }
   const primary = readingFor(s.primaryMetric, sensors)
-  if (s.showLogo) elements.push(makeText('NZXT', { x: 320, y: 210, size: 40, color: s.logoColor }))
+  if (s.showLogo && s.logoText.trim()) elements.push(makeText(s.logoText, { x: 320, y: 210, size: s.logoSize, color: s.logoColor }))
   elements.push(makeText(`{${s.primaryMetric}}${unitSuffix(primary.unit)}`, { x: 320, y: 340, size: 96, color: s.numberColor }))
   elements.push(makeText(primary.label.toUpperCase(), { x: 320, y: 420, size: 24, color: s.textColor }))
   return { background: s.bg, backgroundImage: s.bgImage, backgroundDim: s.bgDim, elements }
@@ -414,9 +416,21 @@ export function TempDisplayConfig() {
               </Row>
             )}
 
-            <CheckRow label="Logo" checked={s.showLogo} onChange={v => upd('showLogo', v)} accent={accent}>
-              <ColorRow colors={LOGO_COLORS} value={s.logoColor} onChange={c => upd('logoColor', c)}/>
-            </CheckRow>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <CheckRow label="Logo" checked={s.showLogo} onChange={v => upd('showLogo', v)} accent={accent}>
+                <input
+                  value={s.logoText} onChange={e => upd('logoText', e.target.value)} maxLength={24}
+                  placeholder="Text above the reading" aria-label="Logo text"
+                  style={{ width: 150, padding: '4px 8px', borderRadius: 8, border: '1px solid #252525', background: '#0d0d0d', color: '#e0e0e0', fontSize: 12, fontWeight: 600 }}
+                />
+                <ColorRow colors={LOGO_COLORS} value={s.logoColor} onChange={c => upd('logoColor', c)}/>
+              </CheckRow>
+              {s.showLogo && (
+                <div className="fade-up" style={{ paddingLeft: 100 }}>
+                  <BarSlider label="Size" value={s.logoSize} min={16} max={96} unit="px" accent={accent} onChange={v => upd('logoSize', v)}/>
+                </div>
+              )}
+            </div>
 
             <div style={{ height: 1, background: '#1c1c1c', margin: '2px 0' }}/>
 
