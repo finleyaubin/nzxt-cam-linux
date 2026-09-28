@@ -232,6 +232,12 @@ pub struct DisplayConfig {
     pub variant: Option<String>,
     #[serde(default)]
     pub decimals: u8,
+    /// Photo or GIF drawn behind the elements.
+    #[serde(default)]
+    pub background_image: Option<String>,
+    /// Darken the background image by this percentage (0-90) so stats stay legible.
+    #[serde(default)]
+    pub background_dim: u8,
 }
 
 impl Default for DisplayConfig {
@@ -245,6 +251,8 @@ impl Default for DisplayConfig {
             elements: Vec::new(),
             variant: None,
             decimals: 0,
+            background_image: None,
+            background_dim: 0,
         }
     }
 }

@@ -10,6 +10,9 @@ use crate::types::{
     TextElement, Temperatures, LCD_SIZE,
 };
 use anyhow::Result;
+use crate::image_io;
+use parking_lot::Mutex;
+use std::sync::Arc;
 use std::f32::consts::PI;
 use tiny_skia::{Pixmap, PremultipliedColorU8};
 
@@ -17,16 +20,69 @@ use tiny_skia::{Pixmap, PremultipliedColorU8};
 // Public API
 // ============================================================================
 
-/// Render a scene to RGBA (640*640*4 bytes) with alpha forced to 0x00.
-/// This is the format the Kraken firmware accepts on the bulk endpoint.
-pub fn render_for_device(config: &DisplayConfig, temps: Temperatures) -> Result<Vec<u8>> {
-    let pixmap = render_scene(config, temps)?;
-    Ok(pixmap_to_device_rgba(&pixmap))
+pub enum LcdFrame {
+    /// Raw 640×640 RGBA, alpha 0 (firmware format).
+    Rgba(Vec<u8>),
+    /// Encoded GIF with the scene composited onto every frame.
+    Gif(Vec<u8>),
 }
 
-/// Render a scene to a PNG byte stream (for the WYSIWYG preview).
+enum Background {
+    Still(Vec<u8>),
+    Gif { bytes: Vec<u8>, first: Vec<u8> },
+}
+
+static BACKGROUND: Mutex<Option<(String, Arc<Background>)>> = Mutex::new(None);
+
+fn load_background(path: &str) -> Result<Arc<Background>> {
+    let mut cache = BACKGROUND.lock();
+    if let Some((cached, bg)) = cache.as_ref() {
+        if cached == path {
+            return Ok(bg.clone());
+        }
+    }
+    let bytes = std::fs::read(path).map_err(|e| anyhow::anyhow!("Read background {path}: {e}"))?;
+    let first = image_io::image_to_device_rgba(&bytes)?;
+    let bg = Arc::new(if bytes.starts_with(b"GIF8") {
+        Background::Gif { bytes, first }
+    } else {
+        Background::Still(first)
+    });
+    *cache = Some((path.to_string(), bg.clone()));
+    Ok(bg)
+}
+
+pub fn has_gif_background(config: &DisplayConfig) -> bool {
+    config
+        .background_image
+        .as_deref()
+        .and_then(|p| load_background(p).ok())
+        .is_some_and(|bg| matches!(*bg, Background::Gif { .. }))
+}
+
+/// Render a scene for the device: raw RGBA, or a GIF when the background is animated.
+pub fn render_for_device(config: &DisplayConfig, temps: Temperatures) -> Result<LcdFrame> {
+    let background = config.background_image.as_deref().map(load_background).transpose()?;
+    match background.as_deref() {
+        None => Ok(LcdFrame::Rgba(pixmap_to_device_rgba(&render_scene(config, temps, None)?))),
+        Some(Background::Still(bg)) => Ok(LcdFrame::Rgba(pixmap_to_device_rgba(&render_scene(config, temps, Some(bg))?))),
+        Some(Background::Gif { bytes, .. }) => {
+            let gif = image_io::transcode_gif(bytes, |frame| match render_scene(config, temps, Some(&frame)) {
+                Ok(pm) => pixmap_to_device_rgba(&pm),
+                Err(_) => frame,
+            })?;
+            Ok(LcdFrame::Gif(gif))
+        }
+    }
+}
+
+/// Render a scene to a PNG byte stream (for the WYSIWYG preview). GIF backgrounds show their first frame.
 pub fn render_preview_png(config: &DisplayConfig, temps: Temperatures) -> Result<Vec<u8>> {
-    let pixmap = render_scene(config, temps)?;
+    let background = config.background_image.as_deref().map(load_background).transpose()?;
+    let bg = background.as_deref().map(|b| match b {
+        Background::Still(rgba) | Background::Gif { first: rgba, .. } => rgba.as_slice(),
+    });
+    let pixmap = render_scene(config, temps, bg)?;
     let png = pixmap.encode_png().map_err(|e| anyhow::anyhow!("PNG encode: {e}"))?;
     Ok(png)
 }
@@ -35,13 +91,17 @@ pub fn render_preview_png(config: &DisplayConfig, temps: Temperatures) -> Result
 // Top-level rendering
 // ============================================================================
 
-fn render_scene(config: &DisplayConfig, temps: Temperatures) -> Result<Pixmap> {
+fn render_scene(config: &DisplayConfig, temps: Temperatures, background: Option<&[u8]>) -> Result<Pixmap> {
     let mut pixmap = Pixmap::new(LCD_SIZE, LCD_SIZE)
         .ok_or_else(|| anyhow::anyhow!("Pixmap allocation failed"))?;
 
-    // Fill background.
-    let (br, bg, bb) = hex_to_rgb(&config.background);
-    fill_solid(&mut pixmap, br, bg, bb);
+    match background {
+        Some(rgba) => fill_image(&mut pixmap, rgba, config.background_dim.min(90)),
+        None => {
+            let (br, bg, bb) = hex_to_rgb(&config.background);
+            fill_solid(&mut pixmap, br, bg, bb);
+        }
+    }
 
     // Ensure font is loaded once (lazy init in fonts.rs). Errors are surfaced
     // only when text elements try to draw — we don't abort on missing font.
@@ -104,6 +164,17 @@ fn pixmap_to_device_rgba(pm: &Pixmap) -> Vec<u8> {
 fn fill_solid(pm: &mut Pixmap, r: u8, g: u8, b: u8) {
     let color = tiny_skia::Color::from_rgba8(r, g, b, 255);
     pm.fill(color);
+}
+
+/// Copy a straight-RGBA frame into the pixmap as opaque pixels, darkened by `dim` percent.
+fn fill_image(pm: &mut Pixmap, rgba: &[u8], dim: u8) {
+    let keep = (100 - dim as u16) as u16;
+    for (dst, src) in pm.data_mut().chunks_exact_mut(4).zip(rgba.chunks_exact(4)) {
+        for c in 0..3 {
+            dst[c] = (src[c] as u16 * keep / 100) as u8;
+        }
+        dst[3] = 255;
+    }
 }
 
 fn put_pixel(pm: &mut Pixmap, x: i32, y: i32, r: u8, g: u8, b: u8) {
@@ -334,4 +405,46 @@ fn draw_centered(
     color: (u8, u8, u8),
 ) -> Result<()> {
     draw_text_centered(pm, cx, cy, text, size, color)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::{codecs::gif::GifEncoder, Frame, Rgba, RgbaImage};
+
+    fn config_with(path: &std::path::Path, dim: u8) -> DisplayConfig {
+        DisplayConfig {
+            background_image: Some(path.to_string_lossy().into_owned()),
+            background_dim: dim,
+            ..DisplayConfig::default()
+        }
+    }
+
+    #[test]
+    fn still_background_is_dimmed_rgba() {
+        let path = std::env::temp_dir().join("nzxt-bg-test.png");
+        RgbaImage::from_pixel(64, 64, Rgba([200, 100, 50, 255])).save(&path).unwrap();
+        let LcdFrame::Rgba(rgba) = render_for_device(&config_with(&path, 50), Temperatures::default()).unwrap() else {
+            panic!("expected rgba frame");
+        };
+        assert_eq!(rgba.len(), (LCD_SIZE * LCD_SIZE * 4) as usize);
+        assert_eq!(&rgba[..3], &[100, 50, 25]);
+    }
+
+    #[test]
+    fn gif_background_yields_gif() {
+        let path = std::env::temp_dir().join("nzxt-bg-test.gif");
+        {
+            let mut enc = GifEncoder::new(std::fs::File::create(&path).unwrap());
+            for shade in [0u8, 255] {
+                enc.encode_frame(Frame::new(RgbaImage::from_pixel(32, 32, Rgba([shade, shade, shade, 255])))).unwrap();
+            }
+        }
+        let cfg = config_with(&path, 0);
+        assert!(has_gif_background(&cfg));
+        let LcdFrame::Gif(gif) = render_for_device(&cfg, Temperatures::default()).unwrap() else {
+            panic!("expected gif frame");
+        };
+        assert!(gif.starts_with(b"GIF8"));
+    }
 }

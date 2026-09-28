@@ -320,7 +320,7 @@ impl KrakenDriver {
 
     pub fn start_temp_mode<F>(&self, render_fn: F) -> Result<()>
     where
-        F: Fn(&DisplayConfig, Temperatures) -> Result<Vec<u8>> + Send + Sync + 'static,
+        F: Fn(&DisplayConfig, Temperatures) -> Result<crate::render::LcdFrame> + Send + Sync + 'static,
     {
         self.stop_current_mode();
         let my_gen = self.0.temp_gen.load(Ordering::Acquire);
@@ -337,7 +337,7 @@ impl KrakenDriver {
     async fn temp_loop(
         &self,
         my_gen: u32,
-        render_fn: Arc<dyn Fn(&DisplayConfig, Temperatures) -> Result<Vec<u8>> + Send + Sync>,
+        render_fn: Arc<dyn Fn(&DisplayConfig, Temperatures) -> Result<crate::render::LcdFrame> + Send + Sync>,
     ) {
         let mut last_visual_key: Option<String> = None;
         let mut last_push_at: Option<Instant> = None;
@@ -364,24 +364,35 @@ impl KrakenDriver {
             let config_version = self.0.config_version.load(Ordering::Acquire);
             let key = visual_key(temps, decimals, config_version);
 
-            let cooldown_ok = last_push_at
-                .map(|t| {
-                    Instant::now().duration_since(t)
-                        >= Duration::from_millis(self.0.temp_min_push_ms.load(Ordering::Relaxed))
-                })
-                .unwrap_or(true);
+            let min_push = Duration::from_millis(self.0.temp_min_push_ms.load(Ordering::Relaxed));
+            // ponytail: re-encoding a GIF background costs ~15ms/frame, so its stats refresh at most every 5s
+            let min_push = if crate::render::has_gif_background(&cfg_snapshot) {
+                min_push.max(Duration::from_secs(5))
+            } else {
+                min_push
+            };
+            let cooldown_ok = last_push_at.map_or(true, |t| t.elapsed() >= min_push);
 
             if Some(&key) != last_visual_key.as_ref() && cooldown_ok {
                 match render_fn(&cfg_snapshot, temps) {
-                    Ok(rgba) => {
-                        let rgba = crate::image_io::rotate_for_lcd(rgba);
-                        let bulk_info = bulk_info_rgba(rgba.len() as u32);
+                    Ok(frame) => {
+                        let (data, bulk_info) = match frame {
+                            crate::render::LcdFrame::Rgba(rgba) => {
+                                let rgba = crate::image_io::rotate_for_lcd(rgba);
+                                let info = bulk_info_rgba(rgba.len() as u32);
+                                (rgba, info)
+                            }
+                            crate::render::LcdFrame::Gif(gif) => {
+                                let info = bulk_info_gif(gif.len() as u32);
+                                (gif, info)
+                            }
+                        };
                         let mut g = self.0.hw.lock().await;
                         if let Some(hw) = g.as_mut() {
                             if self.0.temp_loop_active.load(Ordering::Acquire)
                                 && self.0.temp_gen.load(Ordering::Acquire) == my_gen
                             {
-                                if let Err(e) = send_data_native(hw, &rgba, &bulk_info).await {
+                                if let Err(e) = send_data_native(hw, &data, &bulk_info).await {
                                     log::warn!("temp push failed: {e}");
                                 } else {
                                     last_visual_key = Some(key);

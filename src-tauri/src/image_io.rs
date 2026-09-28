@@ -60,6 +60,11 @@ pub fn image_to_device_rgba(bytes: &[u8]) -> Result<Vec<u8>> {
 ///                             for palette mapping.
 ///   3. Correct              — handles all GIF disposal methods, loops, delays.
 pub fn resize_gif(bytes: &[u8]) -> Result<Vec<u8>> {
+    transcode_gif(bytes, |frame| frame)
+}
+
+/// Like `resize_gif`, but passes each 640×640 RGBA frame through `per_frame` before encoding.
+pub fn transcode_gif(bytes: &[u8], mut per_frame: impl FnMut(Vec<u8>) -> Vec<u8>) -> Result<Vec<u8>> {
     let t0 = Instant::now();
     let target_w = LCD_WIDTH as u16;
     let target_h = LCD_HEIGHT as u16;
@@ -118,7 +123,7 @@ pub fn resize_gif(bytes: &[u8]) -> Result<Vec<u8>> {
 
             gif_composite(&mut canvas, canvas_w, canvas_h, left, top, fw, fh, &frame.buffer);
 
-            let rgba = rotate_for_lcd(gif_resize(&canvas, same_size, tw32, th32));
+            let rgba = rotate_for_lcd(per_frame(gif_resize(&canvas, same_size, tw32, th32)));
             let indices: Vec<u8> = rgba
                 .chunks_exact(4)
                 .map(|px| lut[palette_lut_idx(px[0], px[1], px[2])])

@@ -98,6 +98,8 @@ export interface DisplayConfig {
   elements: DisplayElement[]
   variant?: string
   decimals?: number
+  backgroundImage?: string | null
+  backgroundDim?: number
 }
 
 export function formatMetric(v: number, decimals = 0): string {
