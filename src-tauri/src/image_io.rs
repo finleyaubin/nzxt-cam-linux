@@ -126,7 +126,8 @@ pub fn transcode_gif(bytes: &[u8], mut per_frame: impl FnMut(Vec<u8>) -> Vec<u8>
             let rgba = rotate_for_lcd(per_frame(gif_resize(&canvas, same_size, tw32, th32)));
             let indices: Vec<u8> = rgba
                 .chunks_exact(4)
-                .map(|px| lut[palette_lut_idx(px[0], px[1], px[2])])
+                .enumerate()
+                .map(|(i, px)| lut[dithered_lut_idx(px, i % tw32 as usize, i / tw32 as usize)])
                 .collect();
 
             enc.write_frame(&make_gif_frame(
@@ -235,6 +236,20 @@ fn palette_lut_idx(r: u8, g: u8, b: u8) -> usize {
     ((r >> 3) as usize * 1024) + ((g >> 3) as usize * 32) + (b >> 3) as usize
 }
 
+const BAYER4: [u8; 16] = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+
+/// Ordered (Bayer 4×4) dither before palette lookup so gradients don't band in the 216-colour cube.
+/// Near-grey pixels get a small amplitude matching the fine grey ramp, so text stays clean.
+fn dithered_lut_idx(px: &[u8], x: usize, y: usize) -> usize {
+    let (r, g, b) = (px[0], px[1], px[2]);
+    let chroma = r.max(g).max(b) - r.min(g).min(b);
+    // 80% of the palette step: the 5-bit LUT adds up to ±4 of rounding, which a full step would push past exact colours.
+    let step = if chroma < 8 { 6.5 } else { 51.0 * 0.8 };
+    let offset = ((BAYER4[(y & 3) * 4 + (x & 3)] as f32 + 0.5) / 16.0 - 0.5) * step;
+    let d = |c: u8| (c as f32 + offset).round().clamp(0.0, 255.0) as u8;
+    palette_lut_idx(d(r), d(g), d(b))
+}
+
 /// Fixed 6×6×6 colour cube (216 entries) + 40 evenly-spaced greys = 256.
 /// No per-GIF NeuQuant pass — deterministic, instantaneous to build.
 fn build_fixed_palette() -> Vec<u8> {
@@ -266,9 +281,10 @@ fn build_palette_lut(palette: &[u8]) -> Vec<u8> {
     for r5 in 0u8..32 {
         for g5 in 0u8..32 {
             for b5 in 0u8..32 {
-                let r = (r5 * 8) as i32;
-                let g = (g5 * 8) as i32;
-                let b = (b5 * 8) as i32;
+                // Spread 0..31 over the full 0..255 range so white maps to 255, not 248.
+                let r = r5 as i32 * 255 / 31;
+                let g = g5 as i32 * 255 / 31;
+                let b = b5 as i32 * 255 / 31;
                 let mut best = 0u8;
                 let mut best_dist = i32::MAX;
                 for (i, c) in palette.chunks_exact(3).enumerate() {
@@ -291,4 +307,31 @@ fn build_palette_lut(palette: &[u8]) -> Vec<u8> {
 /// Convenience: render a PNG buffer back to RGBA for device.
 pub fn png_bytes_to_device_rgba(bytes: &[u8]) -> Result<Vec<u8>> {
     image_to_device_rgba(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn quantise(px: [u8; 3], x: usize, y: usize, pal: &[u8], lut: &[u8]) -> [u8; 3] {
+        let i = lut[dithered_lut_idx(&[px[0], px[1], px[2], 255], x, y)] as usize * 3;
+        [pal[i], pal[i + 1], pal[i + 2]]
+    }
+
+    #[test]
+    fn dither_keeps_palette_colours_and_smooths_gradients() {
+        let pal = build_fixed_palette();
+        let lut = build_palette_lut(&pal);
+        for y in 0..4 {
+            for x in 0..4 {
+                assert_eq!(quantise([255, 255, 255], x, y, &pal, &lut), [255, 255, 255], "white text stays white");
+                assert_eq!(quantise([0, 204, 102], x, y, &pal, &lut), [0, 204, 102], "cube colours are exact");
+            }
+        }
+        // A 4×4 tile of an in-between green should average back to roughly its true value.
+        for g in [120u8, 140, 170, 190] {
+            let mean: f32 = (0..16).map(|i| quantise([0, g, 60], i % 4, i / 4, &pal, &lut)[1] as f32).sum::<f32>() / 16.0;
+            assert!((mean - g as f32).abs() < 8.0, "green {g} dithers to mean {mean}");
+        }
+    }
 }

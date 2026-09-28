@@ -36,6 +36,8 @@ struct Hardware {
     poll_shutdown: Option<oneshot::Sender<()>>,
     /// Receiver fed by the polling task with raw interrupt-in packets.
     intr_rx: mpsc::UnboundedReceiver<Vec<u8>>,
+    /// Bucket currently shown on the LCD, so a full memory can be reclaimed without blanking it.
+    active_bucket: Option<u8>,
 }
 
 // ============================================================================
@@ -194,6 +196,7 @@ impl KrakenDriver {
             intr_out,
             poll_shutdown: Some(shutdown_tx),
             intr_rx,
+            active_bucket: None,
         };
         drain_rx(&mut hw.intr_rx, Duration::from_millis(300)).await;
         *hw_guard = Some(hw);
@@ -739,12 +742,19 @@ async fn send_data_native(
     // 4. Memory offset.
     let mem_start = match get_bucket_memory_offset(&buckets, bucket_index, data_size) {
         Some(off) => off,
-        None => {
-            log::warn!("Mémoire saturée — reset complet de tous les buckets");
-            delete_all_buckets(hw).await;
-            bucket_index = 0;
-            [0, 0]
-        }
+        None => match reclaim_around_active(hw, &buckets, data_size).await {
+            Some((idx, off)) => {
+                bucket_index = idx;
+                off
+            }
+            None => {
+                log::warn!("LCD memory full: resetting all buckets (screen blanks briefly)");
+                delete_all_buckets(hw).await;
+                hw.active_bucket = None;
+                bucket_index = 0;
+                [0, 0]
+            }
+        },
     };
     log::debug!("Native: bucket={} memStart={:?} dataSize={} dsz={:?}", bucket_index, mem_start, data_size, dsz);
 
@@ -768,9 +778,34 @@ async fn send_data_native(
 
     // 9. Activate.
     let act_ok = switch_bucket(hw, bucket_index, 0x04).await;
+    if act_ok {
+        hw.active_bucket = Some(bucket_index);
+    }
     log::debug!("Activate bucket {}: ok={}", bucket_index, act_ok);
     log::debug!("send_data_native done (bucket {})", bucket_index);
     Ok(())
+}
+
+/// Memory is full: delete every bucket except the one on screen and place the new
+/// frame beside it. Returns (bucket index, memory offset), or None if it still won't fit.
+async fn reclaim_around_active(hw: &mut Hardware, buckets: &HashMap<u8, Vec<u8>>, data_size: u32) -> Option<(u8, [u8; 2])> {
+    let active = hw.active_bucket?;
+    let info = buckets.get(&active).filter(|b| b.len() >= 21)?;
+    let start = u16::from_le_bytes([info[17], info[18]]) as u32;
+    let end = start + u16::from_le_bytes([info[19], info[20]]) as u32;
+    let offset = if data_size <= start {
+        0
+    } else if end + data_size < LCD_TOTAL_MEMORY {
+        end
+    } else {
+        return None;
+    };
+    log::info!("LCD memory full: clearing inactive buckets, keeping bucket {active} on screen");
+    for b in (0..16u8).filter(|&b| b != active) {
+        delete_bucket(hw, b).await;
+    }
+    let idx = if active == 0 { 1 } else { 0 };
+    Some((idx, [(offset & 0xff) as u8, ((offset >> 8) & 0xff) as u8]))
 }
 
 // ============================================================================
