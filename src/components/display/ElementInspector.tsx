@@ -1,4 +1,4 @@
-import { DisplayElement, MetricId, METRIC_LABELS } from '@shared/display'
+import { DisplayElement, MetricId, BASE_METRIC_LABELS, MAX_SENSORS, metricLabel, sensorMetric } from '@shared/display'
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -100,14 +100,9 @@ function ToggleField({
 }
 
 const METRIC_OPTIONS: { value: MetricId; label: string }[] = [
-  { value: 'cpu', label: METRIC_LABELS.cpu },
-  { value: 'gpu', label: METRIC_LABELS.gpu },
-  { value: 'liquid', label: METRIC_LABELS.liquid },
-  { value: 'pump', label: METRIC_LABELS.pump },
-  { value: 'sensor1', label: METRIC_LABELS.sensor1 },
-  { value: 'sensor2', label: METRIC_LABELS.sensor2 },
-  { value: 'sensor3', label: METRIC_LABELS.sensor3 }
-]
+  ...(Object.keys(BASE_METRIC_LABELS) as MetricId[]),
+  ...Array.from({ length: MAX_SENSORS }, (_, i) => sensorMetric(i)),
+].map(value => ({ value, label: metricLabel(value) }))
 
 interface Props {
   element: DisplayElement | null

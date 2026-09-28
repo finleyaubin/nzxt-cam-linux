@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { AIO_DEVICES } from '@shared/devices'
 import { api, AppSettings, GpuSource, Sensor } from '../lib/api'
 import { useApp } from '../context/AppContext'
+import { SensorList } from './SensorList'
 import { Cpu, Clock, Monitor, Drop, Key, Eye, EyeSlash } from '@phosphor-icons/react'
 
 const GITHUB_ISSUES_URL = 'https://github.com/cypherxdev77/nzxt-cam-linux/issues/new?template=device_support.md'
@@ -216,16 +217,12 @@ export function Settings() {
       <Divider/>
 
       {/* Sensors */}
-      <SectionHeader icon={<IChip/>} title="Sensors" description="Pick which temperature feeds CPU, and bind Sensor 1-3 to any temperature, load, clock, power, fan or memory reading for LCD gauges, bars and text ({sensor1} etc.)."/>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <SensorSelect label="CPU source" emptyLabel="Automatic" value={settings?.cpuSource ?? null} sensors={sensors.filter(s => s.unit === '°')} onChange={v => update({ cpuSource: v })}/>
-        {[0, 1, 2].map(i => (
-          <SensorSelect key={i} label={`Sensor ${i + 1}`} emptyLabel="None" value={settings?.sensorSources?.[i] ?? null} sensors={sensors} onChange={v => {
-            const next = [0, 1, 2].map(j => settings?.sensorSources?.[j] ?? null)
-            next[i] = v
-            update({ sensorSources: next })
-          }}/>
-        ))}
+      <SectionHeader icon={<IChip/>} title="Sensors" description="Extra readings for the LCD: temperatures, load, clocks, power, fans or memory. Set the value that fills a gauge or bar."/>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ maxWidth: 360 }}>
+          <SensorSelect label="CPU temperature source" emptyLabel="Automatic" value={settings?.cpuSource ?? null} sensors={sensors.filter(s => s.unit === '°')} onChange={v => update({ cpuSource: v })}/>
+        </div>
+        {settings && <SensorList slots={settings.sensors ?? []} catalog={sensors} accent={accent} onChange={slots => update({ sensors: slots })}/>}
       </div>
 
       <Divider/>

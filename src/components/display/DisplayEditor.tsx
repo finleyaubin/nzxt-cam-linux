@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useApp } from '../../context/AppContext'
 import {
-  DisplayConfig, DisplayElement, PRESETS, makeGauge, makeBar, makeText, METRIC_LABELS
+  DisplayConfig, DisplayElement, PRESETS, makeGauge, makeBar, makeText, metricLabel
 } from '@shared/display'
 import { api } from '../../lib/api'
 import { PreviewCanvas } from './PreviewCanvas'
@@ -9,7 +9,7 @@ import { ElementInspector } from './ElementInspector'
 
 function elementTitle(el: DisplayElement): string {
   if (el.type === 'text') return `Text “${el.text || '…'}”`
-  return `${el.type === 'gauge' ? 'Gauge' : 'Bar'} - ${METRIC_LABELS[el.metric]}`
+  return `${el.type === 'gauge' ? 'Gauge' : 'Bar'} - ${metricLabel(el.metric)}`
 }
 
 export function DisplayEditor() {

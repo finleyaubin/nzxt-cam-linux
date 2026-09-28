@@ -9,37 +9,37 @@
 
 export const LCD_SIZE = 640
 
-export type MetricId = 'cpu' | 'gpu' | 'liquid' | 'pump' | 'sensor1' | 'sensor2' | 'sensor3'
+export type BaseMetric = 'cpu' | 'gpu' | 'liquid' | 'pump'
+/** `sensorN` is the user's N-th sensor slot (Settings > Sensors), N = 1..MAX_SENSORS. */
+export type MetricId = BaseMetric | `sensor${number}`
 export type ElementType = 'gauge' | 'bar' | 'text'
 
-export const METRIC_LABELS: Record<MetricId, string> = {
+export const MAX_SENSORS = 8
+
+export const BASE_METRIC_LABELS: Record<BaseMetric, string> = {
   cpu: 'CPU',
   gpu: 'GPU',
   liquid: 'Liquid',
   pump: 'Pump',
-  sensor1: 'Sensor 1',
-  sensor2: 'Sensor 2',
-  sensor3: 'Sensor 3'
 }
 
-export const METRIC_UNIT: Record<MetricId, string> = {
-  cpu: '°',
-  gpu: '°',
-  liquid: '°',
-  pump: '',
-  sensor1: '°',
-  sensor2: '°',
-  sensor3: '°'
-}
-
-export const METRIC_MAX: Record<MetricId, number> = {
+const BASE_METRIC_MAX: Record<BaseMetric, number> = {
   cpu: 100,
   gpu: 100,
   liquid: 60,
   pump: 3000,
-  sensor1: 100,
-  sensor2: 100,
-  sensor3: 100
+}
+
+export const isBaseMetric = (id: MetricId): id is BaseMetric => id in BASE_METRIC_LABELS
+export const sensorMetric = (slot: number): MetricId => `sensor${slot + 1}`
+
+export const metricLabel = (id: MetricId) => isBaseMetric(id) ? BASE_METRIC_LABELS[id] : `Sensor ${id.slice(6)}`
+export const metricMax = (id: MetricId) => isBaseMetric(id) ? BASE_METRIC_MAX[id] : 100
+
+/** Sensible full-scale value for a sensor unit; % is always 100. */
+export function defaultMaxForUnit(unit: string): number {
+  const byUnit: Record<string, number> = { '°': 100, '%': 100, rpm: 3000, W: 300, MHz: 6000, MiB: 16384, GB: 64, V: 12, A: 10 }
+  return byUnit[unit] ?? 100
 }
 
 interface ElementBase {
@@ -120,7 +120,10 @@ export function genId(prefix = 'el'): string {
   return `${prefix}_${Date.now().toString(36)}_${idCounter}`
 }
 
+const defaultWarnAt = (metric: MetricId, max: number) => metric === 'liquid' ? 50 : max * 0.85
+
 export function makeGauge(metric: MetricId, overrides: Partial<GaugeElement> = {}): GaugeElement {
+  const max = overrides.max ?? metricMax(metric)
   return {
     id: genId('gauge'),
     type: 'gauge',
@@ -129,22 +132,23 @@ export function makeGauge(metric: MetricId, overrides: Partial<GaugeElement> = {
     y: LCD_SIZE / 2,
     radius: 250,
     thickness: 38,
-    max: METRIC_MAX[metric],
+    max,
     color: '#00e696',
     trackColor: '#1c1c2a',
     startAngle: 0,
     sweep: 360,
     warnColor: '#ff4444',
-    warnAt: metric === 'liquid' ? 50 : 85,
+    warnAt: defaultWarnAt(metric, max),
     showValue: true,
     showLabel: true,
-    label: METRIC_LABELS[metric],
+    label: metricLabel(metric),
     valueSize: 64,
     ...overrides
   }
 }
 
 export function makeBar(metric: MetricId, overrides: Partial<BarElement> = {}): BarElement {
+  const max = overrides.max ?? metricMax(metric)
   return {
     id: genId('bar'),
     type: 'bar',
@@ -153,14 +157,14 @@ export function makeBar(metric: MetricId, overrides: Partial<BarElement> = {}): 
     y: LCD_SIZE / 2,
     width: 380,
     height: 34,
-    max: METRIC_MAX[metric],
+    max,
     color: '#00e696',
     trackColor: '#1c1c2a',
     warnColor: '#ff4444',
-    warnAt: metric === 'liquid' ? 50 : 85,
+    warnAt: defaultWarnAt(metric, max),
     showValue: true,
     showLabel: true,
-    label: METRIC_LABELS[metric],
+    label: metricLabel(metric),
     valueSize: 32,
     ...overrides
   }

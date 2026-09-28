@@ -27,9 +27,14 @@ export interface Temperatures {
   gpu: number
   liquid: number
   pumpRpm: number
-  sensor1: number
-  sensor2: number
-  sensor3: number
+  /** Indexed by sensor slot; `sensor{i+1}` metric. */
+  sensors: number[]
+}
+
+export interface SensorSlot {
+  source: string | null
+  /** Value shown as 100% on gauges and bars; null = default for the unit. */
+  max: number | null
 }
 
 export interface Sensor {
@@ -49,7 +54,7 @@ export interface GpuSource {
 export interface AppSettings {
   gpuSource: string | null
   cpuSource: string | null
-  sensorSources: (string | null)[]
+  sensors: SensorSlot[]
   apiKeys: Record<string, string>
   selectedDevice: string
   pollIntervalMs: number

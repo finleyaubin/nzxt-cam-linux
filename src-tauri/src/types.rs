@@ -21,10 +21,11 @@ pub struct Temperatures {
     pub gpu: f64,
     pub liquid: f64,
     pub pump_rpm: f64,
-    pub sensor1: f64,
-    pub sensor2: f64,
-    pub sensor3: f64,
+    pub sensors: [f64; MAX_SENSORS],
 }
+
+/// User-bound sensor slots (`sensor1`..`sensorN` metrics).
+pub const MAX_SENSORS: usize = 8;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -71,7 +72,11 @@ pub struct GpuSource {
 pub struct AppSettings {
     pub gpu_source: Option<String>,
     pub cpu_source: Option<String>,
-    pub sensor_sources: Vec<Option<String>>,
+    /// Slot i is metric `sensor{i+1}`; removed slots keep their place (source = None) so layouts never shift.
+    pub sensors: Vec<SensorSlot>,
+    /// Pre-slot format, read once for migration.
+    #[serde(skip_serializing)]
+    sensor_sources: Vec<Option<String>>,
     /// Third-party API keys by service name, e.g. "giphy".
     pub api_keys: std::collections::BTreeMap<String, String>,
     pub selected_device: String,
@@ -86,7 +91,8 @@ impl Default for AppSettings {
         Self {
             gpu_source: None,
             cpu_source: None,
-            sensor_sources: vec![None; 3],
+            sensors: Vec::new(),
+            sensor_sources: Vec::new(),
             api_keys: Default::default(),
             selected_device: "nzxt-kraken-elite-v2".into(),
             poll_interval_ms: 1000,
@@ -103,7 +109,27 @@ impl AppSettings {
         self.lcd_poll_ms = self.lcd_poll_ms.clamp(50, 60_000);
         self.lcd_min_push_ms = self.lcd_min_push_ms.clamp(0, 10_000);
         self.decimals = self.decimals.min(2);
+        if self.sensors.is_empty() {
+            let old = std::mem::take(&mut self.sensor_sources);
+            self.sensors = old.into_iter().map(|source| SensorSlot { source, max: None }).collect();
+        }
+        self.sensors.truncate(MAX_SENSORS);
+        while self.sensors.last().is_some_and(|s| s.source.is_none()) {
+            self.sensors.pop();
+        }
     }
+
+    pub fn sensor_sources(&self) -> Vec<Option<String>> {
+        self.sensors.iter().map(|s| s.source.clone()).collect()
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SensorSlot {
+    pub source: Option<String>,
+    /// Value shown as 100% on gauges and bars; None = default for the unit.
+    pub max: Option<f64>,
 }
 
 // ============================================================================
@@ -111,36 +137,59 @@ impl AppSettings {
 // ============================================================================
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[serde(rename_all = "lowercase")]
+#[serde(into = "String", try_from = "String")]
 pub enum MetricId {
     Cpu,
     Gpu,
     Liquid,
     Pump,
-    Sensor1,
-    Sensor2,
-    Sensor3,
+    /// 0-based slot index; serialised as `sensor{index+1}`.
+    Sensor(u8),
+}
+
+impl std::str::FromStr for MetricId {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, String> {
+        match s.to_ascii_lowercase().as_str() {
+            "cpu" => Ok(Self::Cpu),
+            "gpu" => Ok(Self::Gpu),
+            "liquid" => Ok(Self::Liquid),
+            "pump" => Ok(Self::Pump),
+            other => other
+                .strip_prefix("sensor")
+                .and_then(|n| n.parse::<usize>().ok())
+                .filter(|n| (1..=MAX_SENSORS).contains(n))
+                .map(|n| Self::Sensor((n - 1) as u8))
+                .ok_or_else(|| format!("unknown metric {s}")),
+        }
+    }
+}
+
+impl TryFrom<String> for MetricId {
+    type Error = String;
+    fn try_from(s: String) -> Result<Self, String> {
+        s.parse()
+    }
+}
+
+impl From<MetricId> for String {
+    fn from(m: MetricId) -> String {
+        match m {
+            MetricId::Cpu => "cpu".into(),
+            MetricId::Gpu => "gpu".into(),
+            MetricId::Liquid => "liquid".into(),
+            MetricId::Pump => "pump".into(),
+            MetricId::Sensor(i) => format!("sensor{}", i + 1),
+        }
+    }
 }
 
 impl MetricId {
-    pub fn label(&self) -> &'static str {
-        match self {
-            MetricId::Cpu => "CPU",
-            MetricId::Gpu => "GPU",
-            MetricId::Liquid => "Liquid",
-            MetricId::Pump => "Pump",
-            MetricId::Sensor1 => "Sensor 1",
-            MetricId::Sensor2 => "Sensor 2",
-            MetricId::Sensor3 => "Sensor 3",
-        }
-    }
     pub fn unit(&self) -> &'static str {
         match self {
             MetricId::Cpu | MetricId::Gpu | MetricId::Liquid => "°",
             MetricId::Pump => "",
-            MetricId::Sensor1 => crate::sensors::slot_unit(0),
-            MetricId::Sensor2 => crate::sensors::slot_unit(1),
-            MetricId::Sensor3 => crate::sensors::slot_unit(2),
+            MetricId::Sensor(i) => crate::sensors::slot_unit(*i as usize),
         }
     }
     pub fn value_from(&self, t: Temperatures) -> f64 {
@@ -149,9 +198,7 @@ impl MetricId {
             MetricId::Gpu => t.gpu,
             MetricId::Liquid => t.liquid,
             MetricId::Pump => t.pump_rpm,
-            MetricId::Sensor1 => t.sensor1,
-            MetricId::Sensor2 => t.sensor2,
-            MetricId::Sensor3 => t.sensor3,
+            MetricId::Sensor(i) => t.sensors.get(*i as usize).copied().unwrap_or(0.0),
         }
     }
 }
@@ -391,16 +438,7 @@ pub fn resolve_text(text: &str, t: Temperatures, decimals: u8) -> String {
                     Some((k, d)) => (k, d.parse::<u8>().ok()),
                     None => (inner, None),
                 };
-                let metric = match key.to_ascii_lowercase().as_str() {
-                    "cpu" => Some(MetricId::Cpu),
-                    "gpu" => Some(MetricId::Gpu),
-                    "liquid" => Some(MetricId::Liquid),
-                    "pump" => Some(MetricId::Pump),
-                    "sensor1" => Some(MetricId::Sensor1),
-                    "sensor2" => Some(MetricId::Sensor2),
-                    "sensor3" => Some(MetricId::Sensor3),
-                    _ => None,
-                };
+                let metric = key.parse::<MetricId>().ok();
                 if let Some(m) = metric {
                     let d = dec_override.unwrap_or(decimals).min(2);
                     out.push_str(&format_metric(m.value_from(t), d));
@@ -429,4 +467,35 @@ pub fn hex_to_rgb(hex: &str) -> (u8, u8, u8) {
     };
     let n = u32::from_str_radix(&normalized, 16).unwrap_or(0);
     (((n >> 16) & 0xff) as u8, ((n >> 8) & 0xff) as u8, (n & 0xff) as u8)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metric_ids_round_trip() {
+        for s in ["cpu", "pump", "sensor1", "sensor8"] {
+            let m: MetricId = serde_json::from_value(serde_json::json!(s)).unwrap();
+            assert_eq!(serde_json::to_value(m).unwrap(), serde_json::json!(s));
+        }
+        assert_eq!("sensor3".parse::<MetricId>(), Ok(MetricId::Sensor(2)));
+        assert!("sensor0".parse::<MetricId>().is_err());
+        assert!("sensor9".parse::<MetricId>().is_err());
+    }
+
+    #[test]
+    fn old_sensor_sources_migrate_to_slots() {
+        let mut s: AppSettings = serde_json::from_str(r#"{"sensorSources": ["a", null, "c", null]}"#).unwrap();
+        s.clamp();
+        assert_eq!(s.sensor_sources(), vec![Some("a".into()), None, Some("c".into())]);
+        assert!(!serde_json::to_string(&s).unwrap().contains("sensorSources"));
+    }
+
+    #[test]
+    fn sensor_tokens_resolve() {
+        let mut t = Temperatures::default();
+        t.sensors[4] = 42.0;
+        assert_eq!(resolve_text("{sensor5}%", t, 0), "42%");
+    }
 }

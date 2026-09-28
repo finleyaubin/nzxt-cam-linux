@@ -274,14 +274,7 @@ fn draw_gauge(
                 continue;
             }
             // atan2(dx, -dy): 0 at top, sweeping clockwise.
-            let mut a = dx.atan2(-dy);
-            if a < 0.0 {
-                a += PI * 2.0;
-            }
-            let mut rel = a - start;
-            if rel < 0.0 {
-                rel += PI * 2.0;
-            }
+            let rel = (dx.atan2(-dy) - start).rem_euclid(PI * 2.0);
             if rel > sweep {
                 continue;
             }
@@ -500,6 +493,22 @@ mod tests {
         assert_eq!(px(320, 21), [0x10, 0x10, 0x10], "outer corner at the start is rounded off");
         assert!(px(340, 40)[0] < 40, "fill starts near the first colour");
         assert!(px(600, 320)[0] > 100, "fill is mid-gradient at 3 o'clock");
+    }
+
+    #[test]
+    fn negative_start_angle_draws_whole_gauge() {
+        let gauge = GaugeElement {
+            id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
+            color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep: 270.0,
+            warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
+            value_size: 20.0, corner_radius: 0.0, gradient_to: None,
+        };
+        let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
+        let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures { cpu: 100.0, ..Temperatures::default() }).unwrap() else { panic!() };
+        let px = |x: usize, y: usize| { let i = (y * LCD_SIZE as usize + x) * 4; [rgba[i], rgba[i + 1], rgba[i + 2]] };
+        assert_eq!(px(40, 320), [255, 0, 0], "9 o'clock is inside a -135°..135° gauge");
+        assert_eq!(px(320, 40), [255, 0, 0], "12 o'clock");
+        assert_eq!(px(320, 600), [0, 0, 0], "gap stays at the bottom");
     }
 
     #[test]
