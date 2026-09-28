@@ -29,7 +29,20 @@ pub enum LcdFrame {
 
 enum Background {
     Still(Vec<u8>),
-    Gif { bytes: Vec<u8>, first: Vec<u8> },
+    Gif {
+        bytes: Vec<u8>,
+        first: Vec<u8>,
+        /// Frames decoded + dithered once, keyed by the dim level they were prepared with.
+        prepared: Mutex<Option<(u8, Arc<image_io::PreparedGif>)>>,
+    },
+}
+
+/// What sits under the elements.
+enum Base<'a> {
+    Color,
+    Image(&'a [u8]),
+    /// Overlay only, composited onto cached GIF frames later.
+    Transparent,
 }
 
 static BACKGROUND: Mutex<Option<(String, Arc<Background>)>> = Mutex::new(None);
@@ -44,7 +57,7 @@ fn load_background(path: &str) -> Result<Arc<Background>> {
     let bytes = std::fs::read(path).map_err(|e| anyhow::anyhow!("Read background {path}: {e}"))?;
     let first = image_io::image_to_device_rgba(&bytes)?;
     let bg = Arc::new(if bytes.starts_with(b"GIF8") {
-        Background::Gif { bytes, first }
+        Background::Gif { bytes, first, prepared: Mutex::new(None) }
     } else {
         Background::Still(first)
     });
@@ -64,14 +77,23 @@ pub fn has_gif_background(config: &DisplayConfig) -> bool {
 pub fn render_for_device(config: &DisplayConfig, temps: Temperatures) -> Result<LcdFrame> {
     let background = config.background_image.as_deref().map(load_background).transpose()?;
     match background.as_deref() {
-        None => Ok(LcdFrame::Rgba(pixmap_to_device_rgba(&render_scene(config, temps, None)?))),
-        Some(Background::Still(bg)) => Ok(LcdFrame::Rgba(pixmap_to_device_rgba(&render_scene(config, temps, Some(bg))?))),
-        Some(Background::Gif { bytes, .. }) => {
-            let gif = image_io::transcode_gif(bytes, |frame| match render_scene(config, temps, Some(&frame)) {
-                Ok(pm) => pixmap_to_device_rgba(&pm),
-                Err(_) => frame,
-            })?;
-            Ok(LcdFrame::Gif(gif))
+        None => Ok(LcdFrame::Rgba(pixmap_to_device_rgba(&render_scene(config, temps, Base::Color)?))),
+        Some(Background::Still(bg)) => Ok(LcdFrame::Rgba(pixmap_to_device_rgba(&render_scene(config, temps, Base::Image(bg))?))),
+        Some(Background::Gif { bytes, prepared, .. }) => {
+            let dim = config.background_dim.min(90);
+            let frames = {
+                let mut cache = prepared.lock();
+                match cache.as_ref() {
+                    Some((d, p)) if *d == dim => p.clone(),
+                    _ => {
+                        let p = Arc::new(image_io::prepare_gif(bytes, dim)?);
+                        *cache = Some((dim, p.clone()));
+                        p
+                    }
+                }
+            };
+            let overlay = render_scene(config, temps, Base::Transparent)?;
+            Ok(LcdFrame::Gif(image_io::encode_with_overlay(&frames, overlay.data())?))
         }
     }
 }
@@ -79,10 +101,11 @@ pub fn render_for_device(config: &DisplayConfig, temps: Temperatures) -> Result<
 /// Render a scene to a PNG byte stream (for the WYSIWYG preview). GIF backgrounds show their first frame.
 pub fn render_preview_png(config: &DisplayConfig, temps: Temperatures) -> Result<Vec<u8>> {
     let background = config.background_image.as_deref().map(load_background).transpose()?;
-    let bg = background.as_deref().map(|b| match b {
-        Background::Still(rgba) | Background::Gif { first: rgba, .. } => rgba.as_slice(),
-    });
-    let pixmap = render_scene(config, temps, bg)?;
+    let base = match background.as_deref() {
+        Some(Background::Still(rgba) | Background::Gif { first: rgba, .. }) => Base::Image(rgba),
+        None => Base::Color,
+    };
+    let pixmap = render_scene(config, temps, base)?;
     let png = pixmap.encode_png().map_err(|e| anyhow::anyhow!("PNG encode: {e}"))?;
     Ok(png)
 }
@@ -91,16 +114,17 @@ pub fn render_preview_png(config: &DisplayConfig, temps: Temperatures) -> Result
 // Top-level rendering
 // ============================================================================
 
-fn render_scene(config: &DisplayConfig, temps: Temperatures, background: Option<&[u8]>) -> Result<Pixmap> {
+fn render_scene(config: &DisplayConfig, temps: Temperatures, base: Base) -> Result<Pixmap> {
     let mut pixmap = Pixmap::new(LCD_SIZE, LCD_SIZE)
         .ok_or_else(|| anyhow::anyhow!("Pixmap allocation failed"))?;
 
-    match background {
-        Some(rgba) => fill_image(&mut pixmap, rgba, config.background_dim.min(90)),
-        None => {
+    match base {
+        Base::Image(rgba) => fill_image(&mut pixmap, rgba, config.background_dim.min(90)),
+        Base::Color => {
             let (br, bg, bb) = hex_to_rgb(&config.background);
             fill_solid(&mut pixmap, br, bg, bb);
         }
+        Base::Transparent => {}
     }
 
     // Ensure font is loaded once (lazy init in fonts.rs). Errors are surfaced

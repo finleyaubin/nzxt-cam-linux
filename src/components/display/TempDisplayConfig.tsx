@@ -519,7 +519,7 @@ export function TempDisplayConfig() {
         </div>
         <div style={{ fontSize: 11, color: '#7f7f7f', textAlign: 'center', lineHeight: 1.5 }}>
           Rendered by the same engine as the LCD, with live values.
-          {isGif && <><br/>GIFs animate on the cooler. Stats refresh every 5s.</>}
+          {isGif && <><br/>GIFs animate on the cooler. Stats refresh every 1-5s depending on GIF length.</>}
         </div>
       </Card>
     </div>

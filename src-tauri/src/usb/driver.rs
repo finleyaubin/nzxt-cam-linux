@@ -344,6 +344,7 @@ impl KrakenDriver {
     ) {
         let mut last_visual_key: Option<String> = None;
         let mut last_push_at: Option<Instant> = None;
+        let mut gif_cost = Duration::from_secs(1);
 
         loop {
             if !self.0.temp_loop_active.load(Ordering::Acquire)
@@ -368,16 +369,21 @@ impl KrakenDriver {
             let key = visual_key(&cfg_snapshot, temps, decimals, config_version);
 
             let min_push = Duration::from_millis(self.0.temp_min_push_ms.load(Ordering::Relaxed));
-            // ponytail: re-encoding a GIF background costs ~15ms/frame, so its stats refresh at most every 5s
+            // A GIF background is re-encoded per update; keep that under ~20% of a core (1-5s between updates).
             let min_push = if crate::render::has_gif_background(&cfg_snapshot) {
-                min_push.max(Duration::from_secs(5))
+                min_push.max((gif_cost * 5).clamp(Duration::from_secs(1), Duration::from_secs(5)))
             } else {
                 min_push
             };
             let cooldown_ok = last_push_at.map_or(true, |t| t.elapsed() >= min_push);
 
             if Some(&key) != last_visual_key.as_ref() && cooldown_ok {
-                match render_fn(&cfg_snapshot, temps) {
+                let render_start = Instant::now();
+                let rendered = render_fn(&cfg_snapshot, temps);
+                if matches!(rendered, Ok(crate::render::LcdFrame::Gif(_))) {
+                    gif_cost = render_start.elapsed();
+                }
+                match rendered {
                     Ok(frame) => {
                         let (data, bulk_info) = match frame {
                             crate::render::LcdFrame::Rgba(rgba) => {
