@@ -65,6 +65,8 @@ export interface GaugeElement extends ElementBase {
   showLabel: boolean
   label: string
   valueSize: number
+  cornerRadius?: number
+  gradientTo?: string | null
 }
 
 export interface BarElement extends ElementBase {
@@ -83,6 +85,7 @@ export interface BarElement extends ElementBase {
   valueSize: number
   segments?: number
   cornerRadius?: number | null
+  gradientTo?: string | null
 }
 
 export interface TextElement extends ElementBase {

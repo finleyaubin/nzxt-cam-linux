@@ -189,33 +189,33 @@ fn put_pixel(pm: &mut Pixmap, x: i32, y: i32, r: u8, g: u8, b: u8) {
 }
 
 /// Filled rounded rectangle. (x, y) is the top-left corner.
-fn fill_round_rect(pm: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, radius: Option<f32>, color: (u8, u8, u8)) {
+/// Point test for a w×h rectangle at the origin with corner radius `rad` (already clamped).
+fn in_round_rect(fx: f32, fy: f32, w: f32, h: f32, rad: f32) -> bool {
+    if fx < 0.0 || fy < 0.0 || fx > w || fy > h {
+        return false;
+    }
+    let cx = fx.clamp(rad, w - rad);
+    let cy = fy.clamp(rad, h - rad);
+    (fx - cx).powi(2) + (fy - cy).powi(2) <= rad * rad
+}
+
+fn lerp_rgb(a: (u8, u8, u8), b: (u8, u8, u8), t: f32) -> (u8, u8, u8) {
+    let mix = |x: u8, y: u8| (x as f32 + (y as f32 - x as f32) * t.clamp(0.0, 1.0)).round() as u8;
+    (mix(a.0, b.0), mix(a.1, b.1), mix(a.2, b.2))
+}
+
+/// Filled rounded rectangle; `color` gets each pixel's absolute x so fills can carry a gradient.
+fn fill_round_rect(pm: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, radius: Option<f32>, color: impl Fn(f32) -> (u8, u8, u8)) {
     if w <= 0.0 || h <= 0.0 {
         return;
     }
     let rad = radius.unwrap_or(f32::MAX).clamp(0.0, h.min(w) / 2.0);
-    let (r, g, b) = color;
     let x0 = x.floor() as i32;
     let y0 = y.floor() as i32;
-    let wi = w.ceil() as i32;
-    let hi = h.ceil() as i32;
-
-    for yy in 0..hi {
-        for xx in 0..wi {
-            let fx = xx as f32;
-            let fy = yy as f32;
-            let inside = if fx < rad && fy < rad {
-                ((fx - rad).powi(2) + (fy - rad).powi(2)).sqrt() <= rad
-            } else if fx > w - rad && fy < rad {
-                ((fx - (w - rad)).powi(2) + (fy - rad).powi(2)).sqrt() <= rad
-            } else if fx < rad && fy > h - rad {
-                ((fx - rad).powi(2) + (fy - (h - rad)).powi(2)).sqrt() <= rad
-            } else if fx > w - rad && fy > h - rad {
-                ((fx - (w - rad)).powi(2) + (fy - (h - rad)).powi(2)).sqrt() <= rad
-            } else {
-                true
-            };
-            if inside {
+    for yy in 0..h.ceil() as i32 {
+        for xx in 0..w.ceil() as i32 {
+            if in_round_rect(xx as f32, yy as f32, w, h, rad) {
+                let (r, g, b) = color((x0 + xx) as f32);
                 put_pixel(pm, x0 + xx, y0 + yy, r, g, b);
             }
         }
@@ -244,12 +244,19 @@ fn draw_gauge(
     let frac = clamp01(v / el.max.max(0.0001)) as f32;
     let warn = v >= el.warn_at;
     let fill_rgb = hex_to_rgb(if warn { &el.warn_color } else { &el.color });
+    let gradient_to = el.gradient_to.as_deref().filter(|_| !warn).map(hex_to_rgb);
     let track_rgb = hex_to_rgb(&el.track_color);
 
     let r_out = el.radius;
     let r_in = (el.radius - el.thickness).max(0.0);
     let start = (el.start_angle * PI) / 180.0;
     let sweep = el.sweep.max(1.0) * (PI / 180.0);
+    // Rounded corners work in arc coordinates: along-arc distance × radial offset.
+    let r_mid = (r_out + r_in) / 2.0;
+    let band = r_out - r_in;
+    let arc_len = sweep * r_mid;
+    let rad = el.corner_radius.clamp(0.0, band / 2.0);
+    let full_circle = el.sweep >= 360.0;
 
     let w = pm.width() as i32;
     let h = pm.height() as i32;
@@ -278,8 +285,18 @@ fn draw_gauge(
             if rel > sweep {
                 continue;
             }
-            let t = rel / sweep;
-            let (r, g, b) = if t <= frac { fill_rgb } else { track_rgb };
+            let s = rel * r_mid;
+            let u = d - r_in;
+            let fill_len = arc_len * frac;
+            let in_fill = frac > 0.0 && in_round_rect(s, u, fill_len.max(rad * 2.0), band, rad);
+            let in_track = if full_circle { true } else { in_round_rect(s, u, arc_len, band, rad) };
+            let (r, g, b) = if in_fill {
+                gradient_to.map_or(fill_rgb, |to| lerp_rgb(fill_rgb, to, rel / sweep))
+            } else if in_track {
+                track_rgb
+            } else {
+                continue;
+            };
             put_pixel(pm, x, y, r, g, b);
         }
     }
@@ -333,10 +350,13 @@ fn draw_bar(pm: &mut Pixmap, el: &BarElement, temps: Temperatures, decimals: u8)
     let frac = clamp01(v / el.max.max(0.0001)) as f32;
     let warn = v >= el.warn_at;
     let fill_rgb = hex_to_rgb(if warn { &el.warn_color } else { &el.color });
+    let gradient_to = el.gradient_to.as_deref().filter(|_| !warn).map(hex_to_rgb);
     let track_rgb = hex_to_rgb(&el.track_color);
 
     let left = el.x - el.width / 2.0;
     let top = el.y - el.height / 2.0;
+    let fill = |px: f32| gradient_to.map_or(fill_rgb, |to| lerp_rgb(fill_rgb, to, (px - left) / el.width));
+    let track = |_: f32| track_rgb;
     let radius = el.corner_radius;
     if el.segments > 0 {
         let n = el.segments as f32;
@@ -344,14 +364,18 @@ fn draw_bar(pm: &mut Pixmap, el: &BarElement, temps: Temperatures, decimals: u8)
         let seg_w = (el.width - gap * (n - 1.0)) / n;
         let lit = (frac * n).round() as u8;
         for i in 0..el.segments {
-            let color = if i < lit { fill_rgb } else { track_rgb };
-            fill_round_rect(pm, left + i as f32 * (seg_w + gap), top, seg_w, el.height, radius, color);
+            let sx = left + i as f32 * (seg_w + gap);
+            if i < lit {
+                fill_round_rect(pm, sx, top, seg_w, el.height, radius, fill);
+            } else {
+                fill_round_rect(pm, sx, top, seg_w, el.height, radius, track);
+            }
         }
     } else {
-        fill_round_rect(pm, left, top, el.width, el.height, radius, track_rgb);
+        fill_round_rect(pm, left, top, el.width, el.height, radius, track);
         if frac > 0.0 {
             let min_w = radius.unwrap_or(el.height / 2.0).min(el.height / 2.0) * 2.0; // keep the rounded end visible
-            fill_round_rect(pm, left, top, (el.width * frac).max(min_w), el.height, radius, fill_rgb);
+            fill_round_rect(pm, left, top, (el.width * frac).max(min_w), el.height, radius, fill);
         }
     }
 
@@ -449,7 +473,7 @@ mod tests {
             id: "b".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, width: 400.0, height: 40.0, max: 100.0,
             color: "#ff0000".into(), track_color: "#0000ff".into(), warn_color: "#ff0000".into(), warn_at: 1000.0,
             show_value: false, show_label: false, label: String::new(), value_size: 20.0,
-            segments: 10, corner_radius: Some(0.0),
+            segments: 10, corner_radius: Some(0.0), gradient_to: None,
         };
         let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Bar(bar)], ..DisplayConfig::default() };
         let temps = Temperatures { cpu: 50.0, ..Temperatures::default() };
@@ -458,6 +482,24 @@ mod tests {
         assert_eq!(px(120, 300), [255, 0, 0], "square corner of first segment is filled");
         assert_eq!(px(245, 320), [255, 0, 0], "third segment lit at 50%");
         assert_eq!(px(420, 320), [0, 0, 255], "eighth segment is track");
+    }
+
+    #[test]
+    fn gauge_gradient_and_rounded_ends() {
+        let gauge = GaugeElement {
+            id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
+            color: "#000000".into(), track_color: "#0000ff".into(), start_angle: 0.0, sweep: 180.0,
+            warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
+            value_size: 20.0, corner_radius: 20.0, gradient_to: Some("#ffffff".into()),
+        };
+        let cfg = DisplayConfig { background: "#101010".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
+        let temps = Temperatures { cpu: 100.0, ..Temperatures::default() };
+        let LcdFrame::Rgba(rgba) = render_for_device(&cfg, temps).unwrap() else { panic!("expected rgba") };
+        let px = |x: usize, y: usize| { let i = (y * LCD_SIZE as usize + x) * 4; [rgba[i], rgba[i + 1], rgba[i + 2]] };
+        // Arc starts at 12 o'clock (x=320) and sweeps clockwise to 6 o'clock.
+        assert_eq!(px(320, 21), [0x10, 0x10, 0x10], "outer corner at the start is rounded off");
+        assert!(px(340, 40)[0] < 40, "fill starts near the first colour");
+        assert!(px(600, 320)[0] > 100, "fill is mid-gradient at 3 o'clock");
     }
 
     #[test]

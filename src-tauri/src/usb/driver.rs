@@ -362,7 +362,7 @@ impl KrakenDriver {
             let cfg_snapshot = self.0.display_config.read().clone();
             let decimals = cfg_snapshot.decimals.min(2);
             let config_version = self.0.config_version.load(Ordering::Acquire);
-            let key = visual_key(temps, decimals, config_version);
+            let key = visual_key(&cfg_snapshot, temps, decimals, config_version);
 
             let min_push = Duration::from_millis(self.0.temp_min_push_ms.load(Ordering::Relaxed));
             // ponytail: re-encoding a GIF background costs ~15ms/frame, so its stats refresh at most every 5s
@@ -428,25 +428,36 @@ impl KrakenDriver {
 // ============================================================================
 // Visual key — stable representation of what the LCD will display
 // ============================================================================
-fn visual_key(t: Temperatures, decimals: u8, config_version: u32) -> String {
-    let d = decimals.min(2) as usize;
-    format!(
-        "{}|{:.*}|{:.*}|{:.*}|{}|{:.*}|{:.*}|{:.*}",
-        config_version,
-        d,
-        t.cpu,
-        d,
-        t.gpu,
-        d,
-        t.liquid,
-        t.pump_rpm.round() as i64,
-        d,
-        t.sensor1,
-        d,
-        t.sensor2,
-        d,
-        t.sensor3
-    )
+/// Only what is actually drawn, so off-screen readings (e.g. pump RPM) don't trigger a bucket switch.
+fn visual_key(cfg: &DisplayConfig, t: Temperatures, decimals: u8, config_version: u32) -> String {
+    use crate::types::{format_metric, resolve_text, DisplayElement};
+    let mut key = config_version.to_string();
+    for el in &cfg.elements {
+        key.push('|');
+        match el {
+            DisplayElement::Gauge(g) => key.push_str(&format_metric(g.metric.value_from(t), decimals)),
+            DisplayElement::Bar(b) => key.push_str(&format_metric(b.metric.value_from(t), decimals)),
+            DisplayElement::Text(x) => key.push_str(&resolve_text(&x.text, t, decimals)),
+        }
+    }
+    key
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{TextAlign, TextElement};
+
+    #[test]
+    fn visual_key_ignores_offscreen_readings() {
+        let text = TextElement { id: "t".into(), x: 0.0, y: 0.0, text: "{liquid}°".into(), color: "#fff".into(), size: 10.0, align: TextAlign::Center };
+        let cfg = DisplayConfig { elements: vec![crate::types::DisplayElement::Text(text)], ..DisplayConfig::default() };
+        let base = Temperatures { liquid: 31.2, pump_rpm: 1500.0, ..Temperatures::default() };
+        let key = |t| visual_key(&cfg, t, 0, 1);
+        assert_eq!(key(base), key(Temperatures { pump_rpm: 1620.0, cpu: 70.0, ..base }));
+        assert_eq!(key(base), key(Temperatures { liquid: 31.4, ..base }), "same at 0 decimals");
+        assert_ne!(key(base), key(Temperatures { liquid: 32.0, ..base }));
+    }
 }
 
 // ============================================================================

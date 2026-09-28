@@ -176,6 +176,12 @@ pub struct GaugeElement {
     pub show_label: bool,
     pub label: String,
     pub value_size: f32,
+    /// Corner radius in px at the arc ends (0 = square).
+    #[serde(default)]
+    pub corner_radius: f32,
+    /// Fill blends from `color` to this along the arc.
+    #[serde(default)]
+    pub gradient_to: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -202,6 +208,9 @@ pub struct BarElement {
     /// Corner radius in px; None = fully rounded ends.
     #[serde(default)]
     pub corner_radius: Option<f32>,
+    /// Fill blends from `color` to this along the bar.
+    #[serde(default)]
+    pub gradient_to: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

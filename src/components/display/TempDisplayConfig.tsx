@@ -43,8 +43,10 @@ interface Settings {
   vizType:       VizType
   vizColor:      string
   barSegmented:  boolean
-  barThickness:  number
-  barRadius:     number
+  thickness:     number
+  corners:       number
+  gradient:      boolean
+  gradientColor: string
   primaryMetric: MetricId
   numberColor:   string
   textColor:     string
@@ -53,7 +55,7 @@ interface Settings {
 const DEFAULT: Settings = {
   bg: '#000000', bgImage: null, bgDim: 40, showLogo: true, logoColor: '#ffffff',
   showViz: true, vizType: 'gauge', vizColor: '#9d4edd',
-  barSegmented: false, barThickness: 34, barRadius: 17,
+  barSegmented: false, thickness: 40, corners: 20, gradient: false, gradientColor: '#00bcd4',
   primaryMetric: 'liquid', numberColor: '#ffffff', textColor: '#ffffff',
 }
 
@@ -67,15 +69,16 @@ function loadSettings(): Settings {
 
 function buildConfig(s: Settings, unit: string, label: string): DisplayConfig {
   const elements = []
+  const style = { color: s.vizColor, cornerRadius: s.corners, gradientTo: s.gradient ? s.gradientColor : null }
   if (s.showViz && s.vizType !== 'none') {
     if (s.vizType === 'gauge') {
-      elements.push(makeGauge(s.primaryMetric, { radius: 290, thickness: 46, color: s.vizColor, startAngle: -45, sweep: 270, showValue: false, showLabel: false }))
+      elements.push(makeGauge(s.primaryMetric, { ...style, radius: 290, thickness: s.thickness, startAngle: -135, sweep: 270, showValue: false, showLabel: false }))
     } else if (s.vizType === 'ring') {
-      elements.push(makeGauge(s.primaryMetric, { radius: 290, thickness: 46, color: s.vizColor, startAngle: 0, sweep: 360, showValue: false, showLabel: false }))
+      elements.push(makeGauge(s.primaryMetric, { ...style, radius: 290, thickness: s.thickness, startAngle: 0, sweep: 360, showValue: false, showLabel: false }))
     } else if (s.vizType === 'linear') {
       elements.push(makeBar(s.primaryMetric, {
-        x: 320, y: 500, width: 400, height: s.barThickness, color: s.vizColor,
-        segments: s.barSegmented ? 10 : 0, cornerRadius: s.barRadius, showValue: false, showLabel: false,
+        ...style, x: 320, y: 500, width: 400, height: s.thickness,
+        segments: s.barSegmented ? 10 : 0, showValue: false, showLabel: false,
       }))
     }
   }
@@ -311,9 +314,9 @@ export function TempDisplayConfig() {
                   }}>{label}</button>
                 ))}
               </div>
-              {s.showViz && s.vizType === 'linear' && (
+              {s.showViz && s.vizType !== 'none' && (
                 <div style={{ paddingLeft: 100, display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                  <div style={{ display: 'flex', gap: 5 }}>
+                  {s.vizType === 'linear' && <div style={{ display: 'flex', gap: 5 }}>
                     {[false, true].map(seg => (
                       <button key={String(seg)} onClick={() => upd('barSegmented', seg)} style={{
                         padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer',
@@ -322,9 +325,18 @@ export function TempDisplayConfig() {
                         color: s.barSegmented === seg ? accent : '#9a9a9a',
                       }}>{seg ? 'Segmented' : 'Solid'}</button>
                     ))}
+                  </div>}
+                  <BarSlider label="Thickness" value={s.thickness} min={6} max={80} unit="px" accent={accent} onChange={v => upd('thickness', v)}/>
+                  <BarSlider label="Corners" value={s.corners} min={0} max={40} unit="px" accent={accent} onChange={v => upd('corners', v)}/>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#9a9a9a', minWidth: 62, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={s.gradient} onChange={e => upd('gradient', e.target.checked)} style={{ accentColor: accent }}/>
+                      Gradient
+                    </label>
+                    <div style={{ display: 'flex', gap: 6, opacity: s.gradient ? 1 : 0.35, pointerEvents: s.gradient ? 'auto' : 'none' }}>
+                      <ColorRow colors={VIZ_COLORS} value={s.gradientColor} onChange={c => upd('gradientColor', c)}/>
+                    </div>
                   </div>
-                  <BarSlider label="Thickness" value={s.barThickness} min={6} max={80} unit="px" accent={accent} onChange={v => upd('barThickness', v)}/>
-                  <BarSlider label="Corners" value={s.barRadius} min={0} max={40} unit="px" accent={accent} onChange={v => upd('barRadius', v)}/>
                 </div>
               )}
             </div>
