@@ -288,6 +288,11 @@ pub fn save_giphy_gif(request: tauri::ipc::Request<'_>) -> Result<String, String
 }
 
 #[tauri::command]
+pub fn start_visible() -> bool {
+    crate::cli::START_VISIBLE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+#[tauri::command]
 pub fn list_sensors() -> Vec<sensors::all::Sensor> {
     sensors::all::list_sensors()
 }
