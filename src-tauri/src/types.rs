@@ -72,6 +72,8 @@ pub struct AppSettings {
     pub gpu_source: Option<String>,
     pub cpu_source: Option<String>,
     pub sensor_sources: Vec<Option<String>>,
+    /// Third-party API keys by service name, e.g. "giphy".
+    pub api_keys: std::collections::BTreeMap<String, String>,
     pub selected_device: String,
     pub poll_interval_ms: u64,
     pub lcd_poll_ms: u64,
@@ -85,6 +87,7 @@ impl Default for AppSettings {
             gpu_source: None,
             cpu_source: None,
             sensor_sources: vec![None; 3],
+            api_keys: Default::default(),
             selected_device: "nzxt-kraken-elite-v2".into(),
             poll_interval_ms: 1000,
             lcd_poll_ms: 500,
@@ -193,6 +196,12 @@ pub struct BarElement {
     pub show_label: bool,
     pub label: String,
     pub value_size: f32,
+    /// 0 = solid bar, otherwise number of discrete segments.
+    #[serde(default)]
+    pub segments: u8,
+    /// Corner radius in px; None = fully rounded ends.
+    #[serde(default)]
+    pub corner_radius: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -3,6 +3,7 @@ import { Card } from '../ui/Card'
 import { LCDCircularPreview } from '../ui/LCDCircularPreview'
 import { MediaUploader } from '../MediaUploader'
 import { TempDisplayConfig } from '../display/TempDisplayConfig'
+import { GiphyPicker } from '../display/GiphyPicker'
 import { LCDPreview } from '../LCDPreview'
 import { api } from '../../lib/api'
 import { useState } from 'react'
@@ -131,8 +132,14 @@ export function LCDScreen() {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
                   <LCDPreview/>
                 </div>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <MediaUploader/>
+                  {currentMode === 'gif' && (
+                    <GiphyPicker accent={accent} onPick={path => {
+                      dispatch({ type: 'SET_GIF_PATH', payload: path })
+                      dispatch({ type: 'SET_GIF_PREVIEW', payload: api.fileUrl(path) })
+                    }}/>
+                  )}
                 </div>
               </div>
             </Card>

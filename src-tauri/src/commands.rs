@@ -267,6 +267,26 @@ pub fn list_gpu_sources() -> Vec<GpuSource> {
     sensors::gpu::list_gpu_sources(true)
 }
 
+/// Store a GIF downloaded from GIPHY (raw IPC body, id in the `x-giphy-id` header) and return its path.
+#[tauri::command]
+pub fn save_giphy_gif(request: tauri::ipc::Request<'_>) -> Result<String, String> {
+    let id = request.headers().get("x-giphy-id").and_then(|v| v.to_str().ok()).unwrap_or_default();
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("Expected raw GIF bytes".into());
+    };
+    if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Err("Invalid GIPHY id".into());
+    }
+    if !bytes.starts_with(b"GIF8") {
+        return Err("Download is not a GIF".into());
+    }
+    let dir = dirs::cache_dir().ok_or("Cache dir not found")?.join("nzxtcam-archlinux-rust/giphy");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join(format!("{id}.gif"));
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 pub fn list_sensors() -> Vec<sensors::all::Sensor> {
     sensors::all::list_sensors()

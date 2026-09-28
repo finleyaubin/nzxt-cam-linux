@@ -8,7 +8,8 @@ import {
   DisplayConfig, MetricId, METRIC_LABELS, PRESETS,
   makeGauge, makeBar, makeText,
 } from '@shared/display'
-import { Play, ImageSquare, X } from '@phosphor-icons/react'
+import { Play, ImageSquare, X, Gif } from '@phosphor-icons/react'
+import { GiphyPicker } from './GiphyPicker'
 
 type VizType = 'gauge' | 'ring' | 'linear' | 'none'
 
@@ -20,7 +21,7 @@ const TXT_COLORS  = ['#ffffff', '#9d4edd', '#00e87a', '#ffb347', '#ff4757']
 const VIZ_TYPES: { id: VizType; label: string }[] = [
   { id: 'gauge',  label: 'Gauge'  },
   { id: 'ring',   label: 'Ring'   },
-  { id: 'linear', label: 'Bar'    },
+  { id: 'linear', label: 'Progress bar' },
   { id: 'none',   label: 'None'   },
 ]
 const BASE_METRICS: { id: MetricId; label: string }[] = [
@@ -41,6 +42,9 @@ interface Settings {
   showViz:       boolean
   vizType:       VizType
   vizColor:      string
+  barSegmented:  boolean
+  barThickness:  number
+  barRadius:     number
   primaryMetric: MetricId
   numberColor:   string
   textColor:     string
@@ -49,6 +53,7 @@ interface Settings {
 const DEFAULT: Settings = {
   bg: '#000000', bgImage: null, bgDim: 40, showLogo: true, logoColor: '#ffffff',
   showViz: true, vizType: 'gauge', vizColor: '#9d4edd',
+  barSegmented: false, barThickness: 34, barRadius: 17,
   primaryMetric: 'liquid', numberColor: '#ffffff', textColor: '#ffffff',
 }
 
@@ -68,7 +73,10 @@ function buildConfig(s: Settings, unit: string, label: string): DisplayConfig {
     } else if (s.vizType === 'ring') {
       elements.push(makeGauge(s.primaryMetric, { radius: 290, thickness: 46, color: s.vizColor, startAngle: 0, sweep: 360, showValue: false, showLabel: false }))
     } else if (s.vizType === 'linear') {
-      elements.push(makeBar(s.primaryMetric, { x: 320, y: 500, color: s.vizColor }))
+      elements.push(makeBar(s.primaryMetric, {
+        x: 320, y: 500, width: 400, height: s.barThickness, color: s.vizColor,
+        segments: s.barSegmented ? 10 : 0, cornerRadius: s.barRadius, showValue: false, showLabel: false,
+      }))
     }
   }
   if (s.showLogo) elements.push(makeText('NZXT', { x: 320, y: 210, size: 40, color: s.logoColor }))
@@ -122,6 +130,18 @@ function CheckRow({ label, checked, onChange, accent, children }: { label: strin
   )
 }
 
+function BarSlider({ label, value, min, max, unit, accent, onChange }: {
+  label: string; value: number; min: number; max: number; unit: string; accent: string; onChange: (v: number) => void
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ fontSize: 11, color: '#9a9a9a', minWidth: 62 }}>{label}</span>
+      <div style={{ flex: 1, maxWidth: 200 }}><Slider value={value} min={min} max={max} onChange={onChange} color={accent}/></div>
+      <span style={{ fontSize: 11, color: '#9a9a9a', fontFamily: 'JetBrains Mono, monospace', minWidth: 34 }}>{value}{unit}</span>
+    </div>
+  )
+}
+
 const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path
 
 export function TempDisplayConfig() {
@@ -132,6 +152,7 @@ export function TempDisplayConfig() {
   const [error, setError] = useState<string | null>(null)
   const [rotation, setRotation] = useState(0)
   const [preview, setPreview] = useState<string | null>(null)
+  const [showGiphy, setShowGiphy] = useState(false)
   const [slotInfo, setSlotInfo] = useState<Record<string, { label: string; unit: string }>>({})
 
   useEffect(() => { api.getLcdOrientation().then(setRotation) }, [])
@@ -239,6 +260,15 @@ export function TempDisplayConfig() {
                   {s.bgImage ? fileName(s.bgImage) : 'Photo or GIF'}
                 </span>
               </button>
+              <button onClick={() => setShowGiphy(v => !v)} aria-expanded={showGiphy} style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                border: `1px solid ${showGiphy ? `${accent}55` : '#252525'}`,
+                background: showGiphy ? `${accent}18` : '#111', color: showGiphy ? accent : '#9a9a9a',
+              }}>
+                <Gif size={14}/>
+                GIPHY
+              </button>
               {s.bgImage && (
                 <button onClick={() => upd('bgImage', null)} aria-label="Remove background image" style={{
                   display: 'flex', padding: 4, borderRadius: 8, border: '1px solid #252525',
@@ -246,6 +276,12 @@ export function TempDisplayConfig() {
                 }}><X size={12}/></button>
               )}
             </Row>
+
+            {showGiphy && (
+              <div style={{ paddingLeft: 100 }}>
+                <GiphyPicker accent={accent} onPick={path => { upd('bgImage', path); setShowGiphy(false) }}/>
+              </div>
+            )}
 
             {s.bgImage && (
               <Row label="Dim image">
@@ -275,6 +311,22 @@ export function TempDisplayConfig() {
                   }}>{label}</button>
                 ))}
               </div>
+              {s.showViz && s.vizType === 'linear' && (
+                <div style={{ paddingLeft: 100, display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                  <div style={{ display: 'flex', gap: 5 }}>
+                    {[false, true].map(seg => (
+                      <button key={String(seg)} onClick={() => upd('barSegmented', seg)} style={{
+                        padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                        border: `1px solid ${s.barSegmented === seg ? `${accent}55` : '#252525'}`,
+                        background: s.barSegmented === seg ? `${accent}18` : '#111',
+                        color: s.barSegmented === seg ? accent : '#9a9a9a',
+                      }}>{seg ? 'Segmented' : 'Solid'}</button>
+                    ))}
+                  </div>
+                  <BarSlider label="Thickness" value={s.barThickness} min={6} max={80} unit="px" accent={accent} onChange={v => upd('barThickness', v)}/>
+                  <BarSlider label="Corners" value={s.barRadius} min={0} max={40} unit="px" accent={accent} onChange={v => upd('barRadius', v)}/>
+                </div>
+              )}
             </div>
 
             <div style={{ height: 1, background: '#1c1c1c', margin: '2px 0' }}/>

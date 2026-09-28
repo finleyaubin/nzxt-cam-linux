@@ -189,11 +189,11 @@ fn put_pixel(pm: &mut Pixmap, x: i32, y: i32, r: u8, g: u8, b: u8) {
 }
 
 /// Filled rounded rectangle. (x, y) is the top-left corner.
-fn fill_round_rect(pm: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, color: (u8, u8, u8)) {
+fn fill_round_rect(pm: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, radius: Option<f32>, color: (u8, u8, u8)) {
     if w <= 0.0 || h <= 0.0 {
         return;
     }
-    let rad = (h.min(w)) / 2.0;
+    let rad = radius.unwrap_or(f32::MAX).clamp(0.0, h.min(w) / 2.0);
     let (r, g, b) = color;
     let x0 = x.floor() as i32;
     let y0 = y.floor() as i32;
@@ -337,10 +337,22 @@ fn draw_bar(pm: &mut Pixmap, el: &BarElement, temps: Temperatures, decimals: u8)
 
     let left = el.x - el.width / 2.0;
     let top = el.y - el.height / 2.0;
-    fill_round_rect(pm, left, top, el.width, el.height, track_rgb);
-    if frac > 0.0 {
-        let fw = (el.width * frac).max(el.height); // ensure rounded end shows
-        fill_round_rect(pm, left, top, fw, el.height, fill_rgb);
+    let radius = el.corner_radius;
+    if el.segments > 0 {
+        let n = el.segments as f32;
+        let gap = (el.width / n * 0.15).clamp(2.0, 8.0);
+        let seg_w = (el.width - gap * (n - 1.0)) / n;
+        let lit = (frac * n).round() as u8;
+        for i in 0..el.segments {
+            let color = if i < lit { fill_rgb } else { track_rgb };
+            fill_round_rect(pm, left + i as f32 * (seg_w + gap), top, seg_w, el.height, radius, color);
+        }
+    } else {
+        fill_round_rect(pm, left, top, el.width, el.height, radius, track_rgb);
+        if frac > 0.0 {
+            let min_w = radius.unwrap_or(el.height / 2.0).min(el.height / 2.0) * 2.0; // keep the rounded end visible
+            fill_round_rect(pm, left, top, (el.width * frac).max(min_w), el.height, radius, fill_rgb);
+        }
     }
 
     // Label (left) + value (right) on a row above the bar.
@@ -429,6 +441,23 @@ mod tests {
         };
         assert_eq!(rgba.len(), (LCD_SIZE * LCD_SIZE * 4) as usize);
         assert_eq!(&rgba[..3], &[100, 50, 25]);
+    }
+
+    #[test]
+    fn segmented_square_bar_lights_half() {
+        let bar = BarElement {
+            id: "b".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, width: 400.0, height: 40.0, max: 100.0,
+            color: "#ff0000".into(), track_color: "#0000ff".into(), warn_color: "#ff0000".into(), warn_at: 1000.0,
+            show_value: false, show_label: false, label: String::new(), value_size: 20.0,
+            segments: 10, corner_radius: Some(0.0),
+        };
+        let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Bar(bar)], ..DisplayConfig::default() };
+        let temps = Temperatures { cpu: 50.0, ..Temperatures::default() };
+        let LcdFrame::Rgba(rgba) = render_for_device(&cfg, temps).unwrap() else { panic!("expected rgba") };
+        let px = |x: usize, y: usize| { let i = (y * LCD_SIZE as usize + x) * 4; [rgba[i], rgba[i + 1], rgba[i + 2]] };
+        assert_eq!(px(120, 300), [255, 0, 0], "square corner of first segment is filled");
+        assert_eq!(px(245, 320), [255, 0, 0], "third segment lit at 50%");
+        assert_eq!(px(420, 320), [0, 0, 255], "eighth segment is track");
     }
 
     #[test]

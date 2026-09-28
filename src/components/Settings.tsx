@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { AIO_DEVICES } from '@shared/devices'
 import { api, AppSettings, GpuSource, Sensor } from '../lib/api'
 import { useApp } from '../context/AppContext'
-import { Cpu, Clock, Monitor, Drop } from '@phosphor-icons/react'
+import { Cpu, Clock, Monitor, Drop, Key, Eye, EyeSlash } from '@phosphor-icons/react'
 
 const GITHUB_ISSUES_URL = 'https://github.com/cypherxdev77/nzxt-cam-linux/issues/new?template=device_support.md'
 
@@ -36,6 +36,37 @@ function SensorSelect({ label, emptyLabel, value, sensors, onChange }: {
         <option value="">{emptyLabel}</option>
         {sensors.map(s => <option key={s.id} value={s.id}>{s.label} [{s.unit}]</option>)}
       </select>
+    </label>
+  )
+}
+
+function ApiKeyField({ label, help, getKeyUrl, value, onSave }: {
+  label: string; help: string; getKeyUrl: string; value: string; onSave: (v: string) => void
+}) {
+  const [draft, setDraft] = useState(value)
+  const [visible, setVisible] = useState(false)
+  useEffect(() => setDraft(value), [value])
+  const commit = () => { if (draft.trim() !== value) onSave(draft.trim()) }
+
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 480 }}>
+      <span style={{ fontSize: 12, color: '#a0a0a0', fontWeight: 600 }}>{label}</span>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input
+          type={visible ? 'text' : 'password'} value={draft} placeholder="Paste API key" autoComplete="off" spellCheck={false}
+          onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit() }}
+          style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #2a2a2a', background: '#0d0d0d', color: '#e0e0e0', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}
+        />
+        <button type="button" onClick={() => setVisible(v => !v)} aria-label={visible ? 'Hide key' : 'Show key'} style={{
+          display: 'flex', alignItems: 'center', padding: '0 10px', borderRadius: 8, border: '1px solid #2a2a2a',
+          background: '#111', color: '#9a9a9a', cursor: 'pointer',
+        }}>{visible ? <EyeSlash size={14}/> : <Eye size={14}/>}</button>
+      </div>
+      <span style={{ fontSize: 11, color: '#7f7f7f' }}>
+        {help}{' '}
+        <a href={getKeyUrl} onClick={e => { e.preventDefault(); api.openExternal(getKeyUrl) }} style={{ color: '#9a9a9a' }}>Get a key</a>
+        {value && ' · Saved'}
+      </span>
     </label>
   )
 }
@@ -196,6 +227,18 @@ export function Settings() {
           }}/>
         ))}
       </div>
+
+      <Divider/>
+
+      {/* API keys */}
+      <SectionHeader icon={<Key size={13}/>} title="API keys" description="Stored locally in your config file (readable only by your user)."/>
+      <ApiKeyField
+        label="GIPHY"
+        help="Used to search GIFs for the LCD."
+        getKeyUrl="https://developers.giphy.com/dashboard/"
+        value={settings?.apiKeys?.giphy ?? ''}
+        onSave={v => update({ apiKeys: { ...(settings?.apiKeys ?? {}), giphy: v } })}
+      />
 
       <Divider/>
 

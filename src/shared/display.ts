@@ -81,6 +81,8 @@ export interface BarElement extends ElementBase {
   showLabel: boolean
   label: string
   valueSize: number
+  segments?: number
+  cornerRadius?: number | null
 }
 
 export interface TextElement extends ElementBase {

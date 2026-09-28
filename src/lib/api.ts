@@ -50,6 +50,7 @@ export interface AppSettings {
   gpuSource: string | null
   cpuSource: string | null
   sensorSources: (string | null)[]
+  apiKeys: Record<string, string>
   selectedDevice: string
   pollIntervalMs: number
   lcdPollMs: number
@@ -129,6 +130,8 @@ export const api = {
     invoke<PreviewResult>('render_display_preview', { configIn: config }),
 
   // --- Settings ---
+  saveGiphyGif: (id: string, bytes: ArrayBuffer) =>
+    invoke<string>('save_giphy_gif', new Uint8Array(bytes), { headers: { 'x-giphy-id': id } }),
   listSensors: () => invoke<Sensor[]>('list_sensors'),
   listGpuSources: () => invoke<GpuSource[]>('list_gpu_sources'),
   getSettings: () => invoke<AppSettings>('get_settings'),

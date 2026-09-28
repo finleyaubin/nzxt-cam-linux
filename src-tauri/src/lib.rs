@@ -159,6 +159,7 @@ pub fn run() {
             commands::render_display_preview,
             commands::list_gpu_sources,
             commands::list_sensors,
+            commands::save_giphy_gif,
             commands::get_settings,
             commands::save_settings,
             commands::open_external,
