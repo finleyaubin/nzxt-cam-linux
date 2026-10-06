@@ -38,6 +38,8 @@ interface Row {
 
 interface DialogProps {
   title: string
+  /** Limit the list, e.g. to sensors not yet bound. */
+  only?: (s: Sensor) => boolean
   builtins: MetricOption[]
   /** Metric currently shown, so its row is marked. */
   activeId?: MetricId
@@ -49,8 +51,9 @@ interface DialogProps {
 }
 
 /** Popup with search, source/unit filters and a keyboard-navigable list of every sensor. */
-function SensorDialog({ title, builtins, activeId, accent, onBuiltin, onSensor, onClose }: DialogProps) {
-  const catalog = useSensorCatalog()
+export function SensorDialog({ title, only, builtins, activeId, accent, onBuiltin, onSensor, onClose }: DialogProps) {
+  const everything = useSensorCatalog()
+  const catalog = only ? everything.filter(only) : everything
   const boundSources = useBoundSources()
   const [query, setQuery] = useState('')
   const [source, setSource] = useState<string | null>(null)
@@ -174,7 +177,7 @@ function SensorDialog({ title, builtins, activeId, accent, onBuiltin, onSensor, 
                 {list.map(r => renderRow(r, name !== IN_USE))}
               </div>
             ))}
-            {flat.length === 0 && <div style={{ padding: 16, fontSize: 12, color: '#7f7f7f' }}>{catalog.length === 0 ? 'Loading sensors…' : 'No sensors match.'}</div>}
+            {flat.length === 0 && <div style={{ padding: 16, fontSize: 12, color: '#7f7f7f' }}>{everything.length === 0 ? 'Loading sensors…' : 'No sensors match.'}</div>}
             {found.length > MAX_ROWS && <div style={{ padding: '10px', fontSize: 11, color: '#7f7f7f' }}>Showing {MAX_ROWS} of {found.length}. Type or filter to narrow.</div>}
           </div>
         </div>
