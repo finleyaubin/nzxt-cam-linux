@@ -226,10 +226,43 @@ fn scan() -> Vec<SystemLogo> {
     logos
 }
 
-/// Logos on this system; scanned once, then cached.
+fn drawable(path: &Path) -> bool {
+    path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png") || e.eq_ignore_ascii_case("svg"))
+}
+
+fn stem_of(path: &str) -> String {
+    Path::new(path).file_stem().and_then(|s| s.to_str()).unwrap_or_default().to_lowercase()
+}
+
+/// PNG and SVG files the user dropped into `dir`, sorted by name.
+fn user_logos(dir: &Path) -> Vec<SystemLogo> {
+    let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| drawable(p) && std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.len() <= MAX_FILE_BYTES))
+        .collect();
+    files.sort();
+    files
+        .into_iter()
+        .filter_map(|path| {
+            let thumb = thumbnail(&path)?;
+            let label = prettify(path.file_stem()?.to_str()?);
+            Some(SystemLogo { label, group: "Your logos".into(), path: path.to_string_lossy().into_owned(), thumb })
+        })
+        .collect()
+}
+
+/// The user's own logos (rescanned each time, so new files show up straight away) followed by what the system has (scanned once, then cached).
 pub fn discover() -> Vec<SystemLogo> {
-    static CACHE: OnceLock<Vec<SystemLogo>> = OnceLock::new();
-    CACHE.get_or_init(scan).clone()
+    static SYSTEM: OnceLock<Vec<SystemLogo>> = OnceLock::new();
+    let dir = crate::config::config_dir().join("logos");
+    let _ = std::fs::create_dir_all(&dir);
+    let mine = user_logos(&dir);
+    let mine_stems: HashSet<String> = mine.iter().map(|l| stem_of(&l.path)).collect();
+    let system = SYSTEM.get_or_init(scan).iter().filter(|l| !mine_stems.contains(&stem_of(&l.path))).cloned();
+    mine.iter().cloned().chain(system).collect()
 }
 
 #[cfg(test)]
@@ -290,6 +323,21 @@ mod tests {
         for l in &logos {
             println!("  [{}] {} -> {}", l.group, l.label, l.path);
         }
+    }
+
+    #[test]
+    fn user_logos_lists_drawable_files_only_and_sorted() {
+        let dir = std::env::temp_dir().join(format!("nzxt-user-logos-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        image::RgbaImage::from_pixel(20, 20, image::Rgba([0, 0, 255, 255])).save(dir.join("b-logo.png")).unwrap();
+        std::fs::write(dir.join("a-hyprland.svg"), r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#00ccff"/></svg>"##).unwrap();
+        std::fs::write(dir.join("notes.txt"), b"ignore me").unwrap();
+        std::fs::write(dir.join("broken.png"), b"not a png").unwrap();
+        let logos = user_logos(&dir);
+        let labels: Vec<&str> = logos.iter().map(|l| l.label.as_str()).collect();
+        assert_eq!(labels, ["A hyprland", "B logo"], "sorted, drawable, decodable");
+        assert!(logos.iter().all(|l| l.group == "Your logos"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
