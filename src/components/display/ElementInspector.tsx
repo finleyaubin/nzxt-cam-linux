@@ -1,8 +1,8 @@
 import { BarElement, DisplayElement, GaugeElement, GraphElement, MAX_SENSORS, MetricId, TEXT_VARIABLES, TextElement, defaultWarnAt } from '@shared/display'
 import { CheckField, ColorField, NumField, Pill, SectionTitle, SelectField, TextField } from './fields'
 import { MetricOption, optionFor } from './metrics'
-import { SensorPicker } from './SensorPicker'
-import { useState } from 'react'
+import { InsertSensor, SensorPicker } from './SensorPicker'
+import { useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Copy, Trash } from '@phosphor-icons/react'
 
 interface Props {
@@ -78,16 +78,27 @@ function TextFields({ el, metrics, accent, set }: { el: TextElement; metrics: Me
     ...metrics.filter(m => m.id.startsWith('sensor')).map(m => ({ token: `{${m.id}}`, label: m.label })),
     ...TEXT_VARIABLES.slice(4),
   ]
+  const input = useRef<HTMLInputElement>(null)
+  const insert = (token: string) => {
+    const start = input.current?.selectionStart ?? el.text.length
+    const end = input.current?.selectionEnd ?? start
+    set({ text: el.text.slice(0, start) + token + el.text.slice(end) })
+    requestAnimationFrame(() => {
+      input.current?.focus()
+      input.current?.setSelectionRange(start + token.length, start + token.length)
+    })
+  }
   return (
     <>
-      <TextField label="Text" value={el.text} onChange={text => set({ text })} placeholder="Type text, add variables below"/>
+      <TextField label="Text" value={el.text} onChange={text => set({ text })} placeholder="Type text, add variables below" inputRef={input}/>
+      <InsertSensor accent={accent} onInsert={insert}/>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, paddingLeft: 102 }}>
         {variables.map(v => (
-          <Pill key={v.token} accent={accent} title={`Insert ${v.token}`} onClick={() => set({ text: el.text + v.token })}>{v.label}</Pill>
+          <Pill key={v.token} accent={accent} title={`Insert ${v.token}`} onClick={() => insert(v.token)}>{v.label}</Pill>
         ))}
       </div>
       <div style={{ fontSize: 10, color: '#7f7f7f', paddingLeft: 102, lineHeight: 1.5 }}>
-        Variables update live. Add <code>:1</code> for decimals, e.g. <code>{'{cpu:1}'}</code>. Up to {MAX_SENSORS} bound sensors are available as <code>{'{sensor1}'}</code>…
+        Variables update live and are inserted at the cursor. Add <code>:1</code> for decimals, e.g. <code>{'{cpu:1}'}</code>. <b>+ Sensor</b> binds any sensor to one of {MAX_SENSORS} slots as <code>{'{sensor1}'}</code>…
       </div>
       <NumField label="Size" value={el.size} min={8} max={200} unit="px" accent={accent} onChange={size => set({ size })}/>
       <SelectField label="Align" value={el.align} accent={accent} onChange={align => set({ align: align as TextElement['align'] })}
