@@ -236,6 +236,9 @@ pub struct GaugeElement {
     /// Fill blends from `color` to this along the arc.
     #[serde(default)]
     pub gradient_to: Option<String>,
+    /// Print 0 and `max` at the two ends of a partial arc.
+    #[serde(default)]
+    pub show_range: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -339,6 +339,24 @@ fn draw_gauge(
     if !lines.is_empty() {
         draw_centered_stack(pm, el.x, el.y, &lines)?;
     }
+    if el.show_range && !full_circle {
+        draw_range_ends(pm, el, r_in, start, sweep, decimals)?;
+    }
+    Ok(())
+}
+
+/// 0 and max inside the ring at the arc's start and end, pushed in just far enough to clear the inner edge.
+fn draw_range_ends(pm: &mut Pixmap, el: &GaugeElement, r_in: f32, start: f32, sweep: f32, decimals: u8) -> Result<()> {
+    let size = (el.value_size * 0.4).max(12.0);
+    let max_decimals = if el.max.fract() == 0.0 { 0 } else { decimals };
+    let ends = [(start, crate::types::format_metric(0.0, 0)), (start + sweep, crate::types::format_metric(el.max, max_decimals))];
+    for (angle, text) in ends {
+        let m = measure(&text, size)?;
+        let (sin, cos) = angle.sin_cos();
+        let reach = sin.abs() * m.width / 2.0 + cos.abs() * m.height / 2.0;
+        let r = (r_in - reach - 4.0).max(0.0);
+        draw_text(pm, el.x + r * sin - m.width / 2.0, el.y - r * cos - m.height / 2.0, &text, size, (0x9a, 0xa0, 0xb4))?;
+    }
     Ok(())
 }
 
@@ -592,7 +610,7 @@ mod tests {
             id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
             color: "#000000".into(), track_color: "#0000ff".into(), start_angle: 0.0, sweep: 180.0,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
-            value_size: 20.0, corner_radius: 20.0, gradient_to: Some("#ffffff".into()),
+            value_size: 20.0, corner_radius: 20.0, gradient_to: Some("#ffffff".into()), show_range: false,
         };
         let cfg = DisplayConfig { background: "#101010".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let temps = Temperatures { cpu: 100.0, ..Temperatures::default() };
@@ -605,12 +623,37 @@ mod tests {
     }
 
     #[test]
+    fn range_ends_are_drawn_inside_the_ring_only() {
+        let render = |show_range: bool, sweep: f32| {
+            let gauge = GaugeElement {
+                id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
+                color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep,
+                warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
+                value_size: 40.0, corner_radius: 0.0, gradient_to: None, show_range,
+            };
+            let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
+            let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures::default()).unwrap() else { panic!() };
+            rgba
+        };
+        let (off, on) = (render(false, 270.0), render(true, 270.0));
+        let changed: Vec<usize> = (0..off.len() / 4).filter(|&i| off[i * 4..i * 4 + 3] != on[i * 4..i * 4 + 3]).collect();
+        assert!(changed.len() > 50, "labels were drawn");
+        let n = LCD_SIZE as usize;
+        assert!(changed.iter().all(|&i| {
+            let (dx, dy) = ((i % n) as f32 - 320.0, (i / n) as f32 - 320.0);
+            (dx * dx + dy * dy).sqrt() < 260.0
+        }), "labels stay inside the ring");
+        assert!(changed.iter().any(|&i| i % n < 320) && changed.iter().any(|&i| i % n > 320), "one label at each end");
+        assert_eq!(render(false, 360.0), render(true, 360.0), "full rings have no ends to label");
+    }
+
+    #[test]
     fn negative_start_angle_draws_whole_gauge() {
         let gauge = GaugeElement {
             id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
             color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep: 270.0,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
-            value_size: 20.0, corner_radius: 0.0, gradient_to: None,
+            value_size: 20.0, corner_radius: 0.0, gradient_to: None, show_range: false,
         };
         let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures { cpu: 100.0, ..Temperatures::default() }).unwrap() else { panic!() };

@@ -147,6 +147,9 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
         <>
           <SectionTitle>Reading</SectionTitle>
           <ReadingFields el={element} metrics={metrics} accent={accent} set={set}/>
+          {element.type === 'gauge' && element.sweep < 360 && (
+            <CheckField label="Min / max" checked={!!element.showRange} accent={accent} onChange={showRange => set({ showRange })}/>
+          )}
           <ColorField label="Colour" value={element.color} onChange={color => set({ color })}/>
         </>
       )}
