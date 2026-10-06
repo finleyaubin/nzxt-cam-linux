@@ -1,6 +1,8 @@
 import { BarElement, DisplayElement, GaugeElement, GraphElement, MAX_SENSORS, MetricId, TEXT_VARIABLES, TextElement, defaultWarnAt } from '@shared/display'
 import { CheckField, ColorField, NumField, Pill, SectionTitle, SelectField, TextField } from './fields'
 import { MetricOption, optionFor } from './metrics'
+import { SensorPicker } from './SensorPicker'
+import { useState } from 'react'
 import { ArrowDown, ArrowUp, Copy, Trash } from '@phosphor-icons/react'
 
 interface Props {
@@ -31,15 +33,12 @@ function IconButton({ title, onClick, danger, children }: { title: string; onCli
 /** Controls every metric-driven element (gauge, bar, graph) shares. */
 function ReadingFields({ el, metrics, accent, set }: { el: Reading; metrics: MetricOption[]; accent: string; set: (p: Partial<Reading>) => void }) {
   const current = optionFor(metrics, el.metric)
-  const options = metrics.some(m => m.id === el.metric) ? metrics : [...metrics, current]
-  const pickMetric = (id: string) => {
-    const m = optionFor(metrics, id as MetricId)
+  const pickMetric = (m: { id: MetricId; label: string; max: number }) =>
     set({ metric: m.id, max: m.max, label: m.label, warnAt: defaultWarnAt(m.id, m.max) })
-  }
   return (
     <>
-      <SelectField label="Shows" value={el.metric} accent={accent} onChange={pickMetric}
-        options={options.map(m => ({ value: m.id, label: m.label }))}/>
+      <SensorPicker value={el.metric} currentLabel={current.label} accent={accent} onPick={pickMetric}
+        builtins={metrics.filter(m => !m.id.startsWith('sensor'))}/>
       <TextField label="Label" value={el.label} onChange={label => set({ label })} maxLength={24}/>
       <CheckField label="Show label" checked={el.showLabel} accent={accent} onChange={showLabel => set({ showLabel })}/>
       <CheckField label="Show value" checked={el.showValue} accent={accent} onChange={showValue => set({ showValue })}/>
@@ -52,7 +51,6 @@ function ScaleFields({ el, accent, set }: { el: Reading; accent: string; set: (p
     <>
       <NumField label="Full scale" value={el.max} min={1} max={10000} accent={accent} onChange={max => set({ max })}/>
       <NumField label="Alert at" value={el.warnAt} min={0} max={10000} accent={accent} onChange={warnAt => set({ warnAt })}/>
-      <ColorField label="Colour" value={el.color} onChange={color => set({ color })}/>
       <ColorField label="Alert colour" value={el.warnColor} onChange={warnColor => set({ warnColor })}/>
       <ColorField label={el.type === 'graph' ? 'Panel' : 'Track'} value={el.trackColor} onChange={trackColor => set({ trackColor })}/>
     </>
@@ -99,6 +97,26 @@ function TextFields({ el, metrics, accent, set }: { el: TextElement; metrics: Me
   )
 }
 
+const ADV_KEY = 'inspector.advancedOpen'
+
+/** Collapsible section for rarely-changed options; open state is remembered. */
+function Advanced({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem(ADV_KEY) === '1' } catch { return false } })
+  const toggle = () => {
+    setOpen(!open)
+    try { localStorage.setItem(ADV_KEY, open ? '0' : '1') } catch { /* storage unavailable */ }
+  }
+  return (
+    <>
+      <button onClick={toggle} aria-expanded={open} style={{
+        display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+        fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700,
+      }}>{open ? '▾' : '▸'} Advanced</button>
+      {open && children}
+    </>
+  )
+}
+
 export function ElementInspector({ element, metrics, accent, onChange, onRemove, onDuplicate, onReorder }: Props) {
   const set = onChange as (p: Record<string, unknown>) => void
 
@@ -114,17 +132,21 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
         <IconButton title="Delete (Del)" onClick={onRemove} danger><Trash size={13}/></IconButton>
       </div>
 
-      <SectionTitle>Layout</SectionTitle>
+      {element.type !== 'text' && (
+        <>
+          <SectionTitle>Reading</SectionTitle>
+          <ReadingFields el={element} metrics={metrics} accent={accent} set={set}/>
+          <ColorField label="Colour" value={element.color} onChange={color => set({ color })}/>
+        </>
+      )}
+
+      <SectionTitle>Size &amp; position</SectionTitle>
       <NumField label="X" value={element.x} min={0} max={640} accent={accent} onChange={x => set({ x })}/>
       <NumField label="Y" value={element.y} min={0} max={640} accent={accent} onChange={y => set({ y })}/>
-
       {element.type === 'gauge' && (
         <>
           <NumField label="Radius" value={element.radius} min={20} max={320} unit="px" accent={accent} onChange={radius => set({ radius })}/>
           <NumField label="Thickness" value={element.thickness} min={4} max={160} unit="px" accent={accent} onChange={thickness => set({ thickness })}/>
-          <NumField label="Start angle" value={element.startAngle} min={-180} max={180} unit="°" accent={accent} onChange={startAngle => set({ startAngle })}/>
-          <NumField label="Sweep" value={element.sweep} min={30} max={360} unit="°" accent={accent} onChange={sweep => set({ sweep })}/>
-          <NumField label="Corners" value={element.cornerRadius ?? 0} min={0} max={80} unit="px" accent={accent} onChange={cornerRadius => set({ cornerRadius })}/>
           <NumField label="Text size" value={element.valueSize} min={8} max={160} unit="px" accent={accent} onChange={valueSize => set({ valueSize })}/>
         </>
       )}
@@ -132,8 +154,6 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
         <>
           <NumField label="Width" value={element.width} min={40} max={640} unit="px" accent={accent} onChange={width => set({ width })}/>
           <NumField label="Height" value={element.height} min={6} max={160} unit="px" accent={accent} onChange={height => set({ height })}/>
-          <NumField label="Corners" value={element.cornerRadius ?? element.height / 2} min={0} max={80} unit="px" accent={accent} onChange={cornerRadius => set({ cornerRadius })}/>
-          <NumField label="Segments" value={element.segments ?? 0} min={0} max={30} accent={accent} onChange={segments => set({ segments })}/>
           <NumField label="Text size" value={element.valueSize} min={8} max={160} unit="px" accent={accent} onChange={valueSize => set({ valueSize })}/>
         </>
       )}
@@ -141,21 +161,36 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
         <>
           <NumField label="Width" value={element.width} min={90} max={640} unit="px" accent={accent} onChange={width => set({ width })}/>
           <NumField label="Height" value={element.height} min={60} max={640} unit="px" accent={accent} onChange={height => set({ height })}/>
-          <NumField label="History" value={element.windowSecs} min={10} max={600} unit="s" accent={accent} onChange={windowSecs => set({ windowSecs: Math.round(windowSecs) })}/>
-          <NumField label="Line width" value={element.lineWidth} min={1} max={12} unit="px" accent={accent} onChange={lineWidth => set({ lineWidth })}/>
-          <NumField label="Corners" value={element.cornerRadius} min={0} max={80} unit="px" accent={accent} onChange={cornerRadius => set({ cornerRadius })}/>
           <NumField label="Text size" value={element.valueSize} min={8} max={80} unit="px" accent={accent} onChange={valueSize => set({ valueSize })}/>
-          <CheckField label="Fill" checked={element.fill} accent={accent} onChange={fill => set({ fill })}/>
         </>
       )}
 
       {element.type !== 'text' && (
-        <>
-          <SectionTitle>Reading</SectionTitle>
-          <ReadingFields el={element} metrics={metrics} accent={accent} set={set}/>
+        <Advanced>
+          {element.type === 'gauge' && (
+            <>
+              <NumField label="Start angle" value={element.startAngle} min={-180} max={180} unit="°" accent={accent} onChange={startAngle => set({ startAngle })}/>
+              <NumField label="Sweep" value={element.sweep} min={30} max={360} unit="°" accent={accent} onChange={sweep => set({ sweep })}/>
+              <NumField label="Corners" value={element.cornerRadius ?? 0} min={0} max={80} unit="px" accent={accent} onChange={cornerRadius => set({ cornerRadius })}/>
+            </>
+          )}
+          {element.type === 'bar' && (
+            <>
+              <NumField label="Corners" value={element.cornerRadius ?? element.height / 2} min={0} max={80} unit="px" accent={accent} onChange={cornerRadius => set({ cornerRadius })}/>
+              <NumField label="Segments" value={element.segments ?? 0} min={0} max={30} accent={accent} onChange={segments => set({ segments })}/>
+            </>
+          )}
+          {element.type === 'graph' && (
+            <>
+              <NumField label="History" value={element.windowSecs} min={10} max={600} unit="s" accent={accent} onChange={windowSecs => set({ windowSecs: Math.round(windowSecs) })}/>
+              <NumField label="Line width" value={element.lineWidth} min={1} max={12} unit="px" accent={accent} onChange={lineWidth => set({ lineWidth })}/>
+              <NumField label="Corners" value={element.cornerRadius} min={0} max={80} unit="px" accent={accent} onChange={cornerRadius => set({ cornerRadius })}/>
+              <CheckField label="Fill" checked={element.fill} accent={accent} onChange={fill => set({ fill })}/>
+            </>
+          )}
           <ScaleFields el={element} accent={accent} set={set}/>
           {element.type !== 'graph' && <GradientField el={element} accent={accent} set={set}/>}
-        </>
+        </Advanced>
       )}
       {element.type === 'text' && (
         <>

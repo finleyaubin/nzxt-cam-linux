@@ -133,3 +133,65 @@ export function snapToCenter(x: number, y: number): { x: number; y: number; guid
 }
 
 export const clampToScreen = (v: number) => Math.round(clamp(v, 0, LCD_SIZE))
+
+/**
+ * Snaps a moving element's centre/edges to the screen centre and to other elements' centres/edges
+ * (which also lines rings up concentrically). Guides are scene coordinates of the line that matched.
+ */
+export function snapMove(
+  el: DisplayElement, nx: number, ny: number, others: DisplayElement[], resolve: Resolve,
+): { x: number; y: number; guideX: number | null; guideY: number | null } {
+  const r = elementRect(el, resolve)
+  const offX = [r.left - el.x, (r.left + r.right) / 2 - el.x, r.right - el.x]
+  const offY = [r.top - el.y, (r.top + r.bottom) / 2 - el.y, r.bottom - el.y]
+  const tx = [CENTER], ty = [CENTER]
+  for (const o of others) {
+    const q = elementRect(o, resolve)
+    tx.push(q.left, (q.left + q.right) / 2, q.right)
+    ty.push(q.top, (q.top + q.bottom) / 2, q.bottom)
+  }
+  const best = (pos: number, offs: number[], targets: number[]) => {
+    let d = 0, guide: number | null = null, min = SNAP + 0.001
+    for (const off of offs) for (const t of targets) {
+      const diff = t - (pos + off)
+      if (Math.abs(diff) < min) { min = Math.abs(diff); d = diff; guide = t }
+    }
+    return { pos: Math.round(pos + d), guide }
+  }
+  const bx = best(nx, offX, tx)
+  const by = best(ny, offY, ty)
+  return { x: bx.pos, y: by.pos, guideX: bx.guide, guideY: by.guide }
+}
+
+export type AlignMode = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom' | 'hdist' | 'vdist'
+
+/** New positions that align (or evenly distribute) a set of elements, relative to their joint bounds. */
+export function alignPatches(els: DisplayElement[], mode: AlignMode, resolve: Resolve): { id: string; x?: number; y?: number }[] {
+  const items = els.map(el => ({ el, r: elementRect(el, resolve) }))
+  if (items.length < 2) return []
+  const L = Math.min(...items.map(i => i.r.left)), R = Math.max(...items.map(i => i.r.right))
+  const T = Math.min(...items.map(i => i.r.top)), B = Math.max(...items.map(i => i.r.bottom))
+  if (mode === 'hdist' || mode === 'vdist') {
+    const h = mode === 'hdist'
+    const lo = (i: { r: Rect }) => (h ? i.r.left : i.r.top)
+    const len = (i: { r: Rect }) => (h ? i.r.right - i.r.left : i.r.bottom - i.r.top)
+    const sorted = [...items].sort((a, b) => lo(a) - lo(b))
+    const gap = ((h ? R - L : B - T) - sorted.reduce((s, i) => s + len(i), 0)) / (sorted.length - 1)
+    let cur = h ? L : T
+    return sorted.map(i => {
+      const delta = cur - lo(i)
+      cur += len(i) + gap
+      return h ? { id: i.el.id, x: clampToScreen(i.el.x + delta) } : { id: i.el.id, y: clampToScreen(i.el.y + delta) }
+    })
+  }
+  return items.map(({ el, r }) => {
+    switch (mode) {
+      case 'left': return { id: el.id, x: clampToScreen(el.x + L - r.left) }
+      case 'right': return { id: el.id, x: clampToScreen(el.x + R - r.right) }
+      case 'hcenter': return { id: el.id, x: clampToScreen(el.x + (L + R) / 2 - (r.left + r.right) / 2) }
+      case 'top': return { id: el.id, y: clampToScreen(el.y + T - r.top) }
+      case 'bottom': return { id: el.id, y: clampToScreen(el.y + B - r.bottom) }
+      default: return { id: el.id, y: clampToScreen(el.y + (T + B) / 2 - (r.top + r.bottom) / 2) }
+    }
+  })
+}
