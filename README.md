@@ -5,7 +5,7 @@ Native alternative to NZXT CAM (Windows only) — built with Tauri 2 + Rust.
 
 ## Features
 
-- LCD display: image, GIF, real-time temperatures
+- LCD display: one screen you lay out freely. Add rings, gauges, bars, history graphs and text (with `{cpu}`, `{gpu}`, `{liquid}`, `{pump}`, `{sensorN}`, `{time}`, `{date}` variables), drag and resize them on a live preview, and use a photo or GIF as the background
 - RGB Ring AIO + fan control
 - CPU / GPU / liquid / pump monitoring
 - Saveable profiles with Hyprland autostart support
@@ -53,7 +53,7 @@ nzxtcam-v1
 | NZXT Kraken Elite V2 (2024) | `0x3012` | Tested |
 | NZXT Kraken Elite 360 | `0x3009` | Untested |
 | NZXT Kraken Elite RGB 360 | `0x300e` | Untested |
-| NZXT Kraken 2023 Elite | `0x300c` | Untested |
+| NZXT Kraken 2023 Elite | `0x300c` | Tested |
 
 To request support for another model, open an issue or use the "Request support" button in Settings.
 
