@@ -14,13 +14,13 @@
 use crate::types::{DeviceStatus, DisplayConfig, Temperatures, LCD_HEIGHT, LCD_WIDTH};
 use crate::usb::protocol::*;
 use anyhow::{anyhow, bail, Result};
-use nusb::transfer::{Buffer, Bulk, In, Interrupt, Out, TransferError};
+use nusb::transfer::{Buffer, Bulk, BulkOrInterrupt, EndpointDirection, In, Interrupt, Out, TransferError};
 use nusb::{Device, Endpoint, Interface};
 use parking_lot::{Mutex as PlMutex, RwLock};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::{mpsc, oneshot, Mutex as AsyncMutex};
 
 // ============================================================================
@@ -38,6 +38,94 @@ struct Hardware {
     intr_rx: mpsc::UnboundedReceiver<Vec<u8>>,
     /// Bucket currently shown on the LCD, so a full memory can be reclaimed without blanking it.
     active_bucket: Option<u8>,
+    /// Which connection these handles belong to (see `Inner::conn_id`).
+    conn_id: u32,
+    /// Cleared by the interrupt poller when the USB link dies, so I/O can bail out instead of waiting on timeouts.
+    alive: Arc<AtomicBool>,
+}
+
+impl Hardware {
+    fn ensure_alive(&self) -> Result<()> {
+        if self.alive.load(Ordering::Acquire) {
+            Ok(())
+        } else {
+            bail!("USB link to the Kraken was lost")
+        }
+    }
+}
+
+// ============================================================================
+// Link health tuning
+// ============================================================================
+
+/// How often the watcher looks for a missing device.
+const WATCH_EVERY: Duration = Duration::from_secs(3);
+/// A watcher tick this far apart (wall clock) means the machine slept in between.
+const RESUME_GAP: Duration = Duration::from_secs(15);
+/// Consecutive transfer errors the interrupt poller tolerates before giving up on the link.
+const MAX_POLL_ERRORS: u32 = 5;
+/// Consecutive failed LCD uploads before the link is declared lost.
+const MAX_PUSH_FAILURES: u32 = 3;
+/// A whole LCD upload (every protocol step plus the bulk transfer) must finish within this.
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(60);
+const INTERRUPT_WRITE_TIMEOUT: Duration = Duration::from_secs(3);
+const BULK_WRITE_TIMEOUT: Duration = Duration::from_secs(15);
+
+fn woke_from_sleep(prev: SystemTime, now: SystemTime) -> bool {
+    now.duration_since(prev).is_ok_and(|gap| gap > RESUME_GAP)
+}
+
+/// Minimum wait before the next upload attempt after `failures` consecutive failures.
+fn push_backoff(failures: u32) -> Duration {
+    if failures == 0 {
+        return Duration::ZERO;
+    }
+    Duration::from_millis(500u64 << failures.min(5)).min(Duration::from_secs(10))
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum PollAction {
+    LinkLost,
+    ClearHalt,
+    Retry(Duration),
+}
+
+/// What the interrupt poller should do after a failed transfer (`consecutive` counts this one).
+fn classify_poll_error(err: TransferError, consecutive: u32) -> PollAction {
+    match err {
+        TransferError::Disconnected => PollAction::LinkLost,
+        _ if consecutive >= MAX_POLL_ERRORS => PollAction::LinkLost,
+        TransferError::Stall => PollAction::ClearHalt,
+        _ => PollAction::Retry(Duration::from_millis(50 * consecutive as u64).min(Duration::from_millis(500))),
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum PollEnd {
+    /// We asked it to stop (disconnect, or the receiver went away).
+    Shutdown,
+    /// The device stopped answering: unplugged, reset or re-enumerated (e.g. after suspend).
+    LinkLost,
+}
+
+#[derive(Debug)]
+struct UploadTimeout;
+
+impl std::fmt::Display for UploadTimeout {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "LCD upload timed out")
+    }
+}
+
+impl std::error::Error for UploadTimeout {}
+
+enum Push {
+    Sent,
+    Failed,
+    /// The upload hung rather than failing; the device is not coming back without a reconnect.
+    Wedged,
+    /// The loop was replaced while we waited for the device.
+    Stale,
 }
 
 // ============================================================================
@@ -50,6 +138,9 @@ struct Inner {
     status: RwLock<DeviceStatus>,
     display_config: RwLock<DisplayConfig>,
     config_version: AtomicU32,
+
+    /// Bumped on every successful connect so late reports about an old connection can be ignored.
+    conn_id: AtomicU32,
 
     temp_loop_active: AtomicBool,
     temp_gen: AtomicU32,
@@ -76,6 +167,7 @@ impl KrakenDriver {
             status: RwLock::new(DeviceStatus::disconnected()),
             display_config: RwLock::new(DisplayConfig::default()),
             config_version: AtomicU32::new(0),
+            conn_id: AtomicU32::new(0),
             temp_loop_active: AtomicBool::new(false),
             temp_gen: AtomicU32::new(0),
             temp_poll_ms: AtomicU64::new(500),
@@ -141,8 +233,15 @@ impl KrakenDriver {
 
     pub async fn connect(&self) -> Result<()> {
         let mut hw_guard = self.0.hw.lock().await;
-        if hw_guard.is_some() {
-            return Ok(());
+        if let Some(old) = hw_guard.as_mut() {
+            if self.0.status.read().connected && old.alive.load(Ordering::Acquire) {
+                return Ok(());
+            }
+            // Handles left over from a lost link (suspend/resume, replug): release them before reopening.
+            if let Some(sd) = old.poll_shutdown.take() {
+                let _ = sd.send(());
+            }
+            *hw_guard = None;
         }
 
         // Find a Kraken device by VID + any known PID.
@@ -184,7 +283,16 @@ impl KrakenDriver {
         // Start the interrupt-in polling task.
         let (intr_tx, intr_rx) = mpsc::unbounded_channel::<Vec<u8>>();
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-        tokio::spawn(poll_interrupt_in(intr_in, in_packet_size, intr_tx, shutdown_rx));
+        let conn_id = self.0.conn_id.fetch_add(1, Ordering::AcqRel) + 1;
+        let alive = Arc::new(AtomicBool::new(true));
+        let driver = self.clone();
+        let poller_alive = alive.clone();
+        tokio::spawn(async move {
+            if poll_interrupt_in(intr_in, in_packet_size, intr_tx, shutdown_rx).await == PollEnd::LinkLost {
+                poller_alive.store(false, Ordering::Release);
+                driver.link_lost(conn_id);
+            }
+        });
 
         // Brief settle, then drain pre-existing packets.
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -197,8 +305,11 @@ impl KrakenDriver {
             poll_shutdown: Some(shutdown_tx),
             intr_rx,
             active_bucket: None,
+            conn_id,
+            alive,
         };
         drain_rx(&mut hw.intr_rx, Duration::from_millis(300)).await;
+        hw.ensure_alive().map_err(|_| anyhow!("Kraken went away while connecting"))?;
         *hw_guard = Some(hw);
 
         self.update_status(|s| {
@@ -227,6 +338,68 @@ impl KrakenDriver {
         crate::sensors::clear_device_temps();
     }
 
+    /// The USB link died underneath us (the interrupt poller or an upload noticed). Report it right away,
+    /// without waiting for the hardware lock, and let `watch_connection` bring the device back.
+    /// The temperature loop keeps running and repaints once the device returns.
+    fn link_lost(&self, conn_id: u32) {
+        if self.0.conn_id.load(Ordering::Acquire) != conn_id || !self.0.status.read().connected {
+            return;
+        }
+        log::warn!("USB link to the Kraken was lost (unplugged, or the system suspended); waiting for it to come back");
+        self.update_status(|s| *s = DeviceStatus::disconnected());
+        crate::sensors::clear_device_temps();
+        let driver = self.clone();
+        tokio::spawn(async move { driver.drop_hardware(conn_id).await });
+    }
+
+    async fn drop_hardware(&self, conn_id: u32) {
+        let mut g = self.0.hw.lock().await;
+        if g.as_ref().is_some_and(|hw| hw.conn_id == conn_id) {
+            if let Some(mut hw) = g.take() {
+                if let Some(sd) = hw.poll_shutdown.take() {
+                    let _ = sd.send(());
+                }
+            }
+        }
+    }
+
+    /// Keep the connection alive for the life of the app: reconnect whenever the device is missing
+    /// (unplug, or re-enumeration after suspend) and repaint the LCD after the machine wakes up.
+    pub async fn watch_connection(self) {
+        let mut tick = tokio::time::interval(WATCH_EVERY);
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        let mut last_wall = SystemTime::now();
+        let mut last_error: Option<String> = None;
+        loop {
+            tick.tick().await;
+            let now = SystemTime::now();
+            if woke_from_sleep(last_wall, now) {
+                log::info!("System resumed from sleep; refreshing the LCD");
+                self.refresh_display();
+            }
+            last_wall = now;
+
+            if self.0.status.read().connected {
+                last_error = None;
+                continue;
+            }
+            match self.connect().await {
+                Ok(()) => {
+                    log::info!("Kraken connected");
+                    last_error = None;
+                }
+                Err(e) => {
+                    // Log a given failure once, not every few seconds.
+                    let msg = e.to_string();
+                    if last_error.as_deref() != Some(msg.as_str()) {
+                        log::info!("Kraken not available: {msg}");
+                        last_error = Some(msg);
+                    }
+                }
+            }
+        }
+    }
+
     pub fn stop_current_mode(&self) {
         self.0.temp_loop_active.store(false, Ordering::Release);
         self.0.temp_gen.fetch_add(1, Ordering::Release);
@@ -253,9 +426,9 @@ impl KrakenDriver {
         pkt[3] = 0x00;
         pkt[4..44].copy_from_slice(&duties);
 
+        hw.ensure_alive()?;
         hw.intr_out.submit(Buffer::from(pkt));
-        let comp = hw.intr_out.next_complete().await;
-        comp.status.map_err(|e| anyhow!("pump profile write failed: {e:?}"))?;
+        finish(&mut hw.intr_out, "pump profile write", INTERRUPT_WRITE_TIMEOUT).await?;
         log::info!("Pump speed profile envoyé ({} points)", points.len());
         Ok(())
     }
@@ -345,6 +518,10 @@ impl KrakenDriver {
         let mut last_visual_key: Option<String> = None;
         let mut last_push_at: Option<Instant> = None;
         let mut gif_cost = Duration::from_secs(1);
+        let mut failures = 0u32;
+        // Extra wait after a render error, so a persistent one (missing font or image) doesn't re-render every tick.
+        let mut render_retry = Duration::ZERO;
+        let mut seen_conn = self.0.conn_id.load(Ordering::Acquire);
 
         loop {
             if !self.0.temp_loop_active.load(Ordering::Acquire)
@@ -363,54 +540,76 @@ impl KrakenDriver {
                 }
             }
 
-            let cfg_snapshot = self.0.display_config.read().clone();
-            let decimals = cfg_snapshot.decimals.min(2);
-            let config_version = self.0.config_version.load(Ordering::Acquire);
-            let key = visual_key(&cfg_snapshot, temps, decimals, config_version);
+            // Without a device there is nothing to draw on. A new connection (after replug or resume)
+            // has lost whatever the LCD showed, so the next frame must be pushed even if nothing changed.
+            let conn_id = self.0.conn_id.load(Ordering::Acquire);
+            let connected = self.0.status.read().connected;
+            if !connected || conn_id != seen_conn {
+                last_visual_key = None;
+                last_push_at = None;
+                failures = 0;
+                seen_conn = conn_id;
+            }
 
-            let min_push = Duration::from_millis(self.0.temp_min_push_ms.load(Ordering::Relaxed));
-            // A GIF background is re-encoded per update; keep that under ~20% of a core (1-5s between updates).
-            let min_push = if crate::render::has_gif_background(&cfg_snapshot) {
-                min_push.max((gif_cost * 5).clamp(Duration::from_secs(1), Duration::from_secs(5)))
-            } else {
-                min_push
-            };
-            let cooldown_ok = last_push_at.map_or(true, |t| t.elapsed() >= min_push);
+            if connected {
+                let cfg_snapshot = self.0.display_config.read().clone();
+                let decimals = cfg_snapshot.decimals.min(2);
+                let config_version = self.0.config_version.load(Ordering::Acquire);
+                let key = visual_key(&cfg_snapshot, temps, decimals, config_version);
 
-            if Some(&key) != last_visual_key.as_ref() && cooldown_ok {
-                let render_start = Instant::now();
-                let rendered = render_fn(&cfg_snapshot, temps);
-                if matches!(rendered, Ok(crate::render::LcdFrame::Gif(_))) {
-                    gif_cost = render_start.elapsed();
-                }
-                match rendered {
-                    Ok(frame) => {
-                        let (data, bulk_info) = match frame {
-                            crate::render::LcdFrame::Rgba(rgba) => {
-                                let rgba = crate::image_io::rotate_for_lcd(rgba);
-                                let info = bulk_info_rgba(rgba.len() as u32);
-                                (rgba, info)
-                            }
-                            crate::render::LcdFrame::Gif(gif) => {
-                                let info = bulk_info_gif(gif.len() as u32);
-                                (gif, info)
-                            }
-                        };
-                        let mut g = self.0.hw.lock().await;
-                        if let Some(hw) = g.as_mut() {
-                            if self.0.temp_loop_active.load(Ordering::Acquire)
-                                && self.0.temp_gen.load(Ordering::Acquire) == my_gen
-                            {
-                                if let Err(e) = send_data_native(hw, &data, &bulk_info).await {
-                                    log::warn!("temp push failed: {e}");
-                                } else {
+                let min_push = Duration::from_millis(self.0.temp_min_push_ms.load(Ordering::Relaxed));
+                // A GIF background is re-encoded per update; keep that under ~20% of a core (1-5s between updates).
+                let min_push = if crate::render::has_gif_background(&cfg_snapshot) {
+                    min_push.max((gif_cost * 5).clamp(Duration::from_secs(1), Duration::from_secs(5)))
+                } else {
+                    min_push
+                };
+                let min_push = min_push.max(push_backoff(failures)).max(render_retry);
+                let cooldown_ok = last_push_at.map_or(true, |t| t.elapsed() >= min_push);
+
+                if Some(&key) != last_visual_key.as_ref() && cooldown_ok {
+                    let render_start = Instant::now();
+                    let rendered = render_fn(&cfg_snapshot, temps);
+                    if matches!(rendered, Ok(crate::render::LcdFrame::Gif(_))) {
+                        gif_cost = render_start.elapsed();
+                    }
+                    match rendered {
+                        Ok(frame) => {
+                            render_retry = Duration::ZERO;
+                            let (data, bulk_info) = match frame {
+                                crate::render::LcdFrame::Rgba(rgba) => {
+                                    let rgba = crate::image_io::rotate_for_lcd(rgba);
+                                    let info = bulk_info_rgba(rgba.len() as u32);
+                                    (rgba, info)
+                                }
+                                crate::render::LcdFrame::Gif(gif) => {
+                                    let info = bulk_info_gif(gif.len() as u32);
+                                    (gif, info)
+                                }
+                            };
+                            match self.push_frame(my_gen, &data, &bulk_info).await {
+                                Push::Sent => {
                                     last_visual_key = Some(key);
                                     last_push_at = Some(Instant::now());
+                                    failures = 0;
                                 }
+                                Push::Stale => {}
+                                Push::Failed => {
+                                    failures += 1;
+                                    last_push_at = Some(Instant::now());
+                                    if failures >= MAX_PUSH_FAILURES {
+                                        self.link_lost(conn_id);
+                                    }
+                                }
+                                Push::Wedged => self.link_lost(conn_id),
                             }
                         }
+                        Err(e) => {
+                            log::warn!("render error: {e}");
+                            render_retry = Duration::from_secs(5);
+                            last_push_at = Some(Instant::now());
+                        }
                     }
-                    Err(e) => log::warn!("render error: {e}"),
                 }
             }
 
@@ -431,6 +630,27 @@ impl KrakenDriver {
             }
         }
         log::debug!("temp loop {} terminé", my_gen);
+    }
+
+    async fn push_frame(&self, my_gen: u32, data: &[u8], bulk_info: &[u8]) -> Push {
+        let mut g = self.0.hw.lock().await;
+        let Some(hw) = g.as_mut() else {
+            return Push::Failed;
+        };
+        if !self.0.temp_loop_active.load(Ordering::Acquire) || self.0.temp_gen.load(Ordering::Acquire) != my_gen {
+            return Push::Stale;
+        }
+        match send_data_native(hw, data, bulk_info).await {
+            Ok(()) => Push::Sent,
+            Err(e) if e.downcast_ref::<UploadTimeout>().is_some() => {
+                log::warn!("temp push hung: {e}");
+                Push::Wedged
+            }
+            Err(e) => {
+                log::warn!("temp push failed: {e}");
+                Push::Failed
+            }
+        }
     }
 }
 
@@ -473,6 +693,101 @@ mod tests {
         assert_eq!(key(base), key(Temperatures { liquid: 31.4, ..base }), "same at 0 decimals");
         assert_ne!(key(base), key(Temperatures { liquid: 32.0, ..base }));
     }
+
+    #[test]
+    fn dead_links_stop_the_poller_instead_of_spinning() {
+        use std::time::Duration;
+        assert_eq!(classify_poll_error(TransferError::Disconnected, 1), PollAction::LinkLost);
+        assert_eq!(classify_poll_error(TransferError::Stall, 1), PollAction::ClearHalt);
+        assert!(matches!(classify_poll_error(TransferError::Fault, 1), PollAction::Retry(d) if d > Duration::ZERO));
+        // Whatever the error, it gives up after enough in a row.
+        for err in [TransferError::Fault, TransferError::Stall, TransferError::Unknown(5)] {
+            assert_eq!(classify_poll_error(err, MAX_POLL_ERRORS), PollAction::LinkLost);
+        }
+        // Retries back off but stay bounded.
+        let PollAction::Retry(late) = classify_poll_error(TransferError::Fault, MAX_POLL_ERRORS - 1) else { panic!() };
+        assert!(late <= Duration::from_millis(500));
+    }
+
+    #[test]
+    fn failed_uploads_back_off_and_cap() {
+        use std::time::Duration;
+        assert_eq!(push_backoff(0), Duration::ZERO);
+        assert!(push_backoff(1) < push_backoff(2) && push_backoff(2) < push_backoff(3));
+        assert_eq!(push_backoff(40), Duration::from_secs(10));
+    }
+
+    #[test]
+    fn long_wall_clock_gaps_mean_the_machine_slept() {
+        use std::time::{Duration, SystemTime};
+        let t = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        assert!(!woke_from_sleep(t, t + WATCH_EVERY));
+        assert!(woke_from_sleep(t, t + Duration::from_secs(3600)));
+        assert!(!woke_from_sleep(t, t - Duration::from_secs(60)), "clock stepping backwards is not a resume");
+    }
+
+    #[tokio::test]
+    async fn connection_watcher_can_be_spawned_on_the_runtime() {
+        // lib.rs hands this future to `tauri::async_runtime::spawn`, which requires it to be Send.
+        tokio::spawn(KrakenDriver::new().watch_connection()).abort();
+    }
+
+    fn connected_driver() -> KrakenDriver {
+        let d = KrakenDriver::new();
+        d.update_status(|s| s.connected = true);
+        d
+    }
+
+    #[tokio::test]
+    async fn link_loss_marks_the_device_disconnected_once_and_ignores_stale_reports() {
+        let d = connected_driver();
+        d.0.conn_id.store(5, Ordering::Release);
+        d.link_lost(4); // a report about an older connection
+        assert!(d.get_status().connected);
+        d.link_lost(5);
+        assert!(!d.get_status().connected);
+        d.link_lost(5); // already handled
+        assert!(!d.get_status().connected);
+    }
+
+    #[tokio::test]
+    async fn temp_loop_does_not_render_while_the_device_is_missing() {
+        let d = KrakenDriver::new(); // never connected
+        d.set_temp_timing(50, 0);
+        let renders = Arc::new(AtomicU32::new(0));
+        let counter = renders.clone();
+        d.start_temp_mode(move |_, _| {
+            counter.fetch_add(1, Ordering::Relaxed);
+            Ok(crate::render::LcdFrame::Rgba(Vec::new()))
+        })
+        .unwrap();
+        tokio::time::sleep(Duration::from_millis(700)).await;
+        d.stop_current_mode();
+        assert_eq!(renders.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn failing_uploads_back_off_then_declare_the_link_lost() {
+        // Status says connected but there are no handles, so every upload fails.
+        let d = connected_driver();
+        d.set_temp_timing(50, 0);
+        let renders = Arc::new(AtomicU32::new(0));
+        let counter = renders.clone();
+        d.start_temp_mode(move |_, _| {
+            counter.fetch_add(1, Ordering::Relaxed);
+            Ok(crate::render::LcdFrame::Rgba(vec![0; (LCD_WIDTH * LCD_HEIGHT * 4) as usize]))
+        })
+        .unwrap();
+        for _ in 0..100 {
+            if !d.get_status().connected {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        d.stop_current_mode();
+        assert!(!d.get_status().connected, "gave up on the link after repeated failures");
+        assert_eq!(renders.load(Ordering::Relaxed), MAX_PUSH_FAILURES, "one render per attempt, no storm");
+    }
 }
 
 // ============================================================================
@@ -483,34 +798,50 @@ async fn poll_interrupt_in(
     pkt_size: usize,
     tx: mpsc::UnboundedSender<Vec<u8>>,
     mut shutdown: oneshot::Receiver<()>,
-) {
+) -> PollEnd {
     // Pre-submit 2 reads so we never miss a packet.
     for _ in 0..2 {
         ep.submit(Buffer::new(pkt_size));
     }
-    loop {
+    let mut errors = 0u32;
+    let end = loop {
         tokio::select! {
-            _ = &mut shutdown => break,
+            _ = &mut shutdown => break PollEnd::Shutdown,
             comp = ep.next_complete() => {
                 match comp.status {
                     Ok(()) => {
+                        errors = 0;
                         let data: Vec<u8> = comp.buffer.into_vec();
                         parse_device_status(&data);
                         if tx.send(data).is_err() {
-                            break;
+                            break PollEnd::Shutdown;
                         }
                     }
-                    Err(TransferError::Cancelled) => break,
+                    Err(TransferError::Cancelled) => break PollEnd::Shutdown,
                     Err(e) => {
-                        log::warn!("intr_in poll error: {e:?}");
+                        // Resubmitting straight after a failure on a dead device fails again instantly,
+                        // which would spin a core (and the log) until the app is restarted.
+                        errors += 1;
+                        log::warn!("intr_in poll error ({errors}): {e:?}");
+                        match classify_poll_error(e, errors) {
+                            PollAction::LinkLost => break PollEnd::LinkLost,
+                            PollAction::ClearHalt => {
+                                if let Err(err) = ep.clear_halt().await {
+                                    log::warn!("intr_in clear_halt failed: {err}");
+                                    break PollEnd::LinkLost;
+                                }
+                            }
+                            PollAction::Retry(wait) => tokio::time::sleep(wait).await,
+                        }
                     }
                 }
                 ep.submit(Buffer::new(pkt_size));
             }
         }
-    }
+    };
     ep.cancel_all();
-    log::debug!("interrupt-in poller stopped");
+    log::debug!("interrupt-in poller stopped ({end:?})");
+    end
 }
 
 /// Parse NZXT Kraken status packets (byte[0] = 0x75).
@@ -536,15 +867,27 @@ fn parse_device_status(data: &[u8]) {
 // Low-level I/O helpers
 // ============================================================================
 
+/// Wait for the one transfer in flight on `ep`. A device that stops answering without erroring (after a
+/// suspend/resume, say) would otherwise block forever while holding the hardware lock.
+async fn finish<T: BulkOrInterrupt, D: EndpointDirection>(ep: &mut Endpoint<T, D>, what: &str, limit: Duration) -> Result<()> {
+    match tokio::time::timeout(limit, ep.next_complete()).await {
+        Ok(comp) => comp.status.map_err(|e| anyhow!("{what} failed: {e:?}")),
+        Err(_) => {
+            // `next_complete` panics with nothing pending, so cancel and collect the cancelled transfer.
+            ep.cancel_all();
+            let _ = tokio::time::timeout(Duration::from_secs(1), ep.next_complete()).await;
+            Err(anyhow!("{what} timed out after {limit:?}"))
+        }
+    }
+}
+
 async fn write_cmd(hw: &mut Hardware, data: &[u8]) -> Result<()> {
+    hw.ensure_alive()?;
     // One zero-padded max-size packet: oversized frames split into trailing zero packets the 0x300c firmware chokes on.
     let mut buf = vec![0u8; hw.intr_out.max_packet_size().max(data.len())];
     buf[..data.len()].copy_from_slice(data);
     hw.intr_out.submit(Buffer::from(buf));
-    let comp = hw.intr_out.next_complete().await;
-    comp.status
-        .map_err(|e| anyhow!("interrupt_out failed: {e:?}"))?;
-    Ok(())
+    finish(&mut hw.intr_out, "interrupt_out", INTERRUPT_WRITE_TIMEOUT).await
 }
 
 async fn read_one(hw: &mut Hardware, timeout: Duration) -> Option<Vec<u8>> {
@@ -613,11 +956,9 @@ async fn write_read(
 }
 
 async fn bulk_write(hw: &mut Hardware, data: Vec<u8>) -> Result<()> {
+    hw.ensure_alive()?;
     hw.bulk_out.submit(Buffer::from(data));
-    let comp = hw.bulk_out.next_complete().await;
-    comp.status
-        .map_err(|e| anyhow!("bulk_out failed: {e:?}"))?;
-    Ok(())
+    finish(&mut hw.bulk_out, "bulk_out", BULK_WRITE_TIMEOUT).await
 }
 
 async fn bulk_write_all(hw: &mut Hardware, data: &[u8]) -> Result<()> {
@@ -718,7 +1059,16 @@ async fn send_fw3(hw: &mut Hardware, image: &[u8], bulk_info: &[u8]) -> Result<(
 // ============================================================================
 // Native data send (GIF or RGBA with smart bucket placement)
 // ============================================================================
-async fn send_data_native(
+/// Upload one frame, bounded by `UPLOAD_TIMEOUT` so a wedged device can't hold the hardware lock for minutes.
+async fn send_data_native(hw: &mut Hardware, data: &[u8], bulk_info: &[u8]) -> Result<()> {
+    hw.ensure_alive()?;
+    match tokio::time::timeout(UPLOAD_TIMEOUT, send_data_steps(hw, data, bulk_info)).await {
+        Ok(result) => result,
+        Err(_) => Err(UploadTimeout.into()),
+    }
+}
+
+async fn send_data_steps(
     hw: &mut Hardware,
     data: &[u8],
     bulk_info: &[u8],

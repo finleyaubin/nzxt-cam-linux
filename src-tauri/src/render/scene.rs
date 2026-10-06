@@ -468,7 +468,9 @@ fn draw_graph(pm: &mut Pixmap, el: &GraphElement, series: &[f64], decimals: u8) 
     let Some(line_path) = line.finish() else { return Ok(()) };
 
     let mut paint = tiny_skia::Paint { anti_alias: true, ..Default::default() };
-    if el.fill {
+    // A flat line along the bottom encloses no area, which tiny-skia refuses (and warns about).
+    let has_area = (0..series.len()).any(|i| point(i).1 < plot_bottom - 0.5);
+    if el.fill && has_area {
         let mut area = tiny_skia::PathBuilder::new();
         area.move_to(point(0).0, plot_bottom);
         for i in 0..series.len() {

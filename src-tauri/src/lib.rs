@@ -137,6 +137,8 @@ pub fn run() {
             if !cli.starts_visible() {
                 driver.set_window_visible(false);
             }
+            // Reconnects after unplug or suspend/resume; the first connect below is the startup attempt.
+            tauri::async_runtime::spawn(driver.clone().watch_connection());
             let driver_for_connect = driver.clone();
             let handle = app.handle().clone();
             let actions = cli.actions.clone();
