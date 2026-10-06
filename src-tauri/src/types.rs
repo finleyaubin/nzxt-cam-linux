@@ -347,6 +347,22 @@ pub struct DisplayConfig {
     pub background_dim: u8,
 }
 
+impl DisplayConfig {
+    /// Reject configs the renderer could not sensibly draw; messages name the offending field.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.decimals > 2 {
+            return Err(format!("decimals must be 0-2, got {}", self.decimals));
+        }
+        if self.background_dim > 90 {
+            return Err(format!("backgroundDim must be 0-90, got {}", self.background_dim));
+        }
+        if self.elements.len() > 64 {
+            return Err(format!("elements has {} entries, the maximum is 64", self.elements.len()));
+        }
+        Ok(())
+    }
+}
+
 impl Default for DisplayConfig {
     fn default() -> Self {
         // The "triple-rings" preset is the default in the TS code.

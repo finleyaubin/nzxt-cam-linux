@@ -46,6 +46,12 @@ nzxtcam-v1
 ./uninstall.sh
 ```
 
+## Configuration
+
+Settings live in `~/.config/nzxtcam-archlinux-rust/config.json` (private to your user, mode 600). It is one JSON file holding the app settings, the current LCD layout (`displayConfig`), the rotation and the last-used image/GIF/colour. A `version` field is the schema version; older files without it are upgraded automatically. The file is written atomically, and if it cannot be parsed the app says where (file, line, column), keeps it as `config.json.bad` and starts with defaults.
+
+Saved layouts are stored one per file in `layouts/<name>.json`, profiles in `profiles/<name>.json`, in the same folder. A layout can be loaded or exported from the command line with `--lcd-config <file.json>` and `--export-lcd-config <file.json>`; the file is a plain `displayConfig` object.
+
 ## Supported devices
 
 | Model | PID | Status |
