@@ -1,9 +1,9 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { CaretDown, MagnifyingGlass, Plus, X } from '@phosphor-icons/react'
+import { CaretDown, MagnifyingGlass, Plus } from '@phosphor-icons/react'
 import { MAX_SENSORS, MetricId } from '@shared/display'
 import { Sensor } from '../../lib/api'
 import { bindSensor, useBoundSources, useSensorCatalog } from '../../hooks/useSensorSlots'
+import { Modal } from '../ui/Modal'
 import { Field, Pill } from './fields'
 import { MetricOption } from './metrics'
 
@@ -106,8 +106,6 @@ export function SensorDialog({ title, only, builtins, activeId, accent, onBuilti
     if (e.key === 'ArrowDown') { e.preventDefault(); setCursor(c => Math.min(c + 1, flat.length - 1)) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setCursor(c => Math.max(c - 1, 0)) }
     else if (e.key === 'Enter') { e.preventDefault(); pick(flat[cursor]) }
-    else if (e.key === 'Escape') onClose()
-    e.stopPropagation()
   }
 
   const filterItem = (key: string, label: string, count: number, active: boolean, onClick: () => void) => (
@@ -140,55 +138,46 @@ export function SensorDialog({ title, only, builtins, activeId, accent, onBuilti
     )
   }
 
-  return createPortal(
-    <div onMouseDown={e => { if (e.target === e.currentTarget) onClose() }} onKeyDown={onKeyDown} style={{
-      position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-      background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
-    }}>
-      <div role="dialog" aria-modal="true" aria-label={title} style={{
-        width: 'min(780px, 100%)', height: 'min(580px, 100%)', display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        background: '#141414', border: '1px solid #2a2a2a', borderRadius: 12, boxShadow: '0 32px 80px rgba(0,0,0,0.8)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderBottom: '1px solid #222' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{title}</div>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: '#0d0d0d', border: '1px solid #252525', borderRadius: 8, padding: '0 10px' }}>
-            <MagnifyingGlass size={13} color="#7f7f7f"/>
-            <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by name or entity id…" aria-label="Search sensors"
-              style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', color: '#e0e0e0', fontSize: 12, padding: '7px 0' }}/>
-          </div>
-          <button onClick={onClose} aria-label="Close" style={{ display: 'flex', padding: 6, borderRadius: 8, border: '1px solid #252525', background: '#111', color: '#9a9a9a', cursor: 'pointer' }}><X size={13}/></button>
+  return (
+    <Modal
+      title={title} onClose={onClose} onKeyDown={onKeyDown}
+      headerExtra={(
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: '#0d0d0d', border: '1px solid #252525', borderRadius: 8, padding: '0 10px' }}>
+          <MagnifyingGlass size={13} color="#7f7f7f"/>
+          <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by name or entity id…" aria-label="Search sensors"
+            style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', color: '#e0e0e0', fontSize: 12, padding: '7px 0' }}/>
         </div>
-
-        <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-          <div style={{ width: 190, flexShrink: 0, overflowY: 'auto', padding: '2px 8px 10px', borderRight: '1px solid #222' }}>
-            {filterHead('Source')}
-            {filterItem('all', 'All', rows.length, !source, () => { setSource(null); setUnit(null) })}
-            {inUseCount > 0 && filterItem(IN_USE, 'In use on the LCD', inUseCount, source === IN_USE, () => { setSource(source === IN_USE ? null : IN_USE); setUnit(null) })}
-            {sourceCounts.map(([name, n]) => filterItem(name, name, n, source === name, () => { setSource(source === name ? null : name); setUnit(null) }))}
-            {unitCounts.length > 1 && filterHead('Unit')}
-            {unitCounts.length > 1 && filterItem('any-unit', 'Any unit', inSource.length, !unit, () => setUnit(null))}
-            {unitCounts.length > 1 && unitCounts.map(([u, n]) => filterItem(u, u, n, unit === u, () => setUnit(unit === u ? null : u)))}
-          </div>
-
-          <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '4px 8px 10px' }}>
-            {groups.map(([name, list]) => (
-              <div key={name}>
-                <div style={{ padding: '10px 10px 4px', fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700 }}>{name} · {list.length}</div>
-                {list.map(r => renderRow(r, name !== IN_USE))}
-              </div>
-            ))}
-            {flat.length === 0 && <div style={{ padding: 16, fontSize: 12, color: '#7f7f7f' }}>{everything.length === 0 ? 'Loading sensors…' : 'No sensors match.'}</div>}
-            {found.length > MAX_ROWS && <div style={{ padding: '10px', fontSize: 11, color: '#7f7f7f' }}>Showing {MAX_ROWS} of {found.length}. Type or filter to narrow.</div>}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 12, padding: '8px 14px', borderTop: '1px solid #222', fontSize: 11, color: error ? '#ff4757' : '#7f7f7f' }}>
-          <span style={{ flex: 1 }}>{error || '↑↓ to move · Enter to choose · Esc to close'}</span>
+      )}
+      footer={(
+        <>
+          <span style={{ flex: 1, color: error ? '#ff4757' : undefined }}>{error || '↑↓ to move · Enter to choose · Esc to close'}</span>
           <span>{boundSources.filter(Boolean).length} of {MAX_SENSORS} sensor slots in use</span>
+        </>
+      )}
+    >
+      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+        <div style={{ width: 190, flexShrink: 0, overflowY: 'auto', padding: '2px 8px 10px', borderRight: '1px solid #222' }}>
+          {filterHead('Source')}
+          {filterItem('all', 'All', rows.length, !source, () => { setSource(null); setUnit(null) })}
+          {inUseCount > 0 && filterItem(IN_USE, 'In use on the LCD', inUseCount, source === IN_USE, () => { setSource(source === IN_USE ? null : IN_USE); setUnit(null) })}
+          {sourceCounts.map(([name, n]) => filterItem(name, name, n, source === name, () => { setSource(source === name ? null : name); setUnit(null) }))}
+          {unitCounts.length > 1 && filterHead('Unit')}
+          {unitCounts.length > 1 && filterItem('any-unit', 'Any unit', inSource.length, !unit, () => setUnit(null))}
+          {unitCounts.length > 1 && unitCounts.map(([u, n]) => filterItem(u, u, n, unit === u, () => setUnit(unit === u ? null : u)))}
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '4px 8px 10px' }}>
+          {groups.map(([name, list]) => (
+            <div key={name}>
+              <div style={{ padding: '10px 10px 4px', fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700 }}>{name} · {list.length}</div>
+              {list.map(r => renderRow(r, name !== IN_USE))}
+            </div>
+          ))}
+          {flat.length === 0 && <div style={{ padding: 16, fontSize: 12, color: '#7f7f7f' }}>{everything.length === 0 ? 'Loading sensors…' : 'No sensors match.'}</div>}
+          {found.length > MAX_ROWS && <div style={{ padding: '10px', fontSize: 11, color: '#7f7f7f' }}>Showing {MAX_ROWS} of {found.length}. Type or filter to narrow.</div>}
         </div>
       </div>
-    </div>,
-    document.body,
+    </Modal>
   )
 }
 
