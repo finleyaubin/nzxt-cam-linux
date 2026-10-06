@@ -332,15 +332,15 @@ fn draw_gauge(
         lines.push((el.label.clone(), size, (0x9a, 0xa0, 0xb4)));
     }
     let value_text = format!("{}{}", crate::types::format_metric(v, decimals), el.metric.unit());
-    let value_color = if warn { hex_to_rgb(&el.warn_color) } else { hex_to_rgb(&el.color) };
     if el.show_value && !el.value_pill {
-        lines.push((value_text.clone(), el.value_size, value_color));
+        let color = if warn { hex_to_rgb(&el.warn_color) } else { hex_to_rgb(&el.color) };
+        lines.push((value_text.clone(), el.value_size, color));
     }
     if !lines.is_empty() {
         draw_centered_stack(pm, el.x, el.y, &lines)?;
     }
     if el.show_value && el.value_pill {
-        draw_value_pill(pm, el, r_mid, band, &value_text, value_color, track_rgb)?;
+        draw_value_pill(pm, el, r_in, r_out, &value_text, track_rgb)?;
     }
     if el.show_range && !full_circle {
         draw_range_ends(pm, el, r_mid, start, sweep, decimals)?;
@@ -348,15 +348,34 @@ fn draw_gauge(
     Ok(())
 }
 
-/// The value in a capsule at 12 o'clock on the ring, filled with the track colour and always wider than the ring so it cuts through it.
-fn draw_value_pill(pm: &mut Pixmap, el: &GaugeElement, r_mid: f32, band: f32, text: &str, color: (u8, u8, u8), fill: (u8, u8, u8)) -> Result<()> {
-    let size = (el.value_size * 0.5).max(12.0);
+/// The value in a slice of the ring itself at 12 o'clock: rounded ends, top and bottom cut by the ring's edges, filled
+/// with the track colour, text in its inverse.
+fn draw_value_pill(pm: &mut Pixmap, el: &GaugeElement, r_in: f32, r_out: f32, text: &str, fill: (u8, u8, u8)) -> Result<()> {
+    let band = r_out - r_in;
+    let r_mid = (r_in + r_out) / 2.0;
+    let size = (el.value_size * 0.5).min(band * 0.75).max(8.0);
     let m = measure(text, size)?;
-    let h = (m.height + size * 0.7).max(band + 8.0);
-    let w = (m.width + size * 1.4).max(h);
-    let (cx, cy) = (el.x, el.y - r_mid);
-    fill_round_rect(pm, cx - w / 2.0, cy - h / 2.0, w, h, None, |_| fill);
-    draw_text(pm, cx - m.width / 2.0, cy - m.height / 2.0, text, size, color)?;
+    let len = m.width + band;
+    let reach = (len / 2.0 / r_mid).min(PI);
+    let x0 = (el.x - len / 2.0 - band).floor() as i32;
+    let x1 = (el.x + len / 2.0 + band).ceil() as i32;
+    let y0 = (el.y - r_out - 1.0).floor() as i32;
+    let y1 = (el.y - r_in * reach.cos() + 1.0).ceil() as i32;
+    for y in y0..=y1 {
+        for x in x0..=x1 {
+            let (dx, dy) = (x as f32 - el.x, y as f32 - el.y);
+            let d = (dx * dx + dy * dy).sqrt();
+            if d < r_in || d > r_out {
+                continue;
+            }
+            let s = dx.atan2(-dy) * r_mid;
+            if in_round_rect(s + len / 2.0, d - r_in, len, band, band / 2.0) {
+                put_pixel(pm, x, y, fill.0, fill.1, fill.2);
+            }
+        }
+    }
+    let inverse = (255 - fill.0, 255 - fill.1, 255 - fill.2);
+    draw_text(pm, el.x - m.width / 2.0, el.y - r_mid - m.height / 2.0, text, size, inverse)?;
     Ok(())
 }
 
@@ -705,7 +724,7 @@ mod tests {
     }
 
     #[test]
-    fn value_pill_cuts_the_ring_at_the_top_and_leaves_the_centre_empty() {
+    fn value_pill_is_cut_from_the_ring_with_inverse_text_and_leaves_the_centre_empty() {
         let render = |value_pill: bool| {
             let gauge = GaugeElement {
                 id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
@@ -722,6 +741,10 @@ mod tests {
         let blue_in_row = |f: &[u8]| (250..390).filter(|&x| px(f, x, 40) == [0, 0, 255]).count();
         assert_eq!(blue_in_row(&plain), 0, "the full ring is solid fill at the top");
         assert!(blue_in_row(&pill) > 20, "the pill shows the track colour across the ring");
+        assert_eq!(px(&pill, 320, 15), [0, 0, 0], "nothing is drawn outside the ring's outer edge");
+        assert_eq!(px(&pill, 320, 70), [0, 0, 0], "nothing is drawn inside the ring's inner edge");
+        let inverse_text = (25..55).flat_map(|y| (250..390).map(move |x| (x, y))).filter(|&(x, y)| { let p = px(&pill, x, y); p[0] > 200 && p[1] > 200 && p[2] < 80 }).count();
+        assert!(inverse_text > 10, "the text is the inverse of the track colour");
         let lit_near_centre = |f: &[u8]| (220..420).flat_map(|y| (220..420).map(move |x| (x, y))).filter(|&(x, y)| px(f, x, y) != [0, 0, 0]).count();
         assert!(lit_near_centre(&plain) > 50, "the value is normally drawn in the centre");
         assert_eq!(lit_near_centre(&pill), 0, "with the pill the centre is empty");
