@@ -446,6 +446,12 @@ fn visual_key(cfg: &DisplayConfig, t: Temperatures, decimals: u8, config_version
         match el {
             DisplayElement::Gauge(g) => key.push_str(&format_metric(g.metric.value_from(t), decimals)),
             DisplayElement::Bar(b) => key.push_str(&format_metric(b.metric.value_from(t), decimals)),
+            // A graph scrolls with every new history sample, not only when its number changes.
+            DisplayElement::Graph(g) => {
+                key.push_str(&format_metric(g.metric.value_from(t), decimals));
+                key.push(':');
+                key.push_str(&crate::sensors::history::version().to_string());
+            }
             DisplayElement::Text(x) => key.push_str(&resolve_text(&x.text, t, decimals)),
         }
     }

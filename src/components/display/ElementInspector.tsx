@@ -1,200 +1,166 @@
-import { DisplayElement, MetricId, BASE_METRIC_LABELS, MAX_SENSORS, metricLabel, sensorMetric } from '@shared/display'
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-2 justify-between">
-      <span className="text-xs text-gray-400 shrink-0">{label}</span>
-      <div className="flex items-center gap-2">{children}</div>
-    </div>
-  )
-}
-
-function NumberField({
-  label, value, onChange, min = 0, max = 640, step = 1
-}: { label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number }) {
-  return (
-    <Row label={label}>
-      <input
-        type="range"
-        min={min} max={max} step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-28 accent-[#00d4ff]"
-      />
-      <input
-        type="number"
-        min={min} max={max} step={step}
-        value={Math.round(value)}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-14 bg-[#0a0a0a] border border-[#2a2a3e] rounded px-1 py-0.5 text-xs text-gray-200"
-      />
-    </Row>
-  )
-}
-
-function TextField({
-  label, value, onChange, placeholder
-}: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
-  return (
-    <Row label={label}>
-      <input
-        type="text"
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-44 bg-[#0a0a0a] border border-[#2a2a3e] rounded px-2 py-1 text-xs text-gray-200"
-      />
-    </Row>
-  )
-}
-
-function ColorField({
-  label, value, onChange
-}: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <Row label={label}>
-      <input
-        type="color"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-9 h-7 bg-transparent border border-[#2a2a3e] rounded cursor-pointer"
-      />
-      <span className="text-xs text-gray-400 font-mono w-16">{value}</span>
-    </Row>
-  )
-}
-
-function SelectField<T extends string>({
-  label, value, options, onChange
-}: { label: string; value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
-  return (
-    <Row label={label}>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value as T)}
-        className="w-44 bg-[#0a0a0a] border border-[#2a2a3e] rounded px-2 py-1 text-xs text-gray-200"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
-    </Row>
-  )
-}
-
-function ToggleField({
-  label, value, onChange
-}: { label: string; value: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <Row label={label}>
-      <button
-        onClick={() => onChange(!value)}
-        className={`w-10 h-5 rounded-full transition-colors relative ${value ? 'bg-[#00d4ff]' : 'bg-[#2a2a3e]'}`}
-      >
-        <span
-          className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${value ? 'left-5' : 'left-0.5'}`}
-        />
-      </button>
-    </Row>
-  )
-}
-
-const METRIC_OPTIONS: { value: MetricId; label: string }[] = [
-  ...(Object.keys(BASE_METRIC_LABELS) as MetricId[]),
-  ...Array.from({ length: MAX_SENSORS }, (_, i) => sensorMetric(i)),
-].map(value => ({ value, label: metricLabel(value) }))
+import { BarElement, DisplayElement, GaugeElement, GraphElement, MAX_SENSORS, MetricId, TEXT_VARIABLES, TextElement, defaultWarnAt } from '@shared/display'
+import { CheckField, ColorField, NumField, Pill, SectionTitle, SelectField, TextField } from './fields'
+import { MetricOption, optionFor } from './metrics'
+import { ArrowDown, ArrowUp, Copy, Trash } from '@phosphor-icons/react'
 
 interface Props {
-  element: DisplayElement | null
+  element: DisplayElement
+  metrics: MetricOption[]
+  accent: string
   onChange: (patch: Partial<DisplayElement>) => void
   onRemove: () => void
+  onDuplicate: () => void
+  onReorder: (direction: 1 | -1) => void
 }
 
-export function ElementInspector({ element, onChange, onRemove }: Props) {
-  if (!element) {
-    return (
-      <div className="text-sm text-gray-400 p-4 text-center border border-dashed border-[#2a2a3e] rounded-xl">
-        Select an element (handle on preview or list on the left) to edit it.
-      </div>
-    )
-  }
+type Reading = GaugeElement | BarElement | GraphElement
 
-  const c = onChange as (p: Record<string, unknown>) => void
+const TYPE_NAME: Record<DisplayElement['type'], string> = { gauge: 'Gauge', bar: 'Bar', graph: 'Graph', text: 'Text' }
+
+function IconButton({ title, onClick, danger, children }: { title: string; onClick: () => void; danger?: boolean; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} title={title} aria-label={title} style={{
+      display: 'flex', padding: 7, borderRadius: 8, border: '1px solid #252525', background: '#111', cursor: 'pointer',
+      color: '#9a9a9a',
+    }}
+    onMouseEnter={e => { e.currentTarget.style.color = danger ? '#ff4757' : '#fff' }}
+    onMouseLeave={e => { e.currentTarget.style.color = '#9a9a9a' }}>{children}</button>
+  )
+}
+
+/** Controls every metric-driven element (gauge, bar, graph) shares. */
+function ReadingFields({ el, metrics, accent, set }: { el: Reading; metrics: MetricOption[]; accent: string; set: (p: Partial<Reading>) => void }) {
+  const current = optionFor(metrics, el.metric)
+  const options = metrics.some(m => m.id === el.metric) ? metrics : [...metrics, current]
+  const pickMetric = (id: string) => {
+    const m = optionFor(metrics, id as MetricId)
+    set({ metric: m.id, max: m.max, label: m.label, warnAt: defaultWarnAt(m.id, m.max) })
+  }
+  return (
+    <>
+      <SelectField label="Shows" value={el.metric} accent={accent} onChange={pickMetric}
+        options={options.map(m => ({ value: m.id, label: m.label }))}/>
+      <TextField label="Label" value={el.label} onChange={label => set({ label })} maxLength={24}/>
+      <CheckField label="Show label" checked={el.showLabel} accent={accent} onChange={showLabel => set({ showLabel })}/>
+      <CheckField label="Show value" checked={el.showValue} accent={accent} onChange={showValue => set({ showValue })}/>
+    </>
+  )
+}
+
+function ScaleFields({ el, accent, set }: { el: Reading; accent: string; set: (p: Partial<Reading>) => void }) {
+  return (
+    <>
+      <NumField label="Full scale" value={el.max} min={1} max={10000} accent={accent} onChange={max => set({ max })}/>
+      <NumField label="Alert at" value={el.warnAt} min={0} max={10000} accent={accent} onChange={warnAt => set({ warnAt })}/>
+      <ColorField label="Colour" value={el.color} onChange={color => set({ color })}/>
+      <ColorField label="Alert colour" value={el.warnColor} onChange={warnColor => set({ warnColor })}/>
+      <ColorField label={el.type === 'graph' ? 'Panel' : 'Track'} value={el.trackColor} onChange={trackColor => set({ trackColor })}/>
+    </>
+  )
+}
+
+function GradientField({ el, accent, set }: { el: GaugeElement | BarElement; accent: string; set: (p: Partial<Reading>) => void }) {
+  const on = !!el.gradientTo
+  return (
+    <CheckField label="Gradient" checked={on} accent={accent} onChange={v => set({ gradientTo: v ? '#00bcd4' : null })}>
+      {on && (
+        <label style={{ position: 'relative', width: 22, height: 22, cursor: 'pointer' }} title="Gradient end colour">
+          <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: el.gradientTo ?? '#00bcd4', boxShadow: '0 0 0 2px #0d0d0d, 0 0 0 3px #2a2a2a' }}/>
+          <input type="color" value={el.gradientTo ?? '#00bcd4'} onChange={e => set({ gradientTo: e.target.value })}
+            aria-label="Gradient end colour" style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}/>
+        </label>
+      )}
+    </CheckField>
+  )
+}
+
+function TextFields({ el, metrics, accent, set }: { el: TextElement; metrics: MetricOption[]; accent: string; set: (p: Partial<TextElement>) => void }) {
+  const variables = [
+    ...TEXT_VARIABLES.slice(0, 4),
+    ...metrics.filter(m => m.id.startsWith('sensor')).map(m => ({ token: `{${m.id}}`, label: m.label })),
+    ...TEXT_VARIABLES.slice(4),
+  ]
+  return (
+    <>
+      <TextField label="Text" value={el.text} onChange={text => set({ text })} placeholder="Type text, add variables below"/>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, paddingLeft: 102 }}>
+        {variables.map(v => (
+          <Pill key={v.token} accent={accent} title={`Insert ${v.token}`} onClick={() => set({ text: el.text + v.token })}>{v.label}</Pill>
+        ))}
+      </div>
+      <div style={{ fontSize: 10, color: '#7f7f7f', paddingLeft: 102, lineHeight: 1.5 }}>
+        Variables update live. Add <code>:1</code> for decimals, e.g. <code>{'{cpu:1}'}</code>. Up to {MAX_SENSORS} bound sensors are available as <code>{'{sensor1}'}</code>…
+      </div>
+      <NumField label="Size" value={el.size} min={8} max={200} unit="px" accent={accent} onChange={size => set({ size })}/>
+      <SelectField label="Align" value={el.align} accent={accent} onChange={align => set({ align: align as TextElement['align'] })}
+        options={[{ value: 'left', label: 'Left' }, { value: 'center', label: 'Centre' }, { value: 'right', label: 'Right' }]}/>
+      <ColorField label="Colour" value={el.color} onChange={color => set({ color })}/>
+    </>
+  )
+}
+
+export function ElementInspector({ element, metrics, accent, onChange, onRemove, onDuplicate, onReorder }: Props) {
+  const set = onChange as (p: Record<string, unknown>) => void
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-gray-200 capitalize">{element.type}</span>
-        <button
-          onClick={onRemove}
-          className="text-xs text-red-400 hover:text-red-300 border border-red-900/50 hover:border-red-700 rounded px-2 py-1"
-        >
-          Delete
-        </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ flex: 1, fontSize: 13, fontWeight: 700 }}>
+          {element.type === 'gauge' ? (element.sweep >= 360 ? 'Ring' : 'Gauge') : TYPE_NAME[element.type]}
+        </div>
+        <IconButton title="Bring forward" onClick={() => onReorder(1)}><ArrowUp size={13}/></IconButton>
+        <IconButton title="Send backward" onClick={() => onReorder(-1)}><ArrowDown size={13}/></IconButton>
+        <IconButton title="Duplicate (Ctrl+D)" onClick={onDuplicate}><Copy size={13}/></IconButton>
+        <IconButton title="Delete (Del)" onClick={onRemove} danger><Trash size={13}/></IconButton>
       </div>
 
-      <NumberField label="Position X" value={element.x} onChange={(v) => c({ x: v })} min={0} max={640} />
-      <NumberField label="Position Y" value={element.y} onChange={(v) => c({ y: v })} min={0} max={640} />
+      <SectionTitle>Layout</SectionTitle>
+      <NumField label="X" value={element.x} min={0} max={640} accent={accent} onChange={x => set({ x })}/>
+      <NumField label="Y" value={element.y} min={0} max={640} accent={accent} onChange={y => set({ y })}/>
 
       {element.type === 'gauge' && (
         <>
-          <SelectField label="Metric" value={element.metric} options={METRIC_OPTIONS} onChange={(v) => c({ metric: v })} />
-          <TextField label="Label" value={element.label} onChange={(v) => c({ label: v })} />
-          <ToggleField label="Show label" value={element.showLabel} onChange={(v) => c({ showLabel: v })} />
-          <ToggleField label="Show value" value={element.showValue} onChange={(v) => c({ showValue: v })} />
-          <NumberField label="Radius" value={element.radius} onChange={(v) => c({ radius: v })} min={20} max={320} />
-          <NumberField label="Thickness" value={element.thickness} onChange={(v) => c({ thickness: v })} min={4} max={160} />
-          <NumberField label="Value size" value={element.valueSize} onChange={(v) => c({ valueSize: v })} min={8} max={128} />
-          <NumberField label="Max (full gauge)" value={element.max} onChange={(v) => c({ max: v })} min={1} max={5000} />
-          <NumberField label="Start angle" value={element.startAngle} onChange={(v) => c({ startAngle: v })} min={0} max={360} />
-          <NumberField label="Sweep" value={element.sweep} onChange={(v) => c({ sweep: v })} min={30} max={360} />
-          <NumberField label="Alert threshold" value={element.warnAt} onChange={(v) => c({ warnAt: v })} min={0} max={5000} />
-          <ColorField label="Color" value={element.color} onChange={(v) => c({ color: v })} />
-          <ColorField label="Alert color" value={element.warnColor} onChange={(v) => c({ warnColor: v })} />
-          <ColorField label="Track color" value={element.trackColor} onChange={(v) => c({ trackColor: v })} />
+          <NumField label="Radius" value={element.radius} min={20} max={320} unit="px" accent={accent} onChange={radius => set({ radius })}/>
+          <NumField label="Thickness" value={element.thickness} min={4} max={160} unit="px" accent={accent} onChange={thickness => set({ thickness })}/>
+          <NumField label="Start angle" value={element.startAngle} min={-180} max={180} unit="°" accent={accent} onChange={startAngle => set({ startAngle })}/>
+          <NumField label="Sweep" value={element.sweep} min={30} max={360} unit="°" accent={accent} onChange={sweep => set({ sweep })}/>
+          <NumField label="Corners" value={element.cornerRadius ?? 0} min={0} max={80} unit="px" accent={accent} onChange={cornerRadius => set({ cornerRadius })}/>
+          <NumField label="Text size" value={element.valueSize} min={8} max={160} unit="px" accent={accent} onChange={valueSize => set({ valueSize })}/>
         </>
       )}
-
       {element.type === 'bar' && (
         <>
-          <SelectField label="Metric" value={element.metric} options={METRIC_OPTIONS} onChange={(v) => c({ metric: v })} />
-          <TextField label="Label" value={element.label} onChange={(v) => c({ label: v })} />
-          <ToggleField label="Show label" value={element.showLabel} onChange={(v) => c({ showLabel: v })} />
-          <ToggleField label="Show value" value={element.showValue} onChange={(v) => c({ showValue: v })} />
-          <NumberField label="Width" value={element.width} onChange={(v) => c({ width: v })} min={20} max={620} />
-          <NumberField label="Height" value={element.height} onChange={(v) => c({ height: v })} min={6} max={120} />
-          <NumberField label="Text size" value={element.valueSize} onChange={(v) => c({ valueSize: v })} min={8} max={128} />
-          <NumberField label="Max (full bar)" value={element.max} onChange={(v) => c({ max: v })} min={1} max={5000} />
-          <NumberField label="Alert threshold" value={element.warnAt} onChange={(v) => c({ warnAt: v })} min={0} max={5000} />
-          <ColorField label="Color" value={element.color} onChange={(v) => c({ color: v })} />
-          <ColorField label="Alert color" value={element.warnColor} onChange={(v) => c({ warnColor: v })} />
-          <ColorField label="Track color" value={element.trackColor} onChange={(v) => c({ trackColor: v })} />
+          <NumField label="Width" value={element.width} min={40} max={640} unit="px" accent={accent} onChange={width => set({ width })}/>
+          <NumField label="Height" value={element.height} min={6} max={160} unit="px" accent={accent} onChange={height => set({ height })}/>
+          <NumField label="Corners" value={element.cornerRadius ?? element.height / 2} min={0} max={80} unit="px" accent={accent} onChange={cornerRadius => set({ cornerRadius })}/>
+          <NumField label="Segments" value={element.segments ?? 0} min={0} max={30} accent={accent} onChange={segments => set({ segments })}/>
+          <NumField label="Text size" value={element.valueSize} min={8} max={160} unit="px" accent={accent} onChange={valueSize => set({ valueSize })}/>
+        </>
+      )}
+      {element.type === 'graph' && (
+        <>
+          <NumField label="Width" value={element.width} min={90} max={640} unit="px" accent={accent} onChange={width => set({ width })}/>
+          <NumField label="Height" value={element.height} min={60} max={640} unit="px" accent={accent} onChange={height => set({ height })}/>
+          <NumField label="History" value={element.windowSecs} min={10} max={600} unit="s" accent={accent} onChange={windowSecs => set({ windowSecs: Math.round(windowSecs) })}/>
+          <NumField label="Line width" value={element.lineWidth} min={1} max={12} unit="px" accent={accent} onChange={lineWidth => set({ lineWidth })}/>
+          <NumField label="Corners" value={element.cornerRadius} min={0} max={80} unit="px" accent={accent} onChange={cornerRadius => set({ cornerRadius })}/>
+          <NumField label="Text size" value={element.valueSize} min={8} max={80} unit="px" accent={accent} onChange={valueSize => set({ valueSize })}/>
+          <CheckField label="Fill" checked={element.fill} accent={accent} onChange={fill => set({ fill })}/>
         </>
       )}
 
+      {element.type !== 'text' && (
+        <>
+          <SectionTitle>Reading</SectionTitle>
+          <ReadingFields el={element} metrics={metrics} accent={accent} set={set}/>
+          <ScaleFields el={element} accent={accent} set={set}/>
+          {element.type !== 'graph' && <GradientField el={element} accent={accent} set={set}/>}
+        </>
+      )}
       {element.type === 'text' && (
         <>
-          <TextField
-            label="Text"
-            value={element.text}
-            onChange={(v) => c({ text: v })}
-            placeholder="Text or {cpu} {gpu} {liquid}"
-          />
-          <p className="text-[10px] text-gray-400 -mt-1">
-            Tokens : <span className="font-mono text-gray-400">{'{cpu} {gpu} {liquid} {pump}'}</span>
-          </p>
-          <NumberField label="Size" value={element.size} onChange={(v) => c({ size: v })} min={8} max={128} />
-          <SelectField
-            label="Alignment"
-            value={element.align}
-            options={[
-              { value: 'left', label: 'Left' },
-              { value: 'center', label: 'Centered' },
-              { value: 'right', label: 'Right' }
-            ]}
-            onChange={(v) => c({ align: v })}
-          />
-          <ColorField label="Color" value={element.color} onChange={(v) => c({ color: v })} />
+          <SectionTitle>Content</SectionTitle>
+          <TextFields el={element} metrics={metrics} accent={accent} set={set}/>
         </>
       )}
     </div>

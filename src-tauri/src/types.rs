@@ -260,6 +260,47 @@ pub struct BarElement {
     pub gradient_to: Option<String>,
 }
 
+/// Line chart of a metric's recent history; newest value at the right edge. (x, y) is the centre.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphElement {
+    pub id: String,
+    pub x: f32,
+    pub y: f32,
+    pub metric: MetricId,
+    pub width: f32,
+    pub height: f32,
+    /// Value at the top of the plot; the bottom is 0.
+    pub max: f64,
+    pub color: String,
+    /// Panel behind the plot.
+    pub track_color: String,
+    pub warn_color: String,
+    pub warn_at: f64,
+    pub show_value: bool,
+    pub show_label: bool,
+    pub label: String,
+    pub value_size: f32,
+    /// Seconds of history across the full width.
+    #[serde(default = "default_graph_window")]
+    pub window_secs: u16,
+    /// Tint the area under the line.
+    #[serde(default)]
+    pub fill: bool,
+    #[serde(default = "default_line_width")]
+    pub line_width: f32,
+    #[serde(default)]
+    pub corner_radius: f32,
+}
+
+fn default_graph_window() -> u16 {
+    60
+}
+
+fn default_line_width() -> f32 {
+    3.0
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextElement {
@@ -285,6 +326,7 @@ pub enum TextAlign {
 pub enum DisplayElement {
     Gauge(GaugeElement),
     Bar(BarElement),
+    Graph(GraphElement),
     Text(TextElement),
 }
 
@@ -423,8 +465,9 @@ pub fn format_metric(v: f64, decimals: u8) -> String {
     format!("{:.*}", d, v)
 }
 
-/// Resolve {cpu}/{gpu}/{liquid}/{pump} tokens in a free-form string.
-/// Supports per-token precision override via `{cpu:1}` syntax.
+/// Resolve `{variable}` tokens in a free-form string: any metric (`{cpu}`, `{gpu}`, `{liquid}`,
+/// `{pump}`, `{sensor1}`..) plus `{time}` and `{date}`. Metrics take a per-token precision
+/// override via `{cpu:1}`; unknown tokens are left as typed.
 pub fn resolve_text(text: &str, t: Temperatures, decimals: u8) -> String {
     let mut out = String::with_capacity(text.len() + 8);
     let bytes = text.as_bytes();
@@ -438,6 +481,16 @@ pub fn resolve_text(text: &str, t: Temperatures, decimals: u8) -> String {
                     Some((k, d)) => (k, d.parse::<u8>().ok()),
                     None => (inner, None),
                 };
+                let clock = match key.to_ascii_lowercase().as_str() {
+                    "time" => Some("%H:%M"),
+                    "date" => Some("%a %d %b"),
+                    _ => None,
+                };
+                if let Some(fmt) = clock.filter(|_| dec_override.is_none()) {
+                    out.push_str(&chrono::Local::now().format(fmt).to_string());
+                    i = end + 1;
+                    continue;
+                }
                 let metric = key.parse::<MetricId>().ok();
                 if let Some(m) = metric {
                     let d = dec_override.unwrap_or(decimals).min(2);
@@ -497,5 +550,25 @@ mod tests {
         let mut t = Temperatures::default();
         t.sensors[4] = 42.0;
         assert_eq!(resolve_text("{sensor5}%", t, 0), "42%");
+    }
+
+    #[test]
+    fn clock_tokens_resolve_and_unknown_tokens_survive() {
+        let t = Temperatures::default();
+        let time = resolve_text("{time}", t, 0);
+        assert_eq!(time.len(), 5);
+        assert_eq!(time.as_bytes()[2], b':');
+        assert!(!resolve_text("{date}", t, 0).contains('{'));
+        assert_eq!(resolve_text("{nope} {cpu:1}", t, 0), "{nope} 0.0");
+    }
+
+    #[test]
+    fn graph_elements_round_trip_with_defaults() {
+        let json = r##"{"type":"graph","id":"g","x":1,"y":2,"metric":"gpu","width":300,"height":120,"max":100,
+            "color":"#fff","trackColor":"#000","warnColor":"#f00","warnAt":90,"showValue":true,"showLabel":true,
+            "label":"GPU","valueSize":20}"##;
+        let el: DisplayElement = serde_json::from_str(json).unwrap();
+        let DisplayElement::Graph(g) = el else { panic!("expected graph") };
+        assert_eq!((g.window_secs, g.fill, g.line_width), (60, false, 3.0));
     }
 }

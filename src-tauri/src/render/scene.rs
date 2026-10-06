@@ -6,8 +6,8 @@
 
 use crate::render::fonts::{draw_text, draw_text_centered, font, measure};
 use crate::types::{
-    hex_to_rgb, resolve_text, BarElement, DisplayConfig, DisplayElement, GaugeElement, MetricId,
-    TextElement, Temperatures, LCD_SIZE,
+    hex_to_rgb, resolve_text, BarElement, DisplayConfig, DisplayElement, GaugeElement, GraphElement,
+    MetricId, TextElement, Temperatures, LCD_SIZE,
 };
 use anyhow::Result;
 use crate::image_io;
@@ -142,6 +142,13 @@ fn render_scene(config: &DisplayConfig, temps: Temperatures, base: Base) -> Resu
             DisplayElement::Bar(b) => {
                 if let Err(e) = draw_bar(&mut pixmap, b, temps, decimals) {
                     log::warn!("bar draw error: {e}");
+                }
+            }
+            DisplayElement::Graph(g) => {
+                let mut series = crate::sensors::history::series(g.metric, g.window_secs as usize);
+                series.push(g.metric.value_from(temps)); // the live reading is always the right-most point
+                if let Err(e) = draw_graph(&mut pixmap, g, &series, decimals) {
+                    log::warn!("graph draw error: {e}");
                 }
             }
             DisplayElement::Text(t) => {
@@ -411,6 +418,82 @@ fn draw_bar(pm: &mut Pixmap, el: &BarElement, temps: Temperatures, decimals: u8)
 }
 
 // ============================================================================
+// Graph — panel, header row, and a line chart of `series` (oldest → newest)
+// ============================================================================
+
+fn draw_graph(pm: &mut Pixmap, el: &GraphElement, series: &[f64], decimals: u8) -> Result<()> {
+    let latest = series.last().copied().unwrap_or(0.0);
+    let warn = latest >= el.warn_at;
+    let line_rgb = hex_to_rgb(if warn { &el.warn_color } else { &el.color });
+
+    let left = el.x - el.width / 2.0;
+    let top = el.y - el.height / 2.0;
+    fill_round_rect(pm, left, top, el.width, el.height, Some(el.corner_radius), |_| hex_to_rgb(&el.track_color));
+
+    const PAD: f32 = 10.0;
+    let mut plot_top = top + PAD;
+    if el.show_label || el.show_value {
+        let row_y = top + PAD;
+        if el.show_label && !el.label.is_empty() {
+            draw_text(pm, left + PAD, row_y, &el.label, el.value_size, (0x9a, 0xa0, 0xb4))?;
+        }
+        if el.show_value {
+            let s = format!("{}{}", crate::types::format_metric(latest, decimals), el.metric.unit());
+            let m = measure(&s, el.value_size)?;
+            draw_text(pm, left + el.width - PAD - m.width, row_y, &s, el.value_size, line_rgb)?;
+        }
+        plot_top = row_y + measure("0", el.value_size)?.height + 6.0;
+    }
+    let (plot_left, plot_right, plot_bottom) = (left + PAD, left + el.width - PAD, top + el.height - PAD);
+    let plot_h = plot_bottom - plot_top;
+    if series.len() < 2 || plot_h < 4.0 || plot_right <= plot_left {
+        return Ok(());
+    }
+
+    // Newest sample sits on the right edge; a short history leaves the left side empty.
+    let window = el.window_secs.max(2) as f32;
+    let step = (plot_right - plot_left) / (window - 1.0);
+    let point = |i: usize| {
+        let age = (series.len() - 1 - i) as f32;
+        let frac = (series[i] / el.max.max(0.0001)).clamp(0.0, 1.0) as f32;
+        (plot_right - age * step, plot_bottom - frac * plot_h)
+    };
+
+    let mut line = tiny_skia::PathBuilder::new();
+    line.move_to(point(0).0, point(0).1);
+    for i in 1..series.len() {
+        let (px, py) = point(i);
+        line.line_to(px, py);
+    }
+    let Some(line_path) = line.finish() else { return Ok(()) };
+
+    let mut paint = tiny_skia::Paint { anti_alias: true, ..Default::default() };
+    if el.fill {
+        let mut area = tiny_skia::PathBuilder::new();
+        area.move_to(point(0).0, plot_bottom);
+        for i in 0..series.len() {
+            let (px, py) = point(i);
+            area.line_to(px, py);
+        }
+        area.line_to(plot_right, plot_bottom);
+        area.close();
+        if let Some(area) = area.finish() {
+            paint.set_color_rgba8(line_rgb.0, line_rgb.1, line_rgb.2, 70);
+            pm.fill_path(&area, &paint, tiny_skia::FillRule::Winding, tiny_skia::Transform::identity(), None);
+        }
+    }
+    paint.set_color_rgba8(line_rgb.0, line_rgb.1, line_rgb.2, 255);
+    let stroke = tiny_skia::Stroke {
+        width: el.line_width.max(1.0),
+        line_cap: tiny_skia::LineCap::Round,
+        line_join: tiny_skia::LineJoin::Round,
+        ..Default::default()
+    };
+    pm.stroke_path(&line_path, &paint, &stroke, tiny_skia::Transform::identity(), None);
+    Ok(())
+}
+
+// ============================================================================
 // Text element
 // ============================================================================
 
@@ -533,6 +616,50 @@ mod tests {
         assert_eq!(px(40, 320), [255, 0, 0], "9 o'clock is inside a -135°..135° gauge");
         assert_eq!(px(320, 40), [255, 0, 0], "12 o'clock");
         assert_eq!(px(320, 600), [0, 0, 0], "gap stays at the bottom");
+    }
+
+    fn graph(fill: bool) -> GraphElement {
+        GraphElement {
+            id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, width: 400.0, height: 200.0, max: 100.0,
+            color: "#00ff00".into(), track_color: "#000040".into(), warn_color: "#ff0000".into(), warn_at: 1000.0,
+            show_value: false, show_label: false, label: String::new(), value_size: 20.0,
+            window_secs: 60, fill, line_width: 4.0, corner_radius: 0.0,
+        }
+    }
+
+    fn pixel(pm: &Pixmap, x: u32, y: u32) -> [u8; 3] {
+        let p = pm.pixel(x, y).unwrap();
+        [p.red(), p.green(), p.blue()]
+    }
+
+    #[test]
+    fn graph_draws_panel_and_line_against_the_right_edge() {
+        let mut pm = Pixmap::new(LCD_SIZE, LCD_SIZE).unwrap();
+        // Two samples: 0 then 100. The line ends at the top-right of the plot area.
+        draw_graph(&mut pm, &graph(false), &[0.0, 100.0], 0).unwrap();
+        assert_eq!(pixel(&pm, 130, 230), [0, 0, 0x40], "panel corner (square) is track coloured");
+        // Panel spans x 120..520, y 220..420; with 10px padding the plot's top-right corner is (510, 230).
+        let end = pixel(&pm, 509, 231);
+        assert!(end[1] > 200 && end[0] < 60, "line reaches the top-right of the plot: {end:?}");
+        assert_eq!(pixel(&pm, 400, 300), [0, 0, 0x40], "the plot is empty away from the line");
+        assert_eq!(pixel(&pm, 200, 300), [0, 0, 0x40], "short history leaves the left empty");
+    }
+
+    #[test]
+    fn graph_fill_tints_under_the_line_only() {
+        let mut pm = Pixmap::new(LCD_SIZE, LCD_SIZE).unwrap();
+        draw_graph(&mut pm, &graph(true), &[100.0, 100.0, 100.0], 0).unwrap();
+        // Flat line at the top; the area below it is tinted, the panel margin is not.
+        let under = pixel(&pm, 500, 400);
+        assert!(under[1] > 0x10, "area under the line is tinted: {under:?}");
+        assert_eq!(pixel(&pm, 125, 400), [0, 0, 0x40], "outside the plot padding stays track coloured");
+    }
+
+    #[test]
+    fn graph_with_one_sample_draws_only_the_panel() {
+        let mut pm = Pixmap::new(LCD_SIZE, LCD_SIZE).unwrap();
+        draw_graph(&mut pm, &graph(true), &[50.0], 0).unwrap();
+        assert_eq!(pixel(&pm, 320, 320), [0, 0, 0x40]);
     }
 
     #[test]

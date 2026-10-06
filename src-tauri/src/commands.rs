@@ -239,7 +239,7 @@ pub struct PreviewResult {
 }
 
 #[tauri::command]
-pub fn render_display_preview(config_in: DisplayConfig) -> PreviewResult {
+pub async fn render_display_preview(config_in: DisplayConfig) -> PreviewResult {
     let temps = sensors::read_temperatures();
     match render::render_preview_png(&config_in, temps) {
         Ok(png) => {
