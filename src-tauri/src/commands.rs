@@ -268,6 +268,11 @@ pub fn list_gpu_sources() -> Vec<GpuSource> {
 }
 
 #[tauri::command]
+pub fn list_temp_sensors() -> Vec<sensors::all::TempSensor> {
+    sensors::all::list_temp_sensors()
+}
+
+#[tauri::command]
 pub fn get_settings() -> AppSettings {
     config::load_settings()
 }
@@ -290,6 +295,7 @@ pub fn save_settings(
 
     // Apply runtime changes.
     sensors::set_gpu_source(merged.gpu_source.clone());
+    sensors::set_sensor_sources(merged.cpu_source.clone(), merged.sensor_sources.clone());
     state
         .driver
         .set_temp_timing(merged.lcd_poll_ms, merged.lcd_min_push_ms);

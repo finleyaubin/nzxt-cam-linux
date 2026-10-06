@@ -28,6 +28,7 @@ pub fn run() {
     let driver = usb::KrakenDriver::new();
     let settings = config::load_settings();
     sensors::set_gpu_source(settings.gpu_source.clone());
+    sensors::set_sensor_sources(settings.cpu_source.clone(), settings.sensor_sources.clone());
     driver.set_temp_timing(settings.lcd_poll_ms, settings.lcd_min_push_ms);
 
     // Apply persisted display config (or leave the default).
@@ -157,6 +158,7 @@ pub fn run() {
             commands::save_display_config,
             commands::render_display_preview,
             commands::list_gpu_sources,
+            commands::list_temp_sensors,
             commands::get_settings,
             commands::save_settings,
             commands::open_external,

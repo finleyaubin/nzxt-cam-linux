@@ -103,7 +103,10 @@ const METRIC_OPTIONS: { value: MetricId; label: string }[] = [
   { value: 'cpu', label: METRIC_LABELS.cpu },
   { value: 'gpu', label: METRIC_LABELS.gpu },
   { value: 'liquid', label: METRIC_LABELS.liquid },
-  { value: 'pump', label: METRIC_LABELS.pump }
+  { value: 'pump', label: METRIC_LABELS.pump },
+  { value: 'sensor1', label: METRIC_LABELS.sensor1 },
+  { value: 'sensor2', label: METRIC_LABELS.sensor2 },
+  { value: 'sensor3', label: METRIC_LABELS.sensor3 }
 ]
 
 interface Props {

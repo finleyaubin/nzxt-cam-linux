@@ -27,6 +27,14 @@ export interface Temperatures {
   gpu: number
   liquid: number
   pumpRpm: number
+  sensor1: number
+  sensor2: number
+  sensor3: number
+}
+
+export interface TempSensor {
+  id: string
+  label: string
 }
 
 export interface GpuSource {
@@ -39,6 +47,8 @@ export interface GpuSource {
 
 export interface AppSettings {
   gpuSource: string | null
+  cpuSource: string | null
+  sensorSources: (string | null)[]
   selectedDevice: string
   pollIntervalMs: number
   lcdPollMs: number
@@ -118,6 +128,7 @@ export const api = {
     invoke<PreviewResult>('render_display_preview', { configIn: config }),
 
   // --- Settings ---
+  listTempSensors: () => invoke<TempSensor[]>('list_temp_sensors'),
   listGpuSources: () => invoke<GpuSource[]>('list_gpu_sources'),
   getSettings: () => invoke<AppSettings>('get_settings'),
   saveSettings: async (patch: Partial<AppSettings>): Promise<SaveSettingsResult> => {

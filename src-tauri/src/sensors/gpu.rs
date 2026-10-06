@@ -69,6 +69,16 @@ fn scan_gpus() -> Vec<GpuSource> {
             discrete: temps.len() > 1, // discrete cards expose edge + junction + mem
         });
     }
+    // The proprietary NVIDIA driver exposes no hwmon, so fall back to nvidia-smi.
+    for (i, id) in crate::sensors::all::nvidia_ids().into_iter().enumerate() {
+        sources.push(GpuSource {
+            id: id.clone(),
+            label: format!("NVIDIA GPU {i} (nvidia-smi)"),
+            pci: "nvidia-smi".into(),
+            temp_path: id,
+            discrete: true,
+        });
+    }
     // Discrete first
     sources.sort_by_key(|s| !s.discrete);
     sources
@@ -86,11 +96,12 @@ pub fn list_gpu_sources(force: bool) -> Vec<GpuSource> {
 
 pub fn read_gpu_temp(source_id: Option<&str>) -> Option<f64> {
     let sources = cache().read();
-    if sources.is_empty() {
-        return None;
-    }
     let chosen = source_id
         .and_then(|id| sources.iter().find(|s| s.id == id))
-        .or_else(|| sources.first())?;
-    read_milli_temp(std::path::Path::new(&chosen.temp_path))
+        .or_else(|| sources.first());
+    match chosen {
+        Some(s) if s.pci == "nvidia-smi" => crate::sensors::all::read_sensor(&s.temp_path),
+        Some(s) => read_milli_temp(std::path::Path::new(&s.temp_path)),
+        None => crate::sensors::all::read_sensor(source_id?),
+    }
 }

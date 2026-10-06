@@ -21,6 +21,9 @@ pub struct Temperatures {
     pub gpu: f64,
     pub liquid: f64,
     pub pump_rpm: f64,
+    pub sensor1: f64,
+    pub sensor2: f64,
+    pub sensor3: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,9 +67,11 @@ pub struct GpuSource {
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
     pub gpu_source: Option<String>,
+    pub cpu_source: Option<String>,
+    pub sensor_sources: Vec<Option<String>>,
     pub selected_device: String,
     pub poll_interval_ms: u64,
     pub lcd_poll_ms: u64,
@@ -78,6 +83,8 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             gpu_source: None,
+            cpu_source: None,
+            sensor_sources: vec![None; 3],
             selected_device: "nzxt-kraken-elite-v2".into(),
             poll_interval_ms: 1000,
             lcd_poll_ms: 500,
@@ -107,6 +114,9 @@ pub enum MetricId {
     Gpu,
     Liquid,
     Pump,
+    Sensor1,
+    Sensor2,
+    Sensor3,
 }
 
 impl MetricId {
@@ -116,12 +126,16 @@ impl MetricId {
             MetricId::Gpu => "GPU",
             MetricId::Liquid => "Liquid",
             MetricId::Pump => "Pump",
+            MetricId::Sensor1 => "Sensor 1",
+            MetricId::Sensor2 => "Sensor 2",
+            MetricId::Sensor3 => "Sensor 3",
         }
     }
     pub fn unit(&self) -> &'static str {
         match self {
             MetricId::Cpu | MetricId::Gpu | MetricId::Liquid => "°",
             MetricId::Pump => "",
+            MetricId::Sensor1 | MetricId::Sensor2 | MetricId::Sensor3 => "°",
         }
     }
     pub fn value_from(&self, t: Temperatures) -> f64 {
@@ -130,6 +144,9 @@ impl MetricId {
             MetricId::Gpu => t.gpu,
             MetricId::Liquid => t.liquid,
             MetricId::Pump => t.pump_rpm,
+            MetricId::Sensor1 => t.sensor1,
+            MetricId::Sensor2 => t.sensor2,
+            MetricId::Sensor3 => t.sensor3,
         }
     }
 }
@@ -351,6 +368,9 @@ pub fn resolve_text(text: &str, t: Temperatures, decimals: u8) -> String {
                     "gpu" => Some(MetricId::Gpu),
                     "liquid" => Some(MetricId::Liquid),
                     "pump" => Some(MetricId::Pump),
+                    "sensor1" => Some(MetricId::Sensor1),
+                    "sensor2" => Some(MetricId::Sensor2),
+                    "sensor3" => Some(MetricId::Sensor3),
                     _ => None,
                 };
                 if let Some(m) = metric {

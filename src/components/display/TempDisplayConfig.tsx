@@ -28,6 +28,9 @@ const METRIC_OPTIONS: { id: MetricId; label: string }[] = [
   { id: 'cpu',    label: 'CPU Temperature'    },
   { id: 'gpu',    label: 'GPU Temperature'    },
   { id: 'pump',   label: 'Pump Speed'         },
+  { id: 'sensor1', label: 'Sensor 1'          },
+  { id: 'sensor2', label: 'Sensor 2'          },
+  { id: 'sensor3', label: 'Sensor 3'          },
 ]
 
 interface Settings {
@@ -119,6 +122,9 @@ export function TempDisplayConfig() {
       case 'cpu': return temperatures.cpu
       case 'gpu': return temperatures.gpu
       case 'liquid': return temperatures.liquid
+      case 'sensor1': return temperatures.sensor1
+      case 'sensor2': return temperatures.sensor2
+      case 'sensor3': return temperatures.sensor3
       default: return temperatures.liquid
     }
   })()

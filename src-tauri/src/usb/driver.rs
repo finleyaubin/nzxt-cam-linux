@@ -420,7 +420,7 @@ impl KrakenDriver {
 fn visual_key(t: Temperatures, decimals: u8, config_version: u32) -> String {
     let d = decimals.min(2) as usize;
     format!(
-        "{}|{:.*}|{:.*}|{:.*}|{}",
+        "{}|{:.*}|{:.*}|{:.*}|{}|{:.*}|{:.*}|{:.*}",
         config_version,
         d,
         t.cpu,
@@ -428,7 +428,13 @@ fn visual_key(t: Temperatures, decimals: u8, config_version: u32) -> String {
         t.gpu,
         d,
         t.liquid,
-        t.pump_rpm.round() as i64
+        t.pump_rpm.round() as i64,
+        d,
+        t.sensor1,
+        d,
+        t.sensor2,
+        d,
+        t.sensor3
     )
 }
 

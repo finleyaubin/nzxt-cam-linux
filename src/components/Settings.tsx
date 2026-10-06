@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { AIO_DEVICES } from '@shared/devices'
-import { api, AppSettings, GpuSource } from '../lib/api'
+import { api, AppSettings, GpuSource, TempSensor } from '../lib/api'
 import { useApp } from '../context/AppContext'
 import { Cpu, Clock, Monitor, Drop } from '@phosphor-icons/react'
 
@@ -20,6 +20,23 @@ function SectionHeader({ icon, title, description }: { icon: React.ReactNode; ti
       </div>
       {description && <div style={{ fontSize: 11, color: '#7f7f7f', lineHeight: 1.6, paddingLeft: 21 }}>{description}</div>}
     </div>
+  )
+}
+
+function SensorSelect({ label, emptyLabel, value, sensors, onChange }: {
+  label: string; emptyLabel: string; value: string | null; sensors: TempSensor[]; onChange: (v: string | null) => void
+}) {
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>{label}</span>
+      <select value={value ?? ''} onChange={e => onChange(e.target.value || null)} style={{
+        padding: '8px 10px', borderRadius: 8, background: '#0d0d0d', color: '#c0c0c0',
+        border: '1px solid #1e1e1e', fontSize: 12,
+      }}>
+        <option value="">{emptyLabel}</option>
+        {sensors.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+      </select>
+    </label>
   )
 }
 
@@ -87,11 +104,13 @@ export function Settings() {
   const accent = state.accent
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [gpus, setGpus] = useState<GpuSource[]>([])
+  const [sensors, setSensors] = useState<TempSensor[]>([])
   const [requested, setRequested] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     api.getSettings().then(setSettings)
     api.listGpuSources().then(setGpus)
+    api.listTempSensors().then(setSensors)
   }, [])
 
   const update = useCallback(async (patch: Partial<AppSettings>) => {
@@ -161,6 +180,21 @@ export function Settings() {
               {g.discrete ? 'Dedicated' : 'iGPU'}
             </span>
           </label>
+        ))}
+      </div>
+
+      <Divider/>
+
+      {/* Sensors */}
+      <SectionHeader icon={<IChip/>} title="Sensors" description="Pick which sensor feeds CPU, and bind Sensor 1–3 for use on LCD gauges, bars and text ({sensor1} etc.)."/>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <SensorSelect label="CPU source" emptyLabel="Automatic" value={settings?.cpuSource ?? null} sensors={sensors} onChange={v => update({ cpuSource: v })}/>
+        {[0, 1, 2].map(i => (
+          <SensorSelect key={i} label={`Sensor ${i + 1}`} emptyLabel="None" value={settings?.sensorSources?.[i] ?? null} sensors={sensors} onChange={v => {
+            const next = [0, 1, 2].map(j => settings?.sensorSources?.[j] ?? null)
+            next[i] = v
+            update({ sensorSources: next })
+          }}/>
         ))}
       </div>
 
