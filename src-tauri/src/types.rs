@@ -239,10 +239,10 @@ pub struct GaugeElement {
     /// Print 0 and `max` at the two ends of a partial arc.
     #[serde(default)]
     pub show_range: bool,
-    /// Degrees the min/max labels slide along the arc, mirrored so both move toward each other.
+    /// Direction of the min/max labels around their arc end: 0° toward the gauge centre, 90° along the arc into the gauge.
     #[serde(default)]
     pub range_angle: f32,
-    /// Pixels the min/max labels move toward the ring (negative = toward the centre).
+    /// Distance in px of the min/max labels from the centre of their arc end.
     #[serde(default)]
     pub range_offset: f32,
 }

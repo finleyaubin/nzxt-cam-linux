@@ -345,17 +345,22 @@ fn draw_gauge(
     Ok(())
 }
 
-/// 0 and max centred on the middle of each arc end, then moved by the label angle (along the arc) and offset (toward the centre).
+/// 0 and max placed on a circle (radius = offset) around the centre of each arc end; the angle picks the spot on it,
+/// from 0° = toward the gauge centre, 90° = along the arc into the gauge, mirrored on the two ends.
 fn draw_range_ends(pm: &mut Pixmap, el: &GaugeElement, r_mid: f32, start: f32, sweep: f32, decimals: u8) -> Result<()> {
     let size = (el.value_size * 0.4).max(12.0);
     let max_decimals = if el.max.fract() == 0.0 { 0 } else { decimals };
-    let shift = el.range_angle.to_radians();
-    let ends = [(start + shift, crate::types::format_metric(0.0, 0)), (start + sweep - shift, crate::types::format_metric(el.max, max_decimals))];
-    let r = (r_mid - el.range_offset).max(0.0);
-    for (angle, text) in ends {
+    let (turn_sin, turn_cos) = el.range_angle.to_radians().sin_cos();
+    let ends = [(start, 1.0, crate::types::format_metric(0.0, 0)), (start + sweep, -1.0, crate::types::format_metric(el.max, max_decimals))];
+    for (angle, into_arc, text) in ends {
         let m = measure(&text, size)?;
         let (sin, cos) = angle.sin_cos();
-        draw_text(pm, el.x + r * sin - m.width / 2.0, el.y - r * cos - m.height / 2.0, &text, size, (0x9a, 0xa0, 0xb4))?;
+        let inward = (-sin, cos);
+        let along = (into_arc * cos, into_arc * sin);
+        let (dx, dy) = (turn_cos * inward.0 + turn_sin * along.0, turn_cos * inward.1 + turn_sin * along.1);
+        let cx = el.x + r_mid * sin + el.range_offset * dx;
+        let cy = el.y - r_mid * cos + el.range_offset * dy;
+        draw_text(pm, cx - m.width / 2.0, cy - m.height / 2.0, &text, size, (0x9a, 0xa0, 0xb4))?;
     }
     Ok(())
 }
@@ -663,21 +668,18 @@ mod tests {
     }
 
     #[test]
-    fn range_angle_and_offset_move_both_labels_together() {
+    fn range_angle_and_offset_place_labels_on_a_circle_around_each_arc_end() {
         let off = range_frame(false, 270.0, 0.0, 0.0);
-        let at = |angle: f32, offset: f32| {
+        let near = |angle: f32, offset: f32, min: (f32, f32), max: (f32, f32)| {
             let on = range_frame(true, 270.0, angle, offset);
-            (label_centroid(&off, &on, true), label_centroid(&off, &on, false))
+            for (got, want, side) in [(label_centroid(&off, &on, true), min, "min"), (label_centroid(&off, &on, false), max, "max")] {
+                let miss = ((got.0 - want.0).powi(2) + (got.1 - want.1).powi(2)).sqrt();
+                assert!(miss < 10.0, "{side} at angle {angle}: got {got:?}, want {want:?}");
+            }
         };
-        let clock_deg = |p: (f32, f32)| p.0.atan2(-p.1).to_degrees();
-        let ((min0, max0), (min1, max1)) = (at(0.0, 0.0), at(40.0, 0.0));
-        assert!((clock_deg(min1) - clock_deg(min0) - 40.0).abs() < 8.0, "min turns 40° forward along the arc");
-        assert!((clock_deg(max1) - clock_deg(max0) + 40.0).abs() < 8.0, "max turns 40° back along the arc");
-
-        let (min2, max2) = at(0.0, 40.0);
-        assert!((distance(min0) - distance(min2) - 40.0).abs() < 8.0 && (distance(max0) - distance(max2) - 40.0).abs() < 8.0, "offset moves both 40px toward the centre");
-        let (min3, _) = at(0.0, -30.0);
-        assert!(distance(min3) > distance(min0) + 20.0, "negative offset moves outward");
+        near(0.0, 40.0, (-169.7, 169.7), (169.7, 169.7));
+        near(90.0, 40.0, (-226.3, 169.7), (226.3, 169.7));
+        near(180.0, 40.0, (-226.3, 226.3), (226.3, 226.3));
     }
 
     #[test]
