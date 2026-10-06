@@ -128,7 +128,7 @@ function ImageFields({ el, accent, set }: { el: ImageElement; accent: string; se
       </Field>
       <NumField label="Opacity" value={el.opacity} min={0} max={100} unit="%" accent={accent} onChange={opacity => set({ opacity: Math.round(opacity) })}/>
       <div style={{ fontSize: 10, color: '#7f7f7f', paddingLeft: 102, lineHeight: 1.5 }}>
-        Scaled to fit the box, keeping its proportions. A PNG with a transparent background works best for logos.
+        Scaled to fit the box, keeping its proportions. SVG or a PNG with a transparent background works best for logos.
       </div>
     </>
   )

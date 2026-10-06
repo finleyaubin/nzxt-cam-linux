@@ -267,18 +267,7 @@ type ImageKey = (String, u32, u32, u64);
 static IMAGE_CACHE: Mutex<Option<HashMap<ImageKey, Arc<Pixmap>>>> = Mutex::new(None);
 const IMAGE_CACHE_LIMIT: usize = 32;
 
-/// The picture at `path` scaled to fit w×h (aspect kept), premultiplied, decoded once per file version and size.
-fn scaled_image(path: &str, w: u32, h: u32) -> Result<Arc<Pixmap>> {
-    let modified = std::fs::metadata(path)
-        .map_err(|e| anyhow::anyhow!("Read image {path}: {e}"))?
-        .modified()
-        .ok()
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map_or(0, |d| d.as_secs());
-    let key = (path.to_string(), w, h, modified);
-    if let Some(hit) = IMAGE_CACHE.lock().as_ref().and_then(|c| c.get(&key)) {
-        return Ok(hit.clone());
-    }
+fn raster_scaled(path: &str, w: u32, h: u32) -> Result<Pixmap> {
     let img = image::open(path).map_err(|e| anyhow::anyhow!("Decode image {path}: {e}"))?.to_rgba8();
     let (iw, ih) = img.dimensions();
     let scale = (w as f32 / iw as f32).min(h as f32 / ih as f32);
@@ -290,9 +279,24 @@ fn scaled_image(path: &str, w: u32, h: u32) -> Result<Arc<Pixmap>> {
             *c = ((*c as u16 * alpha + 127) / 255) as u8;
         }
     }
-    let pixmap = IntSize::from_wh(tw, th)
+    IntSize::from_wh(tw, th)
         .and_then(|size| Pixmap::from_vec(data, size))
-        .ok_or_else(|| anyhow::anyhow!("Image {path} has unusable dimensions"))?;
+        .ok_or_else(|| anyhow::anyhow!("Image {path} has unusable dimensions"))
+}
+
+/// The picture at `path` (PNG, JPEG, WebP, BMP, GIF or SVG) scaled to fit w×h (aspect kept), premultiplied, decoded once per file version and size.
+fn scaled_image(path: &str, w: u32, h: u32) -> Result<Arc<Pixmap>> {
+    let modified = std::fs::metadata(path)
+        .map_err(|e| anyhow::anyhow!("Read image {path}: {e}"))?
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_secs());
+    let key = (path.to_string(), w, h, modified);
+    if let Some(hit) = IMAGE_CACHE.lock().as_ref().and_then(|c| c.get(&key)) {
+        return Ok(hit.clone());
+    }
+    let pixmap = if super::svg::is_svg(path) { super::svg::render_svg(std::path::Path::new(path), w, h)? } else { raster_scaled(path, w, h)? };
     let pixmap = Arc::new(pixmap);
     let mut cache = IMAGE_CACHE.lock();
     let cache = cache.get_or_insert_with(HashMap::new);
@@ -830,6 +834,19 @@ mod tests {
         assert_eq!(px(320, 340), [255, 0, 0], "a 2:1 picture is 50px tall");
         assert_eq!(px(320, 355), [0, 0, 0], "the box's spare height stays background");
         assert_eq!(px(260, 320), [0, 0, 0], "nothing outside the box");
+    }
+
+    #[test]
+    fn svg_logos_are_rasterised_to_fit_the_box() {
+        let path = std::env::temp_dir().join("nzxt-img-logo.svg");
+        std::fs::write(&path, r##"<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20" viewBox="0 0 40 20"><rect width="40" height="20" fill="#ff0000"/></svg>"##).unwrap();
+        let img = ImageElement { id: "i".into(), x: 320.0, y: 320.0, width: 100.0, height: 100.0, path: path.to_string_lossy().into_owned(), opacity: 100 };
+        let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Image(img)], ..DisplayConfig::default() };
+        let LcdFrame::Rgba(frame) = render_for_device(&cfg, Temperatures::default()).unwrap() else { panic!("expected rgba") };
+        let px = |x: usize, y: usize| { let i = (y * LCD_SIZE as usize + x) * 4; [frame[i], frame[i + 1], frame[i + 2]] };
+        assert_eq!(px(320, 320), [255, 0, 0], "centre is covered");
+        assert_eq!(px(275, 320), [255, 0, 0], "a 2:1 svg fills the box width");
+        assert_eq!(px(320, 355), [0, 0, 0], "and leaves the spare height as background");
     }
 
     #[test]

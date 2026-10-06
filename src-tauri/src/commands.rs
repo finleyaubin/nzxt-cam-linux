@@ -310,6 +310,7 @@ pub fn system_logo() -> Option<String> {
     let sizes = ["512x512", "256x256", "128x128", "96x96", "64x64", "48x48"];
     std::iter::once(format!("/usr/share/pixmaps/{name}.png"))
         .chain(sizes.iter().map(|s| format!("/usr/share/icons/hicolor/{s}/apps/{name}.png")))
+        .chain([format!("/usr/share/pixmaps/{name}.svg"), format!("/usr/share/icons/hicolor/scalable/apps/{name}.svg")])
         .find(|p| std::path::Path::new(p).is_file())
 }
 

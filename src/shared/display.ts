@@ -14,7 +14,7 @@ export type BaseMetric = 'cpu' | 'gpu' | 'liquid' | 'pump'
 export type MetricId = BaseMetric | `sensor${number}`
 export type ElementType = 'gauge' | 'bar' | 'graph' | 'text' | 'image'
 
-export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif']
+export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg']
 
 export const MAX_SENSORS = 8
 

@@ -25,11 +25,11 @@ export function LogoDialog({ accent, onPick, onClose }: { accent: string; onPick
             style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', color: '#e0e0e0', fontSize: 12, padding: '7px 0' }}/>
         </div>
       )}
-      footer={<span style={{ flex: 1 }}>Found on this system for your distribution, desktop and hardware (PNG). Use Image to pick any other file.</span>}
+      footer={<span style={{ flex: 1 }}>Found on this system for your distribution, desktop and hardware (PNG and SVG). Use Image to pick any other file.</span>}
     >
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 12px 12px' }}>
         {logos === null ? message('Looking for logos on this system…')
-          : logos.length === 0 ? message('No PNG logos were found for your distribution, desktop or hardware. Use Image to pick a file instead.')
+          : logos.length === 0 ? message('No logos were found for your distribution, desktop or hardware. Use Image to pick a file instead.')
           : shown.length === 0 ? message('No logos match.')
           : groups.map(([group, list]) => (
             <div key={group}>

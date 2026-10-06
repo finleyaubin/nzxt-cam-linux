@@ -1,5 +1,5 @@
 //! Logos found on this machine (distro, desktop, kernel, GPU/CPU vendor) to use as image widgets.
-//! Only PNGs are picked up: that is what the renderer can draw.
+//! PNG and SVG files are picked up: those are what the renderer can draw.
 
 use base64::Engine;
 use serde::Serialize;
@@ -86,10 +86,11 @@ fn icon_size(path: &Path) -> u32 {
         .unwrap_or(1)
 }
 
-/// Icon-theme folders that never hold logos (or only SVGs), skipped to keep the scan fast.
-const SKIPPED_DIRS: &[&str] = &["scalable", "symbolic", "cursors", "actions", "animations", "devices", "emblems", "emotes", "mimetypes", "status", "stock", "legacy"];
+/// Icon-theme folders that never hold logos, skipped to keep the scan fast.
+const SKIPPED_DIRS: &[&str] = &["symbolic", "cursors", "actions", "animations", "devices", "emblems", "emotes", "mimetypes", "status", "stock", "legacy"];
 /// Icons known to be smaller than this look poor scaled up on the 640px screen.
 const MIN_ICON_PX: u32 = 48;
+const SVG_RANK: u32 = 4096;
 
 /// stem -> (size, path) for every wanted PNG under `roots`, keeping the largest size of each.
 fn index_icons(roots: &[PathBuf], wanted: &HashSet<String>) -> HashMap<String, (u32, PathBuf)> {
@@ -109,14 +110,17 @@ fn index_icons(roots: &[PathBuf], wanted: &HashSet<String>) -> HashMap<String, (
                 }
                 continue;
             }
-            if !path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png")) {
+            let is_png = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png"));
+            let is_svg = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("svg"));
+            if !is_png && !is_svg {
                 continue;
             }
             let Some(stem) = path.file_stem().and_then(|s| s.to_str()).map(str::to_lowercase) else { continue };
             if !wanted.contains(&stem) {
                 continue;
             }
-            let size = icon_size(&path);
+            // Vectors scale cleanly, so they beat any bitmap size.
+            let size = if is_svg { SVG_RANK } else { icon_size(&path) };
             let known_small = size > 1 && size < MIN_ICON_PX;
             if known_small || std::fs::metadata(&path).map_or(true, |m| m.len() > MAX_FILE_BYTES) {
                 continue;
@@ -130,6 +134,10 @@ fn index_icons(roots: &[PathBuf], wanted: &HashSet<String>) -> HashMap<String, (
 }
 
 fn thumbnail(path: &Path) -> Option<String> {
+    if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("svg")) {
+        let png = crate::render::svg::render_svg(path, THUMB_PX, THUMB_PX).ok()?.encode_png().ok()?;
+        return Some(format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png)));
+    }
     let img = image::open(path).ok()?;
     let small = img.resize(THUMB_PX, THUMB_PX, image::imageops::FilterType::Lanczos3);
     let mut png = std::io::Cursor::new(Vec::new());
@@ -192,10 +200,11 @@ fn scan() -> Vec<SystemLogo> {
     let mut seen = HashSet::new();
     let mut logos = Vec::new();
     let mut add = |group: &str, stem: &str, path: &Path| {
-        if logos.len() >= MAX_LOGOS || !seen.insert(path.to_path_buf()) {
+        if logos.len() >= MAX_LOGOS || seen.contains(stem) {
             return;
         }
         if let Some(thumb) = thumbnail(path) {
+            seen.insert(stem.to_string());
             logos.push(SystemLogo { label: prettify(stem), group: group.into(), path: path.to_string_lossy().into_owned(), thumb });
         }
     };
@@ -209,7 +218,8 @@ fn scan() -> Vec<SystemLogo> {
     for entry in std::fs::read_dir("/usr/share/pixmaps").into_iter().flatten().flatten() {
         let path = entry.path();
         let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or_default().to_lowercase();
-        if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png")) && stem.contains("logo") && std::fs::metadata(&path).is_ok_and(|m| m.len() <= MAX_FILE_BYTES) {
+        let drawable = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("png") || e.eq_ignore_ascii_case("svg"));
+        if drawable && stem.contains("logo") && std::fs::metadata(&path).is_ok_and(|m| m.len() <= MAX_FILE_BYTES) {
             add("Other logos", &stem, &path);
         }
     }
@@ -246,14 +256,15 @@ mod tests {
     #[test]
     fn largest_size_wins_and_unwanted_small_or_skipped_files_are_ignored() {
         let root = std::env::temp_dir().join(format!("nzxt-logos-{}", std::process::id()));
-        for (dir, name) in [("hicolor/64x64/apps", "tux.png"), ("hicolor/256x256/apps", "tux.png"), ("hicolor/256x256/apps", "other.png"), ("hicolor/256x256/apps", "tux.svg"), ("hicolor/22x22/apps", "tiny.png"), ("hicolor/scalable/apps", "skipped.png")] {
+        for (dir, name) in [("hicolor/64x64/apps", "tux.png"), ("hicolor/256x256/apps", "tux.png"), ("hicolor/256x256/apps", "other.png"), ("hicolor/256x256/apps", "tux.svg"), ("hicolor/22x22/apps", "tiny.png"), ("hicolor/symbolic/apps", "skipped.png"), ("hicolor/scalable/apps", "vec.svg"), ("hicolor/256x256/apps", "vec.png")] {
             std::fs::create_dir_all(root.join(dir)).unwrap();
             std::fs::write(root.join(dir).join(name), b"x").unwrap();
         }
-        let wanted: HashSet<String> = ["tux", "tiny", "skipped"].iter().map(|s| s.to_string()).collect();
+        let wanted: HashSet<String> = ["tux", "tiny", "skipped", "vec"].iter().map(|s| s.to_string()).collect();
         let found = index_icons(&[root.clone()], &wanted);
-        assert_eq!(found.len(), 1, "only tux: unwanted, too-small and skipped-folder files are ignored");
+        assert_eq!(found.len(), 2, "tux and vec: unwanted, too-small and skipped-folder files are ignored");
         assert!(found["tux"].1.to_string_lossy().contains("256x256"));
+        assert!(found["vec"].1.to_string_lossy().ends_with(".svg"), "the vector wins over a bitmap");
         let _ = std::fs::remove_dir_all(&root);
     }
 
@@ -279,6 +290,16 @@ mod tests {
         for l in &logos {
             println!("  [{}] {} -> {}", l.group, l.label, l.path);
         }
+    }
+
+    #[test]
+    fn svg_thumbnails_render() {
+        let dir = std::env::temp_dir().join(format!("nzxt-logo-svg-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let svg = dir.join("logo.svg");
+        std::fs::write(&svg, r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="#00ff00"/></svg>"##).unwrap();
+        assert!(thumbnail(&svg).unwrap().starts_with("data:image/png;base64,"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
