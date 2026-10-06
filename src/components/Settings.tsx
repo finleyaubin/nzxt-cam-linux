@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { AIO_DEVICES } from '@shared/devices'
 import { api, AppSettings, GpuSource, Sensor } from '../lib/api'
 import { useApp } from '../context/AppContext'
-import { SensorList } from './SensorList'
+import { PickerButton, SensorList } from './SensorList'
+import { SensorDialog } from './display/SensorPicker'
 import { Cpu, Clock, Monitor, Drop, Key, Eye, EyeSlash } from '@phosphor-icons/react'
 
 const GITHUB_ISSUES_URL = 'https://github.com/cypherxdev77/nzxt-cam-linux/issues/new?template=device_support.md'
@@ -24,20 +25,21 @@ function SectionHeader({ icon, title, description }: { icon: React.ReactNode; ti
   )
 }
 
-function SensorSelect({ label, emptyLabel, value, sensors, onChange }: {
-  label: string; emptyLabel: string; value: string | null; sensors: Sensor[]; onChange: (v: string | null) => void
+function SensorSelect({ label, emptyLabel, value, sensors, accent, onChange }: {
+  label: string; emptyLabel: string; value: string | null; sensors: Sensor[]; accent: string; onChange: (v: string | null) => void
 }) {
+  const [open, setOpen] = useState(false)
+  const current = value ? sensors.find(s => s.id === value)?.label ?? 'Unavailable sensor' : emptyLabel
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>{label}</span>
-      <select value={value ?? ''} onChange={e => onChange(e.target.value || null)} style={{
-        padding: '8px 10px', borderRadius: 8, background: '#0d0d0d', color: '#c0c0c0',
-        border: '1px solid #1e1e1e', fontSize: 12,
-      }}>
-        <option value="">{emptyLabel}</option>
-        {sensors.map(s => <option key={s.id} value={s.id}>{s.label} [{s.unit}]</option>)}
-      </select>
-    </label>
+      <div style={{ display: 'flex' }}><PickerButton label={current} onClick={() => setOpen(true)}/></div>
+      {open && (
+        <SensorDialog title={label} builtins={[{ id: 'cpu', label: emptyLabel, unit: '', max: 0 }]} accent={accent} onClose={() => setOpen(false)}
+          only={s => sensors.some(x => x.id === s.id)} onBuiltin={() => onChange(null)}
+          onSensor={async s => { onChange(s.id) }}/>
+      )}
+    </div>
   )
 }
 
@@ -231,7 +233,7 @@ export function Settings() {
       <SectionHeader icon={<IChip/>} title="Sensors" description="Extra readings for the LCD: temperatures, load, clocks, power, fans or memory. Set the value that fills a gauge or bar."/>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ maxWidth: 360 }}>
-          <SensorSelect label="CPU temperature source" emptyLabel="Automatic" value={settings?.cpuSource ?? null} sensors={sensors.filter(s => s.unit === '°')} onChange={v => update({ cpuSource: v })}/>
+          <SensorSelect label="CPU temperature source" emptyLabel="Automatic" value={settings?.cpuSource ?? null} sensors={sensors.filter(s => s.unit === '°')} accent={accent} onChange={v => update({ cpuSource: v })}/>
         </div>
         {settings && <SensorList slots={settings.sensors ?? []} catalog={sensors} accent={accent} onChange={slots => update({ sensors: slots })}/>}
       </div>
