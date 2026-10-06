@@ -35,12 +35,12 @@ export function NumField({ label, value, min, max, step = 1, unit = '', accent, 
   )
 }
 
-export function TextField({ label, value, placeholder, onChange, maxLength }: {
-  label: string; value: string; placeholder?: string; maxLength?: number; onChange: (v: string) => void
+export function TextField({ label, value, placeholder, onChange, maxLength, inputRef }: {
+  label: string; value: string; placeholder?: string; maxLength?: number; onChange: (v: string) => void; inputRef?: React.Ref<HTMLInputElement>
 }) {
   return (
     <Field label={label}>
-      <input value={value} placeholder={placeholder} maxLength={maxLength} onChange={e => onChange(e.target.value)}
+      <input ref={inputRef} value={value} placeholder={placeholder} maxLength={maxLength} onChange={e => onChange(e.target.value)}
         aria-label={label} style={{ ...INPUT, flex: 1 }}/>
     </Field>
   )

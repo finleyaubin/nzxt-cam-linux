@@ -79,6 +79,8 @@ pub struct AppSettings {
     sensor_sources: Vec<Option<String>>,
     /// Third-party API keys by service name, e.g. "giphy".
     pub api_keys: std::collections::BTreeMap<String, String>,
+    /// Base URL of a Home Assistant server; its access token is `api_keys["homeassistant"]`.
+    pub home_assistant_url: String,
     pub selected_device: String,
     pub poll_interval_ms: u64,
     pub lcd_poll_ms: u64,
@@ -94,6 +96,7 @@ impl Default for AppSettings {
             sensors: Vec::new(),
             sensor_sources: Vec::new(),
             api_keys: Default::default(),
+            home_assistant_url: String::new(),
             selected_device: "nzxt-kraken-elite-v2".into(),
             poll_interval_ms: 1000,
             lcd_poll_ms: 500,
@@ -117,6 +120,10 @@ impl AppSettings {
         while self.sensors.last().is_some_and(|s| s.source.is_none()) {
             self.sensors.pop();
         }
+    }
+
+    pub fn apply_home_assistant(&self) {
+        crate::sensors::ha::configure(&self.home_assistant_url, self.api_keys.get("homeassistant").map_or("", String::as_str));
     }
 
     pub fn sensor_sources(&self) -> Vec<Option<String>> {
@@ -229,6 +236,18 @@ pub struct GaugeElement {
     /// Fill blends from `color` to this along the arc.
     #[serde(default)]
     pub gradient_to: Option<String>,
+    /// Print 0 and `max` at the two ends of a partial arc.
+    #[serde(default)]
+    pub show_range: bool,
+    /// Direction of the min/max labels around their arc end: 0° toward the gauge centre, 90° along the arc into the gauge.
+    #[serde(default)]
+    pub range_angle: f32,
+    /// Distance in px of the min/max labels from the centre of their arc end.
+    #[serde(default)]
+    pub range_offset: f32,
+    /// Show the value in a pill at the top of the ring, filled with the track colour, instead of in the centre.
+    #[serde(default)]
+    pub value_pill: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -313,6 +332,25 @@ pub struct TextElement {
     pub align: TextAlign,
 }
 
+fn full_opacity() -> u8 {
+    100
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageElement {
+    pub id: String,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    /// Picture file (PNG, JPEG, WebP, BMP or the first frame of a GIF), scaled to fit the box.
+    pub path: String,
+    /// 0-100
+    #[serde(default = "full_opacity")]
+    pub opacity: u8,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TextAlign {
@@ -328,6 +366,7 @@ pub enum DisplayElement {
     Bar(BarElement),
     Graph(GraphElement),
     Text(TextElement),
+    Image(ImageElement),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -358,6 +397,13 @@ impl DisplayConfig {
         }
         if self.elements.len() > 64 {
             return Err(format!("elements has {} entries, the maximum is 64", self.elements.len()));
+        }
+        for (i, el) in self.elements.iter().enumerate() {
+            if let DisplayElement::Image(img) = el {
+                if img.opacity > 100 {
+                    return Err(format!("elements[{i}].opacity must be 0-100, got {}", img.opacity));
+                }
+            }
         }
         Ok(())
     }

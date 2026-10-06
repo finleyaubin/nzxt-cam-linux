@@ -51,11 +51,20 @@ export interface GpuSource {
   discrete: boolean
 }
 
+export interface SystemLogo {
+  label: string
+  group: string
+  path: string
+  /** Small PNG preview as a data URL. */
+  thumb: string
+}
+
 export interface AppSettings {
   gpuSource: string | null
   cpuSource: string | null
   sensors: SensorSlot[]
   apiKeys: Record<string, string>
+  homeAssistantUrl: string
   selectedDevice: string
   pollIntervalMs: number
   lcdPollMs: number
@@ -138,6 +147,7 @@ export const api = {
   saveGiphyGif: (id: string, bytes: ArrayBuffer) =>
     invoke<string>('save_giphy_gif', new Uint8Array(bytes), { headers: { 'x-giphy-id': id } }),
   listSensors: () => invoke<Sensor[]>('list_sensors'),
+  listSystemLogos: () => invoke<SystemLogo[]>('list_system_logos'),
   listGpuSources: () => invoke<GpuSource[]>('list_gpu_sources'),
   getSettings: () => invoke<AppSettings>('get_settings'),
   saveSettings: async (patch: Partial<AppSettings>): Promise<SaveSettingsResult> => {

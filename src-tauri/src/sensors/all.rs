@@ -183,6 +183,7 @@ pub fn list_sensors() -> Vec<Sensor> {
             sensors.push(Sensor { id, label: format!("NVIDIA GPU {gpu} · {label}"), unit: unit.into() });
         }
     }
+    sensors.extend(super::ha::list());
     let hwmon = scan_hwmon();
     *PATHS.lock() = Some(hwmon.iter().map(|(s, p)| (s.id.clone(), p.clone())).collect());
     sensors.extend(hwmon.into_iter().map(|(s, _)| s));
@@ -190,6 +191,9 @@ pub fn list_sensors() -> Vec<Sensor> {
 }
 
 pub fn unit_of(id: &str) -> &'static str {
+    if id.starts_with(super::ha::PREFIX) {
+        return super::ha::unit_of(id);
+    }
     if let Some(rest) = id.strip_prefix(NVIDIA_PREFIX) {
         let field = rest.split_once(':').map_or(NVIDIA_FIELDS[0].0, |(_, f)| f);
         return NVIDIA_FIELDS.iter().find(|f| f.0 == field).map_or("", |f| f.2);
@@ -206,6 +210,9 @@ pub fn read_sensor(id: &str) -> Option<f64> {
     }
     if id.starts_with("sys:") {
         return read_system(id);
+    }
+    if id.starts_with(super::ha::PREFIX) {
+        return super::ha::read(id);
     }
     let cached = PATHS.lock().as_ref().and_then(|m| m.get(id).cloned());
     let path = match cached {

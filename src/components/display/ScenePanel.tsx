@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { DisplayConfig, DisplayElement } from '@shared/display'
 import { api } from '../../lib/api'
 import { ColorField, Field, NumField, Pill, SectionTitle } from './fields'
-import { GiphyPicker } from './GiphyPicker'
+import { GiphyDialog } from './GiphyPicker'
 import { ThemePicker } from './ThemePicker'
 import { TemplateGallery } from './TemplateGallery'
 import { Gif, ImageSquare, X } from '@phosphor-icons/react'
@@ -54,14 +54,14 @@ export function ScenePanel({ config, accent, onChange, onLayout, onRestyle }: Pr
           <ImageSquare size={13}/>
           <span style={{ maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{image ? fileName(image) : 'Choose…'}</span>
         </Pill>
-        <Pill accent={accent} active={showGiphy} onClick={() => setShowGiphy(v => !v)}><Gif size={13}/>GIPHY</Pill>
+        <Pill accent={accent} active={showGiphy} onClick={() => setShowGiphy(true)}><Gif size={13}/>GIPHY</Pill>
         {image && (
           <button onClick={() => onChange({ backgroundImage: null })} aria-label="Remove background image" style={{
             display: 'flex', padding: 5, borderRadius: 8, border: '1px solid #252525', background: 'transparent', color: '#9a9a9a', cursor: 'pointer',
           }}><X size={12}/></button>
         )}
       </Field>
-      {showGiphy && <GiphyPicker accent={accent} onPick={path => { onChange({ backgroundImage: path }); setShowGiphy(false) }}/>}
+      {showGiphy && <GiphyDialog accent={accent} onClose={() => setShowGiphy(false)} onPick={path => { onChange({ backgroundImage: path }); setShowGiphy(false) }}/>}
       {image && (
         <>
           <NumField label="Dim image" value={config.backgroundDim ?? 0} min={0} max={90} unit="%" accent={accent} onChange={backgroundDim => onChange({ backgroundDim: Math.round(backgroundDim) })}/>

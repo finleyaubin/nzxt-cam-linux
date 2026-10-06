@@ -174,7 +174,7 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
           {/* The cooler's screen is round: dim what falls outside it. */}
           <div style={{
             position: 'absolute', inset: 0, pointerEvents: 'none',
-            background: 'radial-gradient(circle at center, transparent calc(50% - 1px), rgba(0,0,0,0.62) 50%)',
+            background: 'radial-gradient(circle closest-side at center, transparent calc(100% - 1px), rgba(0,0,0,0.62) 100%)',
           }}/>
           <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.12)', pointerEvents: 'none' }}/>
           {guides.x !== null && <div style={{ position: 'absolute', left: guides.x * scale, top: 0, bottom: 0, width: 1, background: accent, opacity: 0.8, pointerEvents: 'none' }}/>}

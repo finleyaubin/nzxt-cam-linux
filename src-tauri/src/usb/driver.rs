@@ -673,6 +673,8 @@ fn visual_key(cfg: &DisplayConfig, t: Temperatures, decimals: u8, config_version
                 key.push_str(&crate::sensors::history::version().to_string());
             }
             DisplayElement::Text(x) => key.push_str(&resolve_text(&x.text, t, decimals)),
+            // Pictures only change with the config itself, which `config_version` already covers.
+            DisplayElement::Image(_) => {}
         }
     }
     key
