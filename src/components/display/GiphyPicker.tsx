@@ -86,14 +86,14 @@ export function GiphyPicker({ accent, onPick }: { accent: string; onPick: (path:
       {results?.length === 0 && <div style={{ fontSize: 11, color: '#9a9a9a' }}>No GIFs found for "{query}".</div>}
 
       {results && results.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))', gap: 6, maxHeight: 280, overflowY: 'auto' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))', gap: 6, maxHeight: 280, overflowY: 'auto', alignContent: 'start' }}>
           {results.map(gif => (
             <button key={gif.id} onClick={() => pick(gif)} disabled={status === 'downloading'} title={gif.title} style={{
-              padding: 0, border: '1px solid #1e1e1e', borderRadius: 8, overflow: 'hidden', background: '#111',
-              cursor: 'pointer', aspectRatio: '1', opacity: status === 'downloading' ? 0.5 : 1,
+              position: 'relative', width: '100%', height: 0, padding: '0 0 100%', border: '1px solid #1e1e1e', borderRadius: 8,
+              overflow: 'hidden', background: '#111', cursor: 'pointer', opacity: status === 'downloading' ? 0.5 : 1,
             }}>
               <img src={gif.images.fixed_width_small.url} alt={gif.title} loading="lazy"
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
             </button>
           ))}
         </div>
