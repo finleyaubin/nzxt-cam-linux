@@ -1,5 +1,5 @@
 /** Canvas geometry for scene elements: bounds, hit-testing and resize handles, all in 640×640 scene units. */
-import { DisplayElement, LCD_SIZE } from '@shared/display'
+import { DisplayConfig, DisplayElement, LCD_SIZE } from '@shared/display'
 
 export interface Rect { left: number; top: number; right: number; bottom: number }
 
@@ -17,11 +17,19 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 let measureCtx: CanvasRenderingContext2D | null | undefined
 
 /** Approximates the backend's text metrics (same family, bold); good enough for selection boxes. */
-function textBox(text: string, size: number): { w: number; h: number } {
+function textBox(text: string, size: number, font?: string | null): { w: number; h: number } {
   if (measureCtx === undefined) measureCtx = document.createElement('canvas').getContext('2d')
   if (!measureCtx) return { w: text.length * size * 0.58, h: size * 1.2 }
-  measureCtx.font = `700 ${size}px Inter, 'DejaVu Sans', sans-serif`
+  const family = font ? `"${font.replace(/"/g, '')}", ` : ''
+  measureCtx.font = `700 ${size}px ${family}Inter, 'DejaVu Sans', sans-serif`
   return { w: measureCtx.measureText(text).width, h: size * 1.2 }
+}
+
+/** The scene's elements with each text's font filled in from the scene default, so geometry measures what is drawn. */
+export function withSceneFont(config: DisplayConfig): DisplayElement[] {
+  const { font } = config
+  if (!font) return config.elements
+  return config.elements.map(el => (el.type === 'text' && !el.font ? { ...el, font } : el))
 }
 
 export function elementRect(el: DisplayElement, resolve: Resolve): Rect {
@@ -32,7 +40,7 @@ export function elementRect(el: DisplayElement, resolve: Resolve): Rect {
     case 'graph':
       return { left: el.x - el.width / 2, top: el.y - el.height / 2, right: el.x + el.width / 2, bottom: el.y + el.height / 2 }
     case 'text': {
-      const { w, h } = textBox(resolve(el.text) || ' ', el.size)
+      const { w, h } = textBox(resolve(el.text) || ' ', el.size, el.font)
       const left = el.align === 'left' ? el.x : el.align === 'right' ? el.x - w : el.x - w / 2
       return { left, top: el.y - h / 2, right: left + w, bottom: el.y + h / 2 }
     }
@@ -98,7 +106,7 @@ export function resizePatch(el: DisplayElement, handleId: string, px: number, py
   }
 
   if (el.type === 'text') {
-    const { w } = textBox(resolve(el.text) || ' ', el.size)
+    const { w } = textBox(resolve(el.text) || ' ', el.size, el.font)
     // Distance from the anchor (the text's x) to the handle scales the font.
     const half = el.align === 'center' ? w / 2 : w
     const reach = handleId === 'size-w' ? el.x - px : px - el.x
@@ -163,7 +171,19 @@ export function snapMove(
   return { x: bx.pos, y: by.pos, guideX: bx.guide, guideY: by.guide }
 }
 
-export type AlignMode = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom' | 'hdist' | 'vdist'
+export type CenterAxis = 'x' | 'y'
+
+/** Moves one element, or a group as a unit, so its bounds are centred on the screen along one axis. */
+export function centerPatches(els: DisplayElement[], axis: CenterAxis, resolve: Resolve): { id: string; x?: number; y?: number }[] {
+  if (!els.length) return []
+  const rects = els.map(el => elementRect(el, resolve))
+  const [lo, hi] = axis === 'x' ? (['left', 'right'] as const) : (['top', 'bottom'] as const)
+  const mid = (Math.min(...rects.map(r => r[lo])) + Math.max(...rects.map(r => r[hi]))) / 2
+  const shift = CENTER - mid
+  return els.map(el => (axis === 'x' ? { id: el.id, x: clampToScreen(el.x + shift) } : { id: el.id, y: clampToScreen(el.y + shift) }))
+}
+
+export type AlignMode ='left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom' | 'hdist' | 'vdist'
 
 /** New positions that align (or evenly distribute) a set of elements, relative to their joint bounds. */
 export function alignPatches(els: DisplayElement[], mode: AlignMode, resolve: Resolve): { id: string; x?: number; y?: number }[] {

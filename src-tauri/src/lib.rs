@@ -165,6 +165,7 @@ pub fn run() {
             commands::get_display_config,
             commands::save_display_config,
             commands::render_display_preview,
+            commands::list_fonts,
             commands::list_gpu_sources,
             commands::list_sensors,
             commands::start_visible,

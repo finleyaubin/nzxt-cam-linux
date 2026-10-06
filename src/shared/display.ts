@@ -117,6 +117,8 @@ export interface TextElement extends ElementBase {
   color: string
   size: number
   align: 'left' | 'center' | 'right'
+  /** Installed font family; the scene's font when unset. */
+  font?: string | null
 }
 
 export type DisplayElement = GaugeElement | BarElement | GraphElement | TextElement
@@ -128,6 +130,8 @@ export interface DisplayConfig {
   decimals?: number
   backgroundImage?: string | null
   backgroundDim?: number
+  /** Installed font family for all text; the built-in font when unset. */
+  font?: string | null
 }
 
 export function formatMetric(v: number, decimals = 0): string {
