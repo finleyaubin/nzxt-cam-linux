@@ -12,7 +12,7 @@ import { FirstRunPicker } from './FirstRunPicker'
 import { LogoDialog } from './LogoDialog'
 import { Pill, SectionTitle } from './fields'
 import { MetricOption, optionFor, useMetricOptions } from './metrics'
-import { AlignMode, alignPatches, clampToScreen } from './geometry'
+import { AlignMode, CenterAxis, alignPatches, centerPatches, clampToScreen, withSceneFont } from './geometry'
 import {
   ArrowCounterClockwise, ArrowClockwise, ArrowUUpLeft, ChartLine, Circle, Gauge as GaugeIcon, Hash, Hexagon, ImageSquare, Play, Rectangle, TextT, X,
 } from '@phosphor-icons/react'
@@ -43,6 +43,10 @@ const LIVE_DELAY_MS = 1500
 
 const MAX_UNDO = 100
 const COALESCE_MS = 900
+const PASTE_OFFSET = 20
+
+// Module-level so a copy survives switching tabs and coming back to the editor.
+let clipboard: DisplayElement[] = []
 
 const unitSuffix = (unit: string) => (unit === '°' || unit === '%' || unit === '' ? unit : ` ${unit}`)
 
@@ -260,6 +264,38 @@ export function DisplayEditor() {
     select(copy.id)
   }, [snapshot, setConfig, select])
 
+  const pasteCount = useRef(0)
+
+  const copyElements = useCallback((ids: string[]) => {
+    const picked = configRef.current?.elements.filter(el => ids.includes(el.id)) ?? []
+    if (!picked.length) return
+    clipboard = picked
+    pasteCount.current = 0
+  }, [])
+
+  const pasteElements = useCallback(() => {
+    const cfg = configRef.current
+    if (!cfg || !clipboard.length) return
+    const offset = PASTE_OFFSET * ++pasteCount.current
+    const copies = clipboard.map(src => (
+      { ...src, id: genId(src.type), x: clampToScreen(src.x + offset), y: clampToScreen(src.y + offset) } as DisplayElement
+    ))
+    snapshot()
+    setConfig({ ...cfg, elements: [...cfg.elements, ...copies] })
+    setExtraIds(copies.slice(1).map(el => el.id))
+    dispatch({ type: 'SELECT_ELEMENT', payload: copies[0].id })
+  }, [snapshot, setConfig, dispatch])
+
+  const centerElements = useCallback((ids: string[], axis: CenterAxis) => {
+    const cfg = configRef.current
+    if (!cfg) return
+    const patches = centerPatches(withSceneFont(cfg).filter(el => ids.includes(el.id)), axis,
+      t => resolveText(t, temperatures, cfg.decimals ?? 0))
+    if (!patches.length) return
+    snapshot()
+    mapMany(patches.map(({ id, ...patch }) => ({ id, patch })))
+  }, [temperatures, snapshot, mapMany])
+
   const reorderElement = useCallback((id: string, direction: 1 | -1) => {
     const cfg = configRef.current
     if (!cfg) return
@@ -276,7 +312,7 @@ export function DisplayEditor() {
     const cfg = configRef.current
     if (!cfg) return
     const ids = [...(selectedId ? [selectedId] : []), ...extraIds]
-    const patches = alignPatches(cfg.elements.filter(el => ids.includes(el.id)), mode,
+    const patches = alignPatches(withSceneFont(cfg).filter(el => ids.includes(el.id)), mode,
       t => resolveText(t, temperatures, cfg.decimals ?? 0))
     if (!patches.length) return
     snapshot()
@@ -317,7 +353,7 @@ export function DisplayEditor() {
     }
   }, [dispatch, deviceStatus.connected])
 
-  // Keyboard: Delete, arrows to nudge, Ctrl+Z / Ctrl+D.
+  // Keyboard: Delete, arrows to nudge, Ctrl+Z / Ctrl+D / Ctrl+C / Ctrl+V.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null
@@ -328,8 +364,10 @@ export function DisplayEditor() {
       const k = e.key.toLowerCase()
       if (mod && ((k === 'z' && e.shiftKey) || k === 'y')) { e.preventDefault(); redo(); return }
       if (mod && k === 'z') { e.preventDefault(); undo(); return }
+      if (mod && k === 'v') { e.preventDefault(); pasteElements(); return }
       if (!el) return
       const group = [el.id, ...extraIds]
+      if (mod && k === 'c') { e.preventDefault(); copyElements(group); return }
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeElement(el.id, group) }
       else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateElement(el.id) }
       else if (e.key.startsWith('Arrow')) {
@@ -347,7 +385,7 @@ export function DisplayEditor() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selectedId, extraIds, undo, redo, removeElement, duplicateElement, editElement, snapshot, mapMany])
+  }, [selectedId, extraIds, undo, redo, removeElement, duplicateElement, copyElements, pasteElements, editElement, snapshot, mapMany])
 
   // Fit the canvas to the space available.
   const areaRef = useRef<HTMLDivElement>(null)
@@ -427,10 +465,12 @@ export function DisplayEditor() {
             onDropKind={(kind, x, y) => addKind(kind as AddKind, { x, y })}
           />
         </div>
-        {selectedIds.length >= 2 && (
+        {selectedIds.length >= 1 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11, color: '#7f7f7f' }}>{selectedIds.length} selected</span>
-            {ALIGN_BUTTONS.map(({ mode, label }) => (
+            <Pill accent={accent} onClick={() => centerElements(selectedIds, 'x')} title="Centre horizontally on the screen">Centre ↔</Pill>
+            <Pill accent={accent} onClick={() => centerElements(selectedIds, 'y')} title="Centre vertically on the screen">Centre ↕</Pill>
+            {selectedIds.length >= 2 && ALIGN_BUTTONS.map(({ mode, label }) => (
               <Pill key={mode} accent={accent} onClick={() => alignSelection(mode)} title={label}>{ALIGN_SHORT[mode]}</Pill>
             ))}
           </div>
@@ -499,6 +539,7 @@ export function DisplayEditor() {
               onChange={patch => editElement(selected.id, patch)}
               onRemove={() => removeElement(selected.id)}
               onDuplicate={() => duplicateElement(selected.id)}
+              onCenter={axis => centerElements([selected.id], axis)}
               onReorder={dir => reorderElement(selected.id, dir)}
             />
           : <ScenePanel
@@ -513,7 +554,11 @@ export function DisplayEditor() {
           background: '#141414', border: '1px solid #2a2a2a', boxShadow: '0 8px 24px #000a', display: 'flex', flexDirection: 'column',
         }}>
           {([
+            ['Copy', () => copyElements(selectedIds.includes(menu.id) ? selectedIds : [menu.id])],
+            ['Paste', pasteElements],
             ['Duplicate', () => duplicateElement(menu.id)],
+            ['Centre horizontally', () => centerElements(selectedIds.includes(menu.id) ? selectedIds : [menu.id], 'x')],
+            ['Centre vertically', () => centerElements(selectedIds.includes(menu.id) ? selectedIds : [menu.id], 'y')],
             ['Bring forward', () => reorderElement(menu.id, 1)],
             ['Send backward', () => reorderElement(menu.id, -1)],
             ['Delete', () => removeElement(menu.id)],

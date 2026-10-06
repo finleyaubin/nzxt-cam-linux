@@ -4,6 +4,8 @@ import { api } from '../../lib/api'
 import { LogoDialog } from './LogoDialog'
 import { MetricOption, optionFor } from './metrics'
 import { InsertSensor, SensorPicker } from './SensorPicker'
+import { FontPicker } from './FontPicker'
+import { CenterAxis } from './geometry'
 import { useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Copy, ImageSquare, Trash } from '@phosphor-icons/react'
 
@@ -14,6 +16,7 @@ interface Props {
   onChange: (patch: Partial<DisplayElement>) => void
   onRemove: () => void
   onDuplicate: () => void
+  onCenter: (axis: CenterAxis) => void
   onReorder: (direction: 1 | -1) => void
 }
 
@@ -48,11 +51,11 @@ function ReadingFields({ el, metrics, accent, set }: { el: Reading; metrics: Met
   )
 }
 
-function ScaleFields({ el, accent, set }: { el: Reading; accent: string; set: (p: Partial<Reading>) => void }) {
+function ScaleFields({ el, defaultMax, accent, set }: { el: Reading; defaultMax: number; accent: string; set: (p: Partial<Reading>) => void }) {
   return (
     <>
-      <NumField label="Full scale" value={el.max} min={1} max={10000} accent={accent} onChange={max => set({ max })}/>
-      <NumField label="Alert at" value={el.warnAt} min={0} max={10000} accent={accent} onChange={warnAt => set({ warnAt })}/>
+      <NumField label="Full scale" value={el.max} min={1} max={10000} sliderMax={Math.max(defaultMax * 2, el.max)} accent={accent} onChange={max => set({ max })}/>
+      <NumField label="Alert at" value={el.warnAt} min={0} max={10000} sliderMax={Math.max(el.max, el.warnAt)} accent={accent} onChange={warnAt => set({ warnAt })}/>
       <ColorField label="Alert colour" value={el.warnColor} onChange={warnColor => set({ warnColor })}/>
       <ColorField label={el.type === 'graph' ? 'Panel' : 'Track'} value={el.trackColor} onChange={trackColor => set({ trackColor })}/>
     </>
@@ -103,6 +106,7 @@ function TextFields({ el, metrics, accent, set }: { el: TextElement; metrics: Me
       <div style={{ fontSize: 10, color: '#7f7f7f', paddingLeft: 102, lineHeight: 1.5 }}>
         Variables update live and are inserted at the cursor. Add <code>:1</code> for decimals, e.g. <code>{'{cpu:1}'}</code>. Up to {MAX_SENSORS} sensors can be bound.
       </div>
+      <FontPicker value={el.font} defaultLabel="Scene font" accent={accent} onChange={font => set({ font })}/>
       <NumField label="Size" value={el.size} min={8} max={200} unit="px" accent={accent} onChange={size => set({ size })}/>
       <SelectField label="Align" value={el.align} accent={accent} onChange={align => set({ align: align as TextElement['align'] })}
         options={[{ value: 'left', label: 'Left' }, { value: 'center', label: 'Centre' }, { value: 'right', label: 'Right' }]}/>
@@ -155,7 +159,7 @@ function Advanced({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function ElementInspector({ element, metrics, accent, onChange, onRemove, onDuplicate, onReorder }: Props) {
+export function ElementInspector({ element, metrics, accent, onChange, onRemove, onDuplicate, onCenter, onReorder }: Props) {
   const set = onChange as (p: Record<string, unknown>) => void
 
   return (
@@ -193,6 +197,10 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
       <SectionTitle>Size &amp; position</SectionTitle>
       <NumField label="X" value={element.x} min={0} max={640} accent={accent} onChange={x => set({ x })}/>
       <NumField label="Y" value={element.y} min={0} max={640} accent={accent} onChange={y => set({ y })}/>
+      <div style={{ display: 'flex', gap: 5, paddingLeft: 102 }}>
+        <Pill accent={accent} onClick={() => onCenter('x')} title="Centre horizontally on the screen">Centre ↔</Pill>
+        <Pill accent={accent} onClick={() => onCenter('y')} title="Centre vertically on the screen">Centre ↕</Pill>
+      </div>
       {element.type === 'gauge' && (
         <>
           <NumField label="Radius" value={element.radius} min={20} max={320} unit="px" accent={accent} onChange={radius => set({ radius })}/>
@@ -244,7 +252,7 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
               <CheckField label="Fill" checked={element.fill} accent={accent} onChange={fill => set({ fill })}/>
             </>
           )}
-          <ScaleFields el={element} accent={accent} set={set}/>
+          <ScaleFields el={element} defaultMax={optionFor(metrics, element.metric).max} accent={accent} set={set}/>
           {element.type !== 'graph' && <GradientField el={element} accent={accent} set={set}/>}
         </Advanced>
       )}

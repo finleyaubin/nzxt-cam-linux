@@ -142,6 +142,7 @@ export const api = {
     invoke<CommandResult>('save_display_config', { configIn: config }),
   renderDisplayPreview: (config: DisplayConfig) =>
     invoke<PreviewResult>('render_display_preview', { configIn: config }),
+  listFonts: () => invoke<string[]>('list_fonts'),
 
   // --- Settings ---
   saveGiphyGif: (id: string, bytes: ArrayBuffer) =>

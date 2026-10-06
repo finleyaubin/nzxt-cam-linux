@@ -258,6 +258,12 @@ pub async fn render_display_preview(config_in: DisplayConfig) -> PreviewResult {
     }
 }
 
+/// Installed font families the LCD renderer can use.
+#[tauri::command]
+pub async fn list_fonts() -> Vec<String> {
+    tokio::task::spawn_blocking(render::fonts::families).await.unwrap_or_default()
+}
+
 // ============================================================================
 // Settings
 // ============================================================================

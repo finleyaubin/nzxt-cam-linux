@@ -4,7 +4,8 @@
 //! the same per-pixel angle test the JS code does (simple and accurate; no
 //! bezier approximation needed at 640×640).
 
-use crate::render::fonts::{draw_text, draw_text_centered, font, measure};
+use crate::render::fonts::{draw_text, draw_text_centered, lookup, measure, resolve};
+use ab_glyph::FontVec;
 use crate::types::{
     hex_to_rgb, resolve_text, BarElement, DisplayConfig, DisplayElement, GaugeElement, GraphElement, ImageElement,
     MetricId, TextElement, Temperatures, LCD_SIZE,
@@ -128,32 +129,31 @@ fn render_scene(config: &DisplayConfig, temps: Temperatures, base: Base) -> Resu
         Base::Transparent => {}
     }
 
-    // Ensure font is loaded once (lazy init in fonts.rs). Errors are surfaced
-    // only when text elements try to draw — we don't abort on missing font.
-    let _ = font();
+    let scene_font = resolve(config.font.as_deref())?;
 
     let decimals = config.decimals.min(2);
     for el in &config.elements {
         match el {
             DisplayElement::Gauge(g) => {
-                if let Err(e) = draw_gauge(&mut pixmap, g, temps, decimals) {
+                if let Err(e) = draw_gauge(&mut pixmap, &scene_font, g, temps, decimals) {
                     log::warn!("gauge draw error: {e}");
                 }
             }
             DisplayElement::Bar(b) => {
-                if let Err(e) = draw_bar(&mut pixmap, b, temps, decimals) {
+                if let Err(e) = draw_bar(&mut pixmap, &scene_font, b, temps, decimals) {
                     log::warn!("bar draw error: {e}");
                 }
             }
             DisplayElement::Graph(g) => {
                 let mut series = crate::sensors::history::series(g.metric, g.window_secs as usize);
                 series.push(g.metric.value_from(temps)); // the live reading is always the right-most point
-                if let Err(e) = draw_graph(&mut pixmap, g, &series, decimals) {
+                if let Err(e) = draw_graph(&mut pixmap, &scene_font, g, &series, decimals) {
                     log::warn!("graph draw error: {e}");
                 }
             }
             DisplayElement::Text(t) => {
-                if let Err(e) = draw_text_element(&mut pixmap, t, temps, decimals) {
+                let own = t.font.as_deref().and_then(lookup).unwrap_or_else(|| scene_font.clone());
+                if let Err(e) = draw_text_element(&mut pixmap, &own, t, temps, decimals) {
                     log::warn!("text draw error: {e}");
                 }
             }
@@ -333,6 +333,7 @@ fn clamp01(v: f64) -> f64 {
 
 fn draw_gauge(
     pm: &mut Pixmap,
+    font: &FontVec,
     el: &GaugeElement,
     temps: Temperatures,
     decimals: u8,
@@ -403,24 +404,24 @@ fn draw_gauge(
         lines.push((value_text.clone(), el.value_size, color));
     }
     if !lines.is_empty() {
-        draw_centered_stack(pm, el.x, el.y, &lines)?;
+        draw_centered_stack(pm, font, el.x, el.y, &lines)?;
     }
     if el.show_value && el.value_pill {
-        draw_value_pill(pm, el, r_in, r_out, &value_text, track_rgb)?;
+        draw_value_pill(pm, font, el, r_in, r_out, &value_text, track_rgb)?;
     }
     if el.show_range && !full_circle {
-        draw_range_ends(pm, el, r_mid, start, sweep, decimals)?;
+        draw_range_ends(pm, font, el, r_mid, start, sweep, decimals)?;
     }
     Ok(())
 }
 
 /// The value in a slice of the ring itself at 12 o'clock: rounded ends, top and bottom cut by the ring's edges, filled
 /// with the track colour, text in its inverse.
-fn draw_value_pill(pm: &mut Pixmap, el: &GaugeElement, r_in: f32, r_out: f32, text: &str, fill: (u8, u8, u8)) -> Result<()> {
+fn draw_value_pill(pm: &mut Pixmap, font: &FontVec, el: &GaugeElement, r_in: f32, r_out: f32, text: &str, fill: (u8, u8, u8)) -> Result<()> {
     let band = r_out - r_in;
     let r_mid = (r_in + r_out) / 2.0;
     let size = (el.value_size * 0.5).min(band * 0.75).max(8.0);
-    let m = measure(text, size)?;
+    let m = measure(font, text, size)?;
     let len = m.width + band;
     let reach = (len / 2.0 / r_mid).min(PI);
     let x0 = (el.x - len / 2.0 - band).floor() as i32;
@@ -441,13 +442,13 @@ fn draw_value_pill(pm: &mut Pixmap, el: &GaugeElement, r_in: f32, r_out: f32, te
         }
     }
     let inverse = (255 - fill.0, 255 - fill.1, 255 - fill.2);
-    draw_text(pm, el.x - m.width / 2.0, el.y - r_mid - m.height / 2.0, text, size, inverse)?;
+    draw_text(font, pm, el.x - m.width / 2.0, el.y - r_mid - m.height / 2.0, text, size, inverse)?;
     Ok(())
 }
 
 /// 0 and max placed on a circle (radius = offset) around the centre of each arc end; the angle picks the spot on it,
 /// from 0° = toward the gauge centre, 90° = along the arc into the gauge, mirrored on the two ends.
-fn draw_range_ends(pm: &mut Pixmap, el: &GaugeElement, r_mid: f32, start: f32, sweep: f32, decimals: u8) -> Result<()> {
+fn draw_range_ends(pm: &mut Pixmap, font: &FontVec, el: &GaugeElement, r_mid: f32, start: f32, sweep: f32, decimals: u8) -> Result<()> {
     let size = (el.value_size * 0.4).max(12.0);
     let max_decimals = if el.max.fract() == 0.0 { 0 } else { decimals };
     let (turn_sin, turn_cos) = el.range_angle.to_radians().sin_cos();
@@ -457,20 +458,21 @@ fn draw_range_ends(pm: &mut Pixmap, el: &GaugeElement, r_mid: f32, start: f32, s
         (start + sweep, -1.0, format!("{}{unit}", crate::types::format_metric(el.max, max_decimals))),
     ];
     for (angle, into_arc, text) in ends {
-        let m = measure(&text, size)?;
+        let m = measure(font, &text, size)?;
         let (sin, cos) = angle.sin_cos();
         let inward = (-sin, cos);
         let along = (into_arc * cos, into_arc * sin);
         let (dx, dy) = (turn_cos * inward.0 + turn_sin * along.0, turn_cos * inward.1 + turn_sin * along.1);
         let cx = el.x + r_mid * sin + el.range_offset * dx;
         let cy = el.y - r_mid * cos + el.range_offset * dy;
-        draw_text(pm, cx - m.width / 2.0, cy - m.height / 2.0, &text, size, (0x9a, 0xa0, 0xb4))?;
+        draw_text(font, pm, cx - m.width / 2.0, cy - m.height / 2.0, &text, size, (0x9a, 0xa0, 0xb4))?;
     }
     Ok(())
 }
 
 fn draw_centered_stack(
     pm: &mut Pixmap,
+    font: &FontVec,
     cx: f32,
     cy: f32,
     lines: &[(String, f32, (u8, u8, u8))],
@@ -478,7 +480,7 @@ fn draw_centered_stack(
     let gap = 4.0;
     let measured: Vec<_> = lines
         .iter()
-        .map(|(s, sz, _)| measure(s, *sz).map(|m| (m, *sz)))
+        .map(|(s, sz, _)| measure(font, s, *sz).map(|m| (m, *sz)))
         .collect::<Result<Vec<_>>>()?;
     let total: f32 = measured.iter().map(|(m, _)| m.height).sum::<f32>()
         + gap * (lines.len().saturating_sub(1) as f32);
@@ -486,7 +488,7 @@ fn draw_centered_stack(
     for ((text, _, color), (m, sz)) in lines.iter().zip(measured.iter()) {
         let x = cx - m.width / 2.0;
         let y = cur;
-        draw_text(pm, x, y, text, *sz, *color)?;
+        draw_text(font, pm, x, y, text, *sz, *color)?;
         cur += m.height + gap;
     }
     Ok(())
@@ -496,7 +498,7 @@ fn draw_centered_stack(
 // Bar — rounded rect track + filled portion + label/value row above
 // ============================================================================
 
-fn draw_bar(pm: &mut Pixmap, el: &BarElement, temps: Temperatures, decimals: u8) -> Result<()> {
+fn draw_bar(pm: &mut Pixmap, font: &FontVec, el: &BarElement, temps: Temperatures, decimals: u8) -> Result<()> {
     let v = metric_value(el.metric, temps);
     let frac = clamp01(v / el.max.max(0.0001)) as f32;
     let warn = v >= el.warn_at;
@@ -533,13 +535,13 @@ fn draw_bar(pm: &mut Pixmap, el: &BarElement, temps: Temperatures, decimals: u8)
     // Label (left) + value (right) on a row above the bar.
     let row_y = top - el.value_size * 1.05;
     if el.show_label && !el.label.is_empty() {
-        draw_text(pm, left, row_y, &el.label, el.value_size, (0x9a, 0xa0, 0xb4))?;
+        draw_text(font, pm, left, row_y, &el.label, el.value_size, (0x9a, 0xa0, 0xb4))?;
     }
     if el.show_value {
         let s = format!("{}{}", crate::types::format_metric(v, decimals), el.metric.unit());
-        let m = measure(&s, el.value_size)?;
+        let m = measure(font, &s, el.value_size)?;
         let x = left + el.width - m.width;
-        draw_text(pm, x, row_y, &s, el.value_size, (0xff, 0xff, 0xff))?;
+        draw_text(font, pm, x, row_y, &s, el.value_size, (0xff, 0xff, 0xff))?;
     }
     Ok(())
 }
@@ -548,7 +550,7 @@ fn draw_bar(pm: &mut Pixmap, el: &BarElement, temps: Temperatures, decimals: u8)
 // Graph — panel, header row, and a line chart of `series` (oldest → newest)
 // ============================================================================
 
-fn draw_graph(pm: &mut Pixmap, el: &GraphElement, series: &[f64], decimals: u8) -> Result<()> {
+fn draw_graph(pm: &mut Pixmap, font: &FontVec, el: &GraphElement, series: &[f64], decimals: u8) -> Result<()> {
     let latest = series.last().copied().unwrap_or(0.0);
     let warn = latest >= el.warn_at;
     let line_rgb = hex_to_rgb(if warn { &el.warn_color } else { &el.color });
@@ -562,14 +564,14 @@ fn draw_graph(pm: &mut Pixmap, el: &GraphElement, series: &[f64], decimals: u8) 
     if el.show_label || el.show_value {
         let row_y = top + PAD;
         if el.show_label && !el.label.is_empty() {
-            draw_text(pm, left + PAD, row_y, &el.label, el.value_size, (0x9a, 0xa0, 0xb4))?;
+            draw_text(font, pm, left + PAD, row_y, &el.label, el.value_size, (0x9a, 0xa0, 0xb4))?;
         }
         if el.show_value {
             let s = format!("{}{}", crate::types::format_metric(latest, decimals), el.metric.unit());
-            let m = measure(&s, el.value_size)?;
-            draw_text(pm, left + el.width - PAD - m.width, row_y, &s, el.value_size, line_rgb)?;
+            let m = measure(font, &s, el.value_size)?;
+            draw_text(font, pm, left + el.width - PAD - m.width, row_y, &s, el.value_size, line_rgb)?;
         }
-        plot_top = row_y + measure("0", el.value_size)?.height + 6.0;
+        plot_top = row_y + measure(font, "0", el.value_size)?.height + 6.0;
     }
     let (plot_left, plot_right, plot_bottom) = (left + PAD, left + el.width - PAD, top + el.height - PAD);
     let plot_h = plot_bottom - plot_top;
@@ -628,6 +630,7 @@ fn draw_graph(pm: &mut Pixmap, el: &GraphElement, series: &[f64], decimals: u8) 
 
 fn draw_text_element(
     pm: &mut Pixmap,
+    font: &FontVec,
     el: &TextElement,
     temps: Temperatures,
     decimals: u8,
@@ -636,7 +639,7 @@ fn draw_text_element(
     if text.is_empty() {
         return Ok(());
     }
-    let m = measure(&text, el.size)?;
+    let m = measure(font, &text, el.size)?;
     use crate::types::TextAlign;
     let x = match el.align {
         TextAlign::Left => el.x,
@@ -645,7 +648,7 @@ fn draw_text_element(
     };
     let y = el.y - m.height / 2.0;
     let color = hex_to_rgb(&el.color);
-    draw_text(pm, x, y, &text, el.size, color)?;
+    draw_text(font, pm, x, y, &text, el.size, color)?;
     Ok(())
 }
 
@@ -662,6 +665,7 @@ pub fn pixmap_to_data_url(pm: &Pixmap) -> Result<String> {
 
 #[allow(dead_code)]
 fn draw_centered(
+    font: &FontVec,
     pm: &mut Pixmap,
     cx: f32,
     cy: f32,
@@ -669,7 +673,7 @@ fn draw_centered(
     size: f32,
     color: (u8, u8, u8),
 ) -> Result<()> {
-    draw_text_centered(pm, cx, cy, text, size, color)
+    draw_text_centered(font, pm, cx, cy, text, size, color)
 }
 
 #[cfg(test)]
@@ -770,7 +774,7 @@ mod tests {
         assert!((clock_deg(max) - 135.0).abs() < 6.0, "max at the arc end");
         let xs: Vec<f32> = changed_pixels(&off, &on).into_iter().filter(|p| p.0 < 0.0).map(|p| p.0).collect();
         let drawn_width = xs.iter().cloned().fold(f32::MIN, f32::max) - xs.iter().cloned().fold(f32::MAX, f32::min);
-        assert!(drawn_width > measure("0", 16.0).unwrap().width + 3.0, "the unit is drawn after the number");
+        assert!(drawn_width > measure(&resolve(None).unwrap(), "0", 16.0).unwrap().width + 3.0, "the unit is drawn after the number");
         assert_eq!(range_frame(false, 360.0, 0.0, 0.0), range_frame(true, 360.0, 0.0, 0.0), "full rings have no ends to label");
     }
 
@@ -897,7 +901,7 @@ mod tests {
     fn graph_draws_panel_and_line_against_the_right_edge() {
         let mut pm = Pixmap::new(LCD_SIZE, LCD_SIZE).unwrap();
         // Two samples: 0 then 100. The line ends at the top-right of the plot area.
-        draw_graph(&mut pm, &graph(false), &[0.0, 100.0], 0).unwrap();
+        draw_graph(&mut pm, &crate::render::fonts::font().unwrap(), &graph(false), &[0.0, 100.0], 0).unwrap();
         assert_eq!(pixel(&pm, 130, 230), [0, 0, 0x40], "panel corner (square) is track coloured");
         // Panel spans x 120..520, y 220..420; with 10px padding the plot's top-right corner is (510, 230).
         let end = pixel(&pm, 509, 231);
@@ -909,7 +913,7 @@ mod tests {
     #[test]
     fn graph_fill_tints_under_the_line_only() {
         let mut pm = Pixmap::new(LCD_SIZE, LCD_SIZE).unwrap();
-        draw_graph(&mut pm, &graph(true), &[100.0, 100.0, 100.0], 0).unwrap();
+        draw_graph(&mut pm, &crate::render::fonts::font().unwrap(), &graph(true), &[100.0, 100.0, 100.0], 0).unwrap();
         // Flat line at the top; the area below it is tinted, the panel margin is not.
         let under = pixel(&pm, 500, 400);
         assert!(under[1] > 0x10, "area under the line is tinted: {under:?}");
@@ -919,8 +923,35 @@ mod tests {
     #[test]
     fn graph_with_one_sample_draws_only_the_panel() {
         let mut pm = Pixmap::new(LCD_SIZE, LCD_SIZE).unwrap();
-        draw_graph(&mut pm, &graph(true), &[50.0], 0).unwrap();
+        draw_graph(&mut pm, &crate::render::fonts::font().unwrap(), &graph(true), &[50.0], 0).unwrap();
         assert_eq!(pixel(&pm, 320, 320), [0, 0, 0x40]);
+    }
+
+    #[test]
+    fn chosen_font_changes_the_rendered_text() {
+        let text = |font: Option<String>| TextElement {
+            id: "t".into(), x: 320.0, y: 320.0, text: "Hamburgefonstiv 0123".into(), color: "#ffffff".into(),
+            size: 48.0, align: crate::types::TextAlign::Center, font,
+        };
+        let render = |font: Option<&str>, element_font: Option<&str>| {
+            let cfg = DisplayConfig {
+                background: "#000000".into(),
+                font: font.map(String::from),
+                elements: vec![DisplayElement::Text(text(element_font.map(String::from)))],
+                ..DisplayConfig::default()
+            };
+            let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures::default()).unwrap() else { panic!("expected rgba") };
+            rgba
+        };
+        let default = render(None, None);
+        let Some(other) = crate::render::fonts::families().into_iter().find(|f| {
+            let r = render(Some(f), None);
+            r != default
+        }) else {
+            return;
+        };
+        assert_eq!(render(Some(&other), None), render(None, Some(&other)), "scene font and element font agree");
+        assert_eq!(render(Some(&other), Some("No Such Font Family 123")), render(Some(&other), None), "an unknown element font falls back to the scene font");
     }
 
     #[test]

@@ -330,6 +330,9 @@ pub struct TextElement {
     pub color: String,
     pub size: f32,
     pub align: TextAlign,
+    /// Font family for this text; the scene's font when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font: Option<String>,
 }
 
 fn full_opacity() -> u8 {
@@ -384,6 +387,9 @@ pub struct DisplayConfig {
     /// Darken the background image by this percentage (0-90) so stats stay legible.
     #[serde(default)]
     pub background_dim: u8,
+    /// Installed font family used for all text; the built-in font when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font: Option<String>,
 }
 
 impl DisplayConfig {
@@ -394,6 +400,13 @@ impl DisplayConfig {
         }
         if self.background_dim > 90 {
             return Err(format!("backgroundDim must be 0-90, got {}", self.background_dim));
+        }
+        let fonts = self.font.iter().chain(self.elements.iter().filter_map(|el| match el {
+            DisplayElement::Text(t) => t.font.as_ref(),
+            _ => None,
+        }));
+        if let Some(name) = fonts.into_iter().find(|name| name.len() > 200) {
+            return Err(format!("font name is too long ({} bytes)", name.len()));
         }
         if self.elements.len() > 64 {
             return Err(format!("elements has {} entries, the maximum is 64", self.elements.len()));
@@ -422,6 +435,7 @@ impl Default for DisplayConfig {
             decimals: 0,
             background_image: None,
             background_dim: 0,
+            font: None,
         }
     }
 }
@@ -632,5 +646,19 @@ mod tests {
         let el: DisplayElement = serde_json::from_str(json).unwrap();
         let DisplayElement::Graph(g) = el else { panic!("expected graph") };
         assert_eq!((g.window_secs, g.fill, g.line_width), (60, false, 3.0));
+    }
+
+    #[test]
+    fn fonts_are_optional_and_survive_a_round_trip() {
+        let old: DisplayConfig = serde_json::from_str(r##"{"background":"#000","elements":[]}"##).unwrap();
+        assert_eq!(old.font, None);
+        let json = r##"{"background":"#000","font":"Fira Sans","elements":[
+            {"type":"text","id":"t","x":1,"y":2,"text":"hi","color":"#fff","size":20,"align":"left","font":"Lato"}]}"##;
+        let cfg: DisplayConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.font.as_deref(), Some("Fira Sans"));
+        let DisplayElement::Text(t) = &cfg.elements[0] else { panic!("expected text") };
+        assert_eq!(t.font.as_deref(), Some("Lato"));
+        let back = serde_json::to_string(&DisplayConfig { font: None, ..cfg }).unwrap();
+        assert!(!back.contains("Fira Sans") && back.contains("Lato"));
     }
 }
