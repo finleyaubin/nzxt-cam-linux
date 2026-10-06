@@ -158,6 +158,7 @@ export function Settings() {
   }, [])
 
   const brands = Array.from(new Set(AIO_DEVICES.map(d => d.brand)))
+  const detected = AIO_DEVICES.find(d => d.pid !== null && d.pid === state.deviceStatus.pid)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -249,7 +250,7 @@ export function Settings() {
       <Divider/>
 
       {/* AIO */}
-      <SectionHeader icon={<IDroplet/>} title="Watercooling AIO" description="Only the NZXT Kraken Elite V2 is tested. Other models are pending hardware support."/>
+      <SectionHeader icon={<IDroplet/>} title="Watercooling AIO" description="Tested on the NZXT Kraken Elite V2 (2024) and Kraken 2023 Elite. Other models are pending hardware support."/>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {brands.map(brand => (
           <div key={brand}>
@@ -257,13 +258,13 @@ export function Settings() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {AIO_DEVICES.filter(d => d.brand === brand).map(d => {
                 const supported = d.status === 'supported'
-                const active = settings?.selectedDevice === d.id
+                const connected = state.deviceStatus.connected && d.pid !== null && d.pid === state.deviceStatus.pid
                 return (
                   <div key={d.id} style={{
                     display: 'flex', alignItems: 'center', gap: 12,
                     padding: '10px 14px', borderRadius: 8,
                     background: supported ? '#0d0d0d' : '#090909',
-                    border: `1px solid ${active ? `${accent}44` : supported ? '#1e1e1e' : '#141414'}`,
+                    border: `1px solid ${connected ? `${accent}44` : supported ? '#1e1e1e' : '#141414'}`,
                     opacity: supported ? 1 : 0.6, transition: 'all 140ms',
                   }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -274,18 +275,11 @@ export function Settings() {
                           background: supported ? '#00e87a18' : '#1a1a1a',
                           color: supported ? '#00e87a' : '#3a3a3a',
                         }}>{supported ? 'Supported' : 'Draft'}</span>
-                        {active && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 8, background: `${accent}18`, color: accent }}>Active</span>}
+                        {connected && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 8, background: `${accent}18`, color: accent }}>Connected</span>}
                       </div>
                       <div style={{ fontSize: 10, color: '#7f7f7f' }}>Screen {d.lcd}{d.note ? ` - ${d.note}` : ''}</div>
                     </div>
-                    {supported ? (
-                      <button onClick={() => update({ selectedDevice: d.id })} disabled={active} style={{
-                        padding: '5px 14px', borderRadius: 8, border: 'none', fontSize: 11, fontWeight: 700, cursor: active ? 'default' : 'pointer',
-                        background: active ? `${accent}22` : accent,
-                        color: active ? accent : '#fff',
-                        opacity: active ? 0.7 : 1, transition: 'all 140ms',
-                      }}>{active ? 'Active' : 'Select'}</button>
-                    ) : (
+                    {!supported && (
                       <button onClick={() => requestAccess(d.id, d.name, d.brand)} style={{
                         padding: '5px 14px', borderRadius: 8, border: '1px solid #222',
                         background: 'transparent', color: '#7f7f7f', fontSize: 11, fontWeight: 600,
@@ -308,7 +302,7 @@ export function Settings() {
       {/* Monitor section placeholder */}
       <SectionHeader icon={<IMonitor/>} title="Display"/>
       <div style={{ fontSize: 11, color: '#7f7f7f', fontFamily: 'JetBrains Mono, monospace', padding: '4px 0' }}>
-        LCD resolution: 480 × 480 px · Interface: USB Direct · Firmware: Kraken Elite V2
+        LCD resolution: {detected ? detected.lcd.replace('×', ' × ') : '-'} px · Interface: USB Direct · Device: {state.deviceStatus.connected ? state.deviceStatus.productName : 'not connected'}
       </div>
     </div>
   )
