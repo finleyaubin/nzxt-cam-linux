@@ -135,7 +135,9 @@ impl MetricId {
         match self {
             MetricId::Cpu | MetricId::Gpu | MetricId::Liquid => "°",
             MetricId::Pump => "",
-            MetricId::Sensor1 | MetricId::Sensor2 | MetricId::Sensor3 => "°",
+            MetricId::Sensor1 => crate::sensors::slot_unit(0),
+            MetricId::Sensor2 => crate::sensors::slot_unit(1),
+            MetricId::Sensor3 => crate::sensors::slot_unit(2),
         }
     }
     pub fn value_from(&self, t: Temperatures) -> f64 {

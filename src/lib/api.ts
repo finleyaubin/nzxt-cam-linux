@@ -32,9 +32,10 @@ export interface Temperatures {
   sensor3: number
 }
 
-export interface TempSensor {
+export interface Sensor {
   id: string
   label: string
+  unit: string
 }
 
 export interface GpuSource {
@@ -128,7 +129,7 @@ export const api = {
     invoke<PreviewResult>('render_display_preview', { configIn: config }),
 
   // --- Settings ---
-  listTempSensors: () => invoke<TempSensor[]>('list_temp_sensors'),
+  listSensors: () => invoke<Sensor[]>('list_sensors'),
   listGpuSources: () => invoke<GpuSource[]>('list_gpu_sources'),
   getSettings: () => invoke<AppSettings>('get_settings'),
   saveSettings: async (patch: Partial<AppSettings>): Promise<SaveSettingsResult> => {
