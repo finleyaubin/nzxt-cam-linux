@@ -51,6 +51,14 @@ export interface GpuSource {
   discrete: boolean
 }
 
+export interface SystemLogo {
+  label: string
+  group: string
+  path: string
+  /** Small PNG preview as a data URL. */
+  thumb: string
+}
+
 export interface AppSettings {
   gpuSource: string | null
   cpuSource: string | null
@@ -140,6 +148,7 @@ export const api = {
     invoke<string>('save_giphy_gif', new Uint8Array(bytes), { headers: { 'x-giphy-id': id } }),
   listSensors: () => invoke<Sensor[]>('list_sensors'),
   systemLogo: () => invoke<string | null>('system_logo'),
+  listSystemLogos: () => invoke<SystemLogo[]>('list_system_logos'),
   listGpuSources: () => invoke<GpuSource[]>('list_gpu_sources'),
   getSettings: () => invoke<AppSettings>('get_settings'),
   saveSettings: async (patch: Partial<AppSettings>): Promise<SaveSettingsResult> => {

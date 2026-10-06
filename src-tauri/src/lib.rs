@@ -6,6 +6,7 @@ pub mod config;
 pub mod fans;
 pub mod image_io;
 pub mod layouts;
+pub mod logos;
 pub mod profile;
 pub mod render;
 pub mod sensors;
@@ -169,6 +170,7 @@ pub fn run() {
             commands::list_gpu_sources,
             commands::list_sensors,
             commands::system_logo,
+            commands::list_system_logos,
             commands::start_visible,
             commands::save_giphy_gif,
             commands::get_settings,

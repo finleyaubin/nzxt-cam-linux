@@ -9,14 +9,15 @@ import { SceneCanvas } from './SceneCanvas'
 import { ElementInspector } from './ElementInspector'
 import { ScenePanel } from './ScenePanel'
 import { FirstRunPicker } from './FirstRunPicker'
+import { LogoDialog } from './LogoDialog'
 import { Pill, SectionTitle } from './fields'
 import { MetricOption, optionFor, useMetricOptions } from './metrics'
 import { AlignMode, alignPatches, clampToScreen } from './geometry'
 import {
-  ArrowCounterClockwise, ArrowClockwise, ArrowUUpLeft, ChartLine, Circle, Gauge as GaugeIcon, Hash, ImageSquare, Play, Rectangle, TextT, X,
+  ArrowCounterClockwise, ArrowClockwise, ArrowUUpLeft, ChartLine, Circle, Gauge as GaugeIcon, Hash, Hexagon, ImageSquare, Play, Rectangle, TextT, X,
 } from '@phosphor-icons/react'
 
-type AddKind = 'ring' | 'gauge' | 'bar' | 'graph' | 'value' | 'label' | 'image'
+type AddKind = 'ring' | 'gauge' | 'bar' | 'graph' | 'value' | 'label' | 'image' | 'logo'
 
 const ADD_BUTTONS: { kind: AddKind; label: string; Icon: typeof Circle }[] = [
   { kind: 'ring',  label: 'Ring',  Icon: Circle },
@@ -26,6 +27,7 @@ const ADD_BUTTONS: { kind: AddKind; label: string; Icon: typeof Circle }[] = [
   { kind: 'value', label: 'Value', Icon: Hash },
   { kind: 'label', label: 'Label', Icon: TextT },
   { kind: 'image', label: 'Image', Icon: ImageSquare },
+  { kind: 'logo',  label: 'Logo',  Icon: Hexagon },
 ]
 
 const ALIGN_BUTTONS: { mode: AlignMode; label: string }[] = [
@@ -197,7 +199,7 @@ export function DisplayEditor() {
     setConfig({ ...configRef.current, ...patch })
   }, [snapshot, setConfig])
 
-  const addElement = useCallback((kind: Exclude<AddKind, 'image'>, where?: { x: number; y: number }) => {
+  const addElement = useCallback((kind: Exclude<AddKind, 'image' | 'logo'>, where?: { x: number; y: number }) => {
     const cfg = configRef.current
     if (!cfg) return
     const used = new Set(cfg.elements.flatMap(el => (el.type === 'text' || el.type === 'image' ? [] : [el.metric])))
@@ -217,10 +219,9 @@ export function DisplayEditor() {
     select(el.id)
   }, [metrics, snapshot, setConfig, select])
 
-  const addImage = useCallback(async (where?: { x: number; y: number }) => {
-    const path = await api.openFileDialog([{ name: 'Image', extensions: IMAGE_EXTENSIONS }])
+  const placeImage = useCallback((path: string, where?: { x: number; y: number }) => {
     const cfg = configRef.current
-    if (!path || !cfg) return
+    if (!cfg) return
     const shift = (cfg.elements.length % 6) * 18
     const el = makeImage(path, where ?? { x: 320 + shift, y: 320 + shift })
     snapshot()
@@ -228,7 +229,18 @@ export function DisplayEditor() {
     select(el.id)
   }, [snapshot, setConfig, select])
 
-  const addKind = (kind: AddKind, where?: { x: number; y: number }) => (kind === 'image' ? addImage(where) : addElement(kind, where))
+  const addImage = useCallback(async (where?: { x: number; y: number }) => {
+    const path = await api.openFileDialog([{ name: 'Image', extensions: IMAGE_EXTENSIONS }])
+    if (path) placeImage(path, where)
+  }, [placeImage])
+
+  const [logoAt, setLogoAt] = useState<{ x: number; y: number } | 'auto' | null>(null)
+
+  const addKind = (kind: AddKind, where?: { x: number; y: number }) => {
+    if (kind === 'image') addImage(where)
+    else if (kind === 'logo') setLogoAt(where ?? 'auto')
+    else addElement(kind, where)
+  }
 
   const removeElement = useCallback((id: string, ids: string[] = [id]) => {
     const cfg = configRef.current
@@ -392,6 +404,7 @@ export function DisplayEditor() {
 
   if (!config) return <div style={{ color: '#7f7f7f', fontSize: 13, padding: 24 }}>Loading editor…</div>
 
+
   const selected = config.elements.find(el => el.id === selectedId) ?? null
   const selectedIds = [...(selected ? [selected.id] : []), ...extraIds.filter(id => config.elements.some(el => el.id === id))]
   const dirty = JSON.stringify(config) !== displayApplied
@@ -514,6 +527,7 @@ export function DisplayEditor() {
           ))}
         </div>
       )}
+      {logoAt && <LogoDialog accent={accent} onClose={() => setLogoAt(null)} onPick={path => { placeImage(path, logoAt === 'auto' ? undefined : logoAt); setLogoAt(null) }}/>}
     </div>
   )
 }

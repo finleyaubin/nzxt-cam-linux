@@ -326,6 +326,12 @@ mod logo_tests {
     }
 }
 
+/// Logos found on this machine for the Logo picker; the scan runs off the UI thread.
+#[tauri::command]
+pub async fn list_system_logos() -> Result<Vec<crate::logos::SystemLogo>, String> {
+    tauri::async_runtime::spawn_blocking(crate::logos::discover).await.map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn get_settings() -> AppSettings {
     config::load_settings()
