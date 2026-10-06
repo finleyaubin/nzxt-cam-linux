@@ -70,6 +70,7 @@ export interface GaugeElement extends ElementBase {
   showRange?: boolean
   rangeAngle?: number
   rangeOffset?: number
+  valuePill?: boolean
 }
 
 export interface BarElement extends ElementBase {

@@ -245,6 +245,9 @@ pub struct GaugeElement {
     /// Distance in px of the min/max labels from the centre of their arc end.
     #[serde(default)]
     pub range_offset: f32,
+    /// Show the value in a pill at the top of the ring, filled with the track colour, instead of in the centre.
+    #[serde(default)]
+    pub value_pill: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

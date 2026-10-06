@@ -331,17 +331,32 @@ fn draw_gauge(
         let size = (el.value_size * 0.42).max(12.0);
         lines.push((el.label.clone(), size, (0x9a, 0xa0, 0xb4)));
     }
-    if el.show_value {
-        let txt = format!("{}{}", crate::types::format_metric(v, decimals), el.metric.unit());
-        let color = if warn { hex_to_rgb(&el.warn_color) } else { hex_to_rgb(&el.color) };
-        lines.push((txt, el.value_size, color));
+    let value_text = format!("{}{}", crate::types::format_metric(v, decimals), el.metric.unit());
+    let value_color = if warn { hex_to_rgb(&el.warn_color) } else { hex_to_rgb(&el.color) };
+    if el.show_value && !el.value_pill {
+        lines.push((value_text.clone(), el.value_size, value_color));
     }
     if !lines.is_empty() {
         draw_centered_stack(pm, el.x, el.y, &lines)?;
     }
+    if el.show_value && el.value_pill {
+        draw_value_pill(pm, el, r_mid, band, &value_text, value_color, track_rgb)?;
+    }
     if el.show_range && !full_circle {
         draw_range_ends(pm, el, r_mid, start, sweep, decimals)?;
     }
+    Ok(())
+}
+
+/// The value in a capsule at 12 o'clock on the ring, filled with the track colour and always wider than the ring so it cuts through it.
+fn draw_value_pill(pm: &mut Pixmap, el: &GaugeElement, r_mid: f32, band: f32, text: &str, color: (u8, u8, u8), fill: (u8, u8, u8)) -> Result<()> {
+    let size = (el.value_size * 0.5).max(12.0);
+    let m = measure(text, size)?;
+    let h = (m.height + size * 0.7).max(band + 8.0);
+    let w = (m.width + size * 1.4).max(h);
+    let (cx, cy) = (el.x, el.y - r_mid);
+    fill_round_rect(pm, cx - w / 2.0, cy - h / 2.0, w, h, None, |_| fill);
+    draw_text(pm, cx - m.width / 2.0, cy - m.height / 2.0, text, size, color)?;
     Ok(())
 }
 
@@ -619,7 +634,7 @@ mod tests {
             id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
             color: "#000000".into(), track_color: "#0000ff".into(), start_angle: 0.0, sweep: 180.0,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
-            value_size: 20.0, corner_radius: 20.0, gradient_to: Some("#ffffff".into()), show_range: false, range_angle: 0.0, range_offset: 0.0,
+            value_size: 20.0, corner_radius: 20.0, gradient_to: Some("#ffffff".into()), show_range: false, range_angle: 0.0, range_offset: 0.0, value_pill: false,
         };
         let cfg = DisplayConfig { background: "#101010".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let temps = Temperatures { cpu: 100.0, ..Temperatures::default() };
@@ -636,7 +651,7 @@ mod tests {
             id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
             color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
-            value_size: 40.0, corner_radius: 0.0, gradient_to: None, show_range, range_angle, range_offset,
+            value_size: 40.0, corner_radius: 0.0, gradient_to: None, show_range, range_angle, range_offset, value_pill: false,
         };
         let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures::default()).unwrap() else { panic!() };
@@ -690,12 +705,35 @@ mod tests {
     }
 
     #[test]
+    fn value_pill_cuts_the_ring_at_the_top_and_leaves_the_centre_empty() {
+        let render = |value_pill: bool| {
+            let gauge = GaugeElement {
+                id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
+                color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep: 270.0,
+                warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: true, show_label: false, label: String::new(),
+                value_size: 40.0, corner_radius: 0.0, gradient_to: None, show_range: false, range_angle: 0.0, range_offset: 0.0, value_pill,
+            };
+            let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
+            let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures { cpu: 100.0, ..Temperatures::default() }).unwrap() else { panic!() };
+            rgba
+        };
+        let (plain, pill) = (render(false), render(true));
+        let px = |f: &[u8], x: usize, y: usize| { let i = (y * LCD_SIZE as usize + x) * 4; [f[i], f[i + 1], f[i + 2]] };
+        let blue_in_row = |f: &[u8]| (250..390).filter(|&x| px(f, x, 40) == [0, 0, 255]).count();
+        assert_eq!(blue_in_row(&plain), 0, "the full ring is solid fill at the top");
+        assert!(blue_in_row(&pill) > 20, "the pill shows the track colour across the ring");
+        let lit_near_centre = |f: &[u8]| (220..420).flat_map(|y| (220..420).map(move |x| (x, y))).filter(|&(x, y)| px(f, x, y) != [0, 0, 0]).count();
+        assert!(lit_near_centre(&plain) > 50, "the value is normally drawn in the centre");
+        assert_eq!(lit_near_centre(&pill), 0, "with the pill the centre is empty");
+    }
+
+    #[test]
     fn negative_start_angle_draws_whole_gauge() {
         let gauge = GaugeElement {
             id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
             color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep: 270.0,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
-            value_size: 20.0, corner_radius: 0.0, gradient_to: None, show_range: false, range_angle: 0.0, range_offset: 0.0,
+            value_size: 20.0, corner_radius: 0.0, gradient_to: None, show_range: false, range_angle: 0.0, range_offset: 0.0, value_pill: false,
         };
         let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures { cpu: 100.0, ..Temperatures::default() }).unwrap() else { panic!() };

@@ -148,6 +148,9 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
         <>
           <SectionTitle>Reading</SectionTitle>
           <ReadingFields el={element} metrics={metrics} accent={accent} set={set}/>
+          {element.type === 'gauge' && (
+            <CheckField label="Value in pill" checked={!!element.valuePill} accent={accent} onChange={valuePill => set({ valuePill })}/>
+          )}
           {element.type === 'gauge' && element.sweep < 360 && (
             <CheckField label="Min / max" checked={!!element.showRange} accent={accent} onChange={showRange => set({ showRange, ...(showRange && !element.rangeOffset && { rangeOffset: Math.round(element.thickness / 2 + 14) }) })}/>
           )}
