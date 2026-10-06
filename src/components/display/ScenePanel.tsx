@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
-import { DisplayConfig, PRESETS, Preset } from '@shared/display'
+import { DisplayConfig, DisplayElement } from '@shared/display'
 import { api } from '../../lib/api'
 import { ColorField, Field, NumField, Pill, SectionTitle } from './fields'
 import { GiphyPicker } from './GiphyPicker'
+import { ThemePicker } from './ThemePicker'
+import { TemplateGallery } from './TemplateGallery'
 import { Gif, ImageSquare, X } from '@phosphor-icons/react'
 
 const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path
@@ -11,11 +13,14 @@ interface Props {
   config: DisplayConfig
   accent: string
   onChange: (patch: Partial<DisplayConfig>) => void
-  onTemplate: (preset: Preset) => void
+  /** A template or saved layout was picked; replaces the current layout. */
+  onLayout: (config: DisplayConfig) => void
+  /** Called by the theme picker with the restyled elements (+ new background colour when no image is set); owner should apply both in one editScene. */
+  onRestyle: (elements: DisplayElement[], background?: string) => void
 }
 
 /** Settings for the screen as a whole, shown when no element is selected. */
-export function ScenePanel({ config, accent, onChange, onTemplate }: Props) {
+export function ScenePanel({ config, accent, onChange, onLayout, onRestyle }: Props) {
   const [rotation, setRotation] = useState(0)
   const [showGiphy, setShowGiphy] = useState(false)
   const image = config.backgroundImage ?? null
@@ -38,6 +43,9 @@ export function ScenePanel({ config, accent, onChange, onTemplate }: Props) {
       <div style={{ fontSize: 11, color: '#7f7f7f', lineHeight: 1.5 }}>
         Add elements with the buttons above, drag them on the preview and pull the handles to resize. Pick an element to edit it.
       </div>
+
+      <SectionTitle>Theme</SectionTitle>
+      <ThemePicker config={config} accent={accent} onRestyle={onRestyle}/>
 
       <SectionTitle>Background</SectionTitle>
       <ColorField label="Colour" value={config.background} onChange={background => onChange({ background })}/>
@@ -70,10 +78,8 @@ export function ScenePanel({ config, accent, onChange, onTemplate }: Props) {
         {[0, 90, 180, 270].map(deg => <Pill key={deg} active={rotation === deg} accent={accent} onClick={() => rotate(deg)}>{deg}°</Pill>)}
       </Field>
 
-      <SectionTitle>Start from a template</SectionTitle>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-        {PRESETS.map(p => <Pill key={p.id} accent={accent} title={`${p.description}. Replaces the current layout (Ctrl+Z to undo).`} onClick={() => onTemplate(p)}>{p.name}</Pill>)}
-      </div>
+      <SectionTitle>Templates and saved layouts</SectionTitle>
+      <TemplateGallery current={config} accent={accent} onPick={onLayout} onSaveCurrent={name => { api.saveLayout(name, config) }}/>
     </div>
   )
 }
