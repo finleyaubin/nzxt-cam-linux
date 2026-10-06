@@ -56,6 +56,7 @@ export interface AppSettings {
   cpuSource: string | null
   sensors: SensorSlot[]
   apiKeys: Record<string, string>
+  homeAssistantUrl: string
   selectedDevice: string
   pollIntervalMs: number
   lcdPollMs: number

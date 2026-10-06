@@ -79,6 +79,8 @@ pub struct AppSettings {
     sensor_sources: Vec<Option<String>>,
     /// Third-party API keys by service name, e.g. "giphy".
     pub api_keys: std::collections::BTreeMap<String, String>,
+    /// Base URL of a Home Assistant server; its access token is `api_keys["homeassistant"]`.
+    pub home_assistant_url: String,
     pub selected_device: String,
     pub poll_interval_ms: u64,
     pub lcd_poll_ms: u64,
@@ -94,6 +96,7 @@ impl Default for AppSettings {
             sensors: Vec::new(),
             sensor_sources: Vec::new(),
             api_keys: Default::default(),
+            home_assistant_url: String::new(),
             selected_device: "nzxt-kraken-elite-v2".into(),
             poll_interval_ms: 1000,
             lcd_poll_ms: 500,
@@ -117,6 +120,10 @@ impl AppSettings {
         while self.sensors.last().is_some_and(|s| s.source.is_none()) {
             self.sensors.pop();
         }
+    }
+
+    pub fn apply_home_assistant(&self) {
+        crate::sensors::ha::configure(&self.home_assistant_url, self.api_keys.get("homeassistant").map_or("", String::as_str));
     }
 
     pub fn sensor_sources(&self) -> Vec<Option<String>> {
