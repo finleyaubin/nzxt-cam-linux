@@ -48,11 +48,11 @@ function ReadingFields({ el, metrics, accent, set }: { el: Reading; metrics: Met
   )
 }
 
-function ScaleFields({ el, accent, set }: { el: Reading; accent: string; set: (p: Partial<Reading>) => void }) {
+function ScaleFields({ el, defaultMax, accent, set }: { el: Reading; defaultMax: number; accent: string; set: (p: Partial<Reading>) => void }) {
   return (
     <>
-      <NumField label="Full scale" value={el.max} min={1} max={10000} accent={accent} onChange={max => set({ max })}/>
-      <NumField label="Alert at" value={el.warnAt} min={0} max={10000} accent={accent} onChange={warnAt => set({ warnAt })}/>
+      <NumField label="Full scale" value={el.max} min={1} max={10000} sliderMax={Math.max(defaultMax * 2, el.max)} accent={accent} onChange={max => set({ max })}/>
+      <NumField label="Alert at" value={el.warnAt} min={0} max={10000} sliderMax={Math.max(el.max, el.warnAt)} accent={accent} onChange={warnAt => set({ warnAt })}/>
       <ColorField label="Alert colour" value={el.warnColor} onChange={warnColor => set({ warnColor })}/>
       <ColorField label={el.type === 'graph' ? 'Panel' : 'Track'} value={el.trackColor} onChange={trackColor => set({ trackColor })}/>
     </>
@@ -194,7 +194,7 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
               <CheckField label="Fill" checked={element.fill} accent={accent} onChange={fill => set({ fill })}/>
             </>
           )}
-          <ScaleFields el={element} accent={accent} set={set}/>
+          <ScaleFields el={element} defaultMax={optionFor(metrics, element.metric).max} accent={accent} set={set}/>
           {element.type !== 'graph' && <GradientField el={element} accent={accent} set={set}/>}
         </Advanced>
       )}
