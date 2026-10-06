@@ -1,6 +1,6 @@
 # nzxt-cam-linux
 
-LCD & RGB controller for the **NZXT Kraken Elite V2** on Linux.
+LCD & RGB controller for the **NZXT Kraken Elite** (V2 and 2023) on Linux.
 Native alternative to NZXT CAM (Windows only) — built with Tauri 2 + Rust.
 
 ## Features
@@ -53,7 +53,7 @@ nzxtcam-v1
 | NZXT Kraken Elite V2 (2024) | `0x3012` | Tested |
 | NZXT Kraken Elite 360 | `0x3009` | Untested |
 | NZXT Kraken Elite RGB 360 | `0x300e` | Untested |
-| NZXT Kraken 2023 Elite | `0x300c` | Untested |
+| NZXT Kraken 2023 Elite | `0x300c` | Tested |
 
 To request support for another model, open an issue or use the "Request support" button in Settings.
 
