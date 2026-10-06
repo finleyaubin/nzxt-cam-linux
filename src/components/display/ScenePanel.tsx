@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { DisplayConfig, DisplayElement } from '@shared/display'
 import { api } from '../../lib/api'
 import { ColorField, Field, NumField, Pill, SectionTitle } from './fields'
+import { FontPicker } from './FontPicker'
 import { GiphyPicker } from './GiphyPicker'
 import { ThemePicker } from './ThemePicker'
 import { TemplateGallery } from './TemplateGallery'
@@ -46,6 +47,9 @@ export function ScenePanel({ config, accent, onChange, onLayout, onRestyle }: Pr
 
       <SectionTitle>Theme</SectionTitle>
       <ThemePicker config={config} accent={accent} onRestyle={onRestyle}/>
+
+      <SectionTitle>Text</SectionTitle>
+      <FontPicker value={config.font} defaultLabel="Default" accent={accent} onChange={font => onChange({ font })}/>
 
       <SectionTitle>Background</SectionTitle>
       <ColorField label="Colour" value={config.background} onChange={background => onChange({ background })}/>

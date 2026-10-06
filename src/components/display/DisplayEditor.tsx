@@ -11,7 +11,7 @@ import { ScenePanel } from './ScenePanel'
 import { FirstRunPicker } from './FirstRunPicker'
 import { Pill, SectionTitle } from './fields'
 import { MetricOption, optionFor, useMetricOptions } from './metrics'
-import { AlignMode, CenterAxis, alignPatches, centerPatches, clampToScreen } from './geometry'
+import { AlignMode, CenterAxis, alignPatches, centerPatches, clampToScreen, withSceneFont } from './geometry'
 import {
   ArrowCounterClockwise, ArrowClockwise, ArrowUUpLeft, ChartLine, Circle, Gauge as GaugeIcon, Hash, Play, Rectangle, TextT, X,
 } from '@phosphor-icons/react'
@@ -263,7 +263,7 @@ export function DisplayEditor() {
   const centerElements = useCallback((ids: string[], axis: CenterAxis) => {
     const cfg = configRef.current
     if (!cfg) return
-    const patches = centerPatches(cfg.elements.filter(el => ids.includes(el.id)), axis,
+    const patches = centerPatches(withSceneFont(cfg).filter(el => ids.includes(el.id)), axis,
       t => resolveText(t, temperatures, cfg.decimals ?? 0))
     if (!patches.length) return
     snapshot()
@@ -286,7 +286,7 @@ export function DisplayEditor() {
     const cfg = configRef.current
     if (!cfg) return
     const ids = [...(selectedId ? [selectedId] : []), ...extraIds]
-    const patches = alignPatches(cfg.elements.filter(el => ids.includes(el.id)), mode,
+    const patches = alignPatches(withSceneFont(cfg).filter(el => ids.includes(el.id)), mode,
       t => resolveText(t, temperatures, cfg.decimals ?? 0))
     if (!patches.length) return
     snapshot()

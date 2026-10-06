@@ -2,6 +2,7 @@ import { BarElement, DisplayElement, GaugeElement, GraphElement, MAX_SENSORS, Me
 import { CheckField, ColorField, NumField, Pill, SectionTitle, SelectField, TextField } from './fields'
 import { MetricOption, optionFor } from './metrics'
 import { SensorPicker } from './SensorPicker'
+import { FontPicker } from './FontPicker'
 import { CenterAxis } from './geometry'
 import { useState } from 'react'
 import { ArrowDown, ArrowUp, Copy, Trash } from '@phosphor-icons/react'
@@ -91,6 +92,7 @@ function TextFields({ el, metrics, accent, set }: { el: TextElement; metrics: Me
       <div style={{ fontSize: 10, color: '#7f7f7f', paddingLeft: 102, lineHeight: 1.5 }}>
         Variables update live. Add <code>:1</code> for decimals, e.g. <code>{'{cpu:1}'}</code>. Up to {MAX_SENSORS} bound sensors are available as <code>{'{sensor1}'}</code>…
       </div>
+      <FontPicker value={el.font} defaultLabel="Scene font" accent={accent} onChange={font => set({ font })}/>
       <NumField label="Size" value={el.size} min={8} max={200} unit="px" accent={accent} onChange={size => set({ size })}/>
       <SelectField label="Align" value={el.align} accent={accent} onChange={align => set({ align: align as TextElement['align'] })}
         options={[{ value: 'left', label: 'Left' }, { value: 'center', label: 'Centre' }, { value: 'right', label: 'Right' }]}/>
