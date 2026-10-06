@@ -45,6 +45,7 @@ pub fn run() {
     let settings = config::load_settings();
     sensors::set_gpu_source(settings.gpu_source.clone());
     sensors::set_sensor_sources(settings.cpu_source.clone(), settings.sensor_sources());
+    settings.apply_home_assistant();
     driver.set_temp_timing(settings.lcd_poll_ms, settings.lcd_min_push_ms);
 
     // Apply persisted display config (or leave the default).

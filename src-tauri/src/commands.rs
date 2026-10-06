@@ -321,6 +321,9 @@ pub fn save_settings(
     // Apply runtime changes.
     sensors::set_gpu_source(merged.gpu_source.clone());
     sensors::set_sensor_sources(merged.cpu_source.clone(), merged.sensor_sources());
+    if merged.home_assistant_url != previous.home_assistant_url || merged.api_keys.get("homeassistant") != previous.api_keys.get("homeassistant") {
+        merged.apply_home_assistant();
+    }
     state
         .driver
         .set_temp_timing(merged.lcd_poll_ms, merged.lcd_min_push_ms);

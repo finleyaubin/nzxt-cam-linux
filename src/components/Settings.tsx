@@ -41,8 +41,8 @@ function SensorSelect({ label, emptyLabel, value, sensors, onChange }: {
   )
 }
 
-function ApiKeyField({ label, help, getKeyUrl, value, onSave }: {
-  label: string; help: string; getKeyUrl: string; value: string; onSave: (v: string) => void
+function ApiKeyField({ label, help, getKeyUrl, value, onSave, placeholder = 'Paste API key', secret = true }: {
+  label: string; help: string; getKeyUrl?: string; value: string; onSave: (v: string) => void; placeholder?: string; secret?: boolean
 }) {
   const [draft, setDraft] = useState(value)
   const [visible, setVisible] = useState(false)
@@ -54,19 +54,19 @@ function ApiKeyField({ label, help, getKeyUrl, value, onSave }: {
       <span style={{ fontSize: 12, color: '#a0a0a0', fontWeight: 600 }}>{label}</span>
       <div style={{ display: 'flex', gap: 6 }}>
         <input
-          type={visible ? 'text' : 'password'} value={draft} placeholder="Paste API key" autoComplete="off" spellCheck={false}
+          type={visible || !secret ? 'text' : 'password'} value={draft} placeholder={placeholder} autoComplete="off" spellCheck={false}
           onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit() }}
           style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #2a2a2a', background: '#0d0d0d', color: '#e0e0e0', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}
         />
-        <button type="button" onClick={() => setVisible(v => !v)} aria-label={visible ? 'Hide key' : 'Show key'} style={{
+        {secret && <button type="button" onClick={() => setVisible(v => !v)} aria-label={visible ? 'Hide key' : 'Show key'} style={{
           display: 'flex', alignItems: 'center', padding: '0 10px', borderRadius: 8, border: '1px solid #2a2a2a',
           background: '#111', color: '#9a9a9a', cursor: 'pointer',
-        }}>{visible ? <EyeSlash size={14}/> : <Eye size={14}/>}</button>
+        }}>{visible ? <EyeSlash size={14}/> : <Eye size={14}/>}</button>}
       </div>
       <span style={{ fontSize: 11, color: '#7f7f7f' }}>
         {help}{' '}
-        <a href={getKeyUrl} onClick={e => { e.preventDefault(); api.openExternal(getKeyUrl) }} style={{ color: '#9a9a9a' }}>Get a key</a>
-        {value && ' · Saved'}
+        {getKeyUrl && <a href={getKeyUrl} onClick={e => { e.preventDefault(); api.openExternal(getKeyUrl) }} style={{ color: '#9a9a9a' }}>Get a key</a>}
+        {value && (getKeyUrl ? ' · Saved' : 'Saved')}
       </span>
     </label>
   )
@@ -149,6 +149,7 @@ export function Settings() {
   const update = useCallback(async (patch: Partial<AppSettings>) => {
     const res = await api.saveSettings(patch)
     if (res?.settings) setSettings(res.settings)
+    if ('homeAssistantUrl' in patch || 'apiKeys' in patch) api.listSensors().then(setSensors)
   }, [])
 
   const requestAccess = useCallback((id: string, name: string, brand: string) => {
@@ -245,6 +246,24 @@ export function Settings() {
         value={settings?.apiKeys?.giphy ?? ''}
         onSave={v => update({ apiKeys: { ...(settings?.apiKeys ?? {}), giphy: v } })}
       />
+
+      <Divider/>
+
+      {/* Home Assistant */}
+      <SectionHeader icon={<IChip/>} title="Home Assistant" description="Show numeric Home Assistant entities (room temperature, power draw, …) on the LCD. They appear in the sensor picker."/>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <ApiKeyField
+          label="Server URL" secret={false} placeholder="http://homeassistant.local:8123" help=""
+          value={settings?.homeAssistantUrl ?? ''}
+          onSave={v => update({ homeAssistantUrl: v })}
+        />
+        <ApiKeyField
+          label="Long-lived access token" placeholder="Paste token"
+          help={`Create one under your Home Assistant profile > Security.${settings?.homeAssistantUrl && settings.apiKeys?.homeassistant ? ` ${sensors.filter(s => s.id.startsWith('ha:')).length} entities found.` : ''}`}
+          value={settings?.apiKeys?.homeassistant ?? ''}
+          onSave={v => update({ apiKeys: { ...(settings?.apiKeys ?? {}), homeassistant: v } })}
+        />
+      </div>
 
       <Divider/>
 

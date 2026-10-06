@@ -3,6 +3,7 @@
 pub mod all;
 pub mod cpu;
 pub mod gpu;
+pub mod ha;
 pub mod history;
 
 use crate::types::Temperatures;

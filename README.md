@@ -6,6 +6,7 @@ Native alternative to NZXT CAM (Windows only) — built with Tauri 2 + Rust.
 ## Features
 
 - LCD display: one screen you lay out freely. Add rings, gauges, bars, history graphs and text (with `{cpu}`, `{gpu}`, `{liquid}`, `{pump}`, `{sensorN}`, `{time}`, `{date}` variables), drag and resize them on a live preview, and use a photo or GIF as the background
+- Home Assistant: in Settings, enter your server URL and a long-lived access token, then pick any numeric entity (room temperature, power draw, …) as an LCD sensor
 - RGB Ring AIO + fan control
 - CPU / GPU / liquid / pump monitoring
 - Saveable profiles with Hyprland autostart support
