@@ -349,12 +349,13 @@ fn draw_gauge(
 fn draw_range_ends(pm: &mut Pixmap, el: &GaugeElement, r_in: f32, start: f32, sweep: f32, decimals: u8) -> Result<()> {
     let size = (el.value_size * 0.4).max(12.0);
     let max_decimals = if el.max.fract() == 0.0 { 0 } else { decimals };
-    let ends = [(start, crate::types::format_metric(0.0, 0)), (start + sweep, crate::types::format_metric(el.max, max_decimals))];
+    let shift = el.range_angle.to_radians();
+    let ends = [(start + shift, crate::types::format_metric(0.0, 0)), (start + sweep - shift, crate::types::format_metric(el.max, max_decimals))];
     for (angle, text) in ends {
         let m = measure(&text, size)?;
         let (sin, cos) = angle.sin_cos();
         let reach = sin.abs() * m.width / 2.0 + cos.abs() * m.height / 2.0;
-        let r = (r_in - reach - 4.0).max(0.0);
+        let r = (r_in - reach - 4.0 + el.range_offset).max(0.0);
         draw_text(pm, el.x + r * sin - m.width / 2.0, el.y - r * cos - m.height / 2.0, &text, size, (0x9a, 0xa0, 0xb4))?;
     }
     Ok(())
@@ -610,7 +611,7 @@ mod tests {
             id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
             color: "#000000".into(), track_color: "#0000ff".into(), start_angle: 0.0, sweep: 180.0,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
-            value_size: 20.0, corner_radius: 20.0, gradient_to: Some("#ffffff".into()), show_range: false,
+            value_size: 20.0, corner_radius: 20.0, gradient_to: Some("#ffffff".into()), show_range: false, range_angle: 0.0, range_offset: 0.0,
         };
         let cfg = DisplayConfig { background: "#101010".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let temps = Temperatures { cpu: 100.0, ..Temperatures::default() };
@@ -622,29 +623,53 @@ mod tests {
         assert!(px(600, 320)[0] > 100, "fill is mid-gradient at 3 o'clock");
     }
 
+    fn range_frame(show_range: bool, sweep: f32, range_angle: f32, range_offset: f32) -> Vec<u8> {
+        let gauge = GaugeElement {
+            id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
+            color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep,
+            warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
+            value_size: 40.0, corner_radius: 0.0, gradient_to: None, show_range, range_angle, range_offset,
+        };
+        let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
+        let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures::default()).unwrap() else { panic!() };
+        rgba
+    }
+
+    fn changed_pixels(a: &[u8], b: &[u8]) -> Vec<(f32, f32)> {
+        let n = LCD_SIZE as usize;
+        (0..a.len() / 4).filter(|&i| a[i * 4..i * 4 + 3] != b[i * 4..i * 4 + 3]).map(|i| ((i % n) as f32 - 320.0, (i / n) as f32 - 320.0)).collect()
+    }
+
     #[test]
     fn range_ends_are_drawn_inside_the_ring_only() {
-        let render = |show_range: bool, sweep: f32| {
-            let gauge = GaugeElement {
-                id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
-                color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep,
-                warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
-                value_size: 40.0, corner_radius: 0.0, gradient_to: None, show_range,
-            };
-            let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
-            let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures::default()).unwrap() else { panic!() };
-            rgba
-        };
-        let (off, on) = (render(false, 270.0), render(true, 270.0));
-        let changed: Vec<usize> = (0..off.len() / 4).filter(|&i| off[i * 4..i * 4 + 3] != on[i * 4..i * 4 + 3]).collect();
+        let changed = changed_pixels(&range_frame(false, 270.0, 0.0, 0.0), &range_frame(true, 270.0, 0.0, 0.0));
         assert!(changed.len() > 50, "labels were drawn");
-        let n = LCD_SIZE as usize;
-        assert!(changed.iter().all(|&i| {
-            let (dx, dy) = ((i % n) as f32 - 320.0, (i / n) as f32 - 320.0);
-            (dx * dx + dy * dy).sqrt() < 260.0
-        }), "labels stay inside the ring");
-        assert!(changed.iter().any(|&i| i % n < 320) && changed.iter().any(|&i| i % n > 320), "one label at each end");
-        assert_eq!(render(false, 360.0), render(true, 360.0), "full rings have no ends to label");
+        assert!(changed.iter().all(|&(dx, dy)| (dx * dx + dy * dy).sqrt() < 260.0), "labels stay inside the ring");
+        assert!(changed.iter().any(|p| p.0 < 0.0) && changed.iter().any(|p| p.0 > 0.0), "one label at each end");
+        assert_eq!(range_frame(false, 360.0, 0.0, 0.0), range_frame(true, 360.0, 0.0, 0.0), "full rings have no ends to label");
+    }
+
+    #[test]
+    fn range_angle_and_offset_move_both_labels_together() {
+        let plain = range_frame(true, 270.0, 0.0, 0.0);
+        let off = range_frame(false, 270.0, 0.0, 0.0);
+        let centroid = |frame: &[u8], left: bool| {
+            let pts: Vec<_> = changed_pixels(&off, frame).into_iter().filter(|p| (p.0 < 0.0) == left).collect();
+            let n = pts.len() as f32;
+            (pts.iter().map(|p| p.0).sum::<f32>() / n, pts.iter().map(|p| p.1).sum::<f32>() / n)
+        };
+        let (min0, max0) = (centroid(&plain, true), centroid(&plain, false));
+
+        let turned = range_frame(true, 270.0, 40.0, 0.0);
+        let (min1, max1) = (centroid(&turned, true), centroid(&turned, false));
+        let clock_deg = |p: (f32, f32)| p.0.atan2(-p.1).to_degrees();
+        assert!((clock_deg(min1) - clock_deg(min0) - 40.0).abs() < 8.0, "min turns 40° forward along the arc");
+        assert!((clock_deg(max1) - clock_deg(max0) + 40.0).abs() < 8.0, "max turns 40° back along the arc");
+
+        let pushed = range_frame(true, 270.0, 0.0, -30.0);
+        let (min2, max2) = (centroid(&pushed, true), centroid(&pushed, false));
+        let dist = |p: (f32, f32)| (p.0 * p.0 + p.1 * p.1).sqrt();
+        assert!(dist(min2) < dist(min0) - 20.0 && dist(max2) < dist(max0) - 20.0, "negative offset moves both toward the centre");
     }
 
     #[test]
@@ -653,7 +678,7 @@ mod tests {
             id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
             color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep: 270.0,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
-            value_size: 20.0, corner_radius: 0.0, gradient_to: None, show_range: false,
+            value_size: 20.0, corner_radius: 0.0, gradient_to: None, show_range: false, range_angle: 0.0, range_offset: 0.0,
         };
         let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures { cpu: 100.0, ..Temperatures::default() }).unwrap() else { panic!() };

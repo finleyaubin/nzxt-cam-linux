@@ -150,6 +150,12 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
           {element.type === 'gauge' && element.sweep < 360 && (
             <CheckField label="Min / max" checked={!!element.showRange} accent={accent} onChange={showRange => set({ showRange })}/>
           )}
+          {element.type === 'gauge' && element.sweep < 360 && element.showRange && (
+            <>
+              <NumField label="Label angle" value={element.rangeAngle ?? 0} min={-90} max={90} unit="°" accent={accent} onChange={rangeAngle => set({ rangeAngle })}/>
+              <NumField label="Label offset" value={element.rangeOffset ?? 0} min={-200} max={200} unit="px" accent={accent} onChange={rangeOffset => set({ rangeOffset })}/>
+            </>
+          )}
           <ColorField label="Colour" value={element.color} onChange={color => set({ color })}/>
         </>
       )}

@@ -68,6 +68,8 @@ export interface GaugeElement extends ElementBase {
   cornerRadius?: number
   gradientTo?: string | null
   showRange?: boolean
+  rangeAngle?: number
+  rangeOffset?: number
 }
 
 export interface BarElement extends ElementBase {
