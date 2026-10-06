@@ -177,9 +177,7 @@ impl KrakenDriver {
             .endpoint::<Interrupt, In>(INTR_IN_EP)
             .map_err(|e| anyhow!("Open intr IN {:#x}: {e}", INTR_IN_EP))?;
 
-        // Always use PKT_SIZE (512 bytes) — the NZXT firmware expects full 512-byte
-        // interrupt frames (Electron version uses Buffer.alloc(512) for every write).
-        let in_packet_size = PKT_SIZE;
+        let in_packet_size = intr_in.max_packet_size();
 
         // Start the interrupt-in polling task.
         let (intr_tx, intr_rx) = mpsc::unbounded_channel::<Vec<u8>>();
@@ -489,11 +487,9 @@ fn parse_device_status(data: &[u8]) {
 // ============================================================================
 
 async fn write_cmd(hw: &mut Hardware, data: &[u8]) -> Result<()> {
-    // Firmware expects fixed 512-byte interrupt OUT frames (same as Electron's
-    // Buffer.alloc(PKT, 0) where PKT=512). Command bytes go at offset 0, rest is zeros.
-    let mut buf = vec![0u8; PKT_SIZE];
-    let n = data.len().min(PKT_SIZE);
-    buf[..n].copy_from_slice(&data[..n]);
+    // One zero-padded max-size packet: oversized frames split into trailing zero packets the 0x300c firmware chokes on.
+    let mut buf = vec![0u8; hw.intr_out.max_packet_size().max(data.len())];
+    buf[..data.len()].copy_from_slice(data);
     hw.intr_out.submit(Buffer::from(buf));
     let comp = hw.intr_out.next_complete().await;
     comp.status

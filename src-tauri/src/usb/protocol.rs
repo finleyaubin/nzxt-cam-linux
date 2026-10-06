@@ -15,9 +15,6 @@ pub fn product_name(pid: u16) -> &'static str {
     }
 }
 
-/// Interrupt OUT/IN packet size (commands + ACKs).
-pub const PKT_SIZE: usize = 512;
-
 /// Magic prefix for bulk transfers.
 pub const MAGIC: [u8; 12] = [
     0x12, 0xfa, 0x01, 0xe8, 0xab, 0xcd, 0xef, 0x98, 0x76, 0x54, 0x32, 0x10,
