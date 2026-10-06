@@ -14,7 +14,7 @@ export const THEMES: Theme[] = [
 
 /** Restyle every element (and the background, unless an image is set) with a theme. */
 export function applyTheme(theme: Theme, config: DisplayConfig): { elements: DisplayElement[]; background?: string } {
-  const elements = config.elements.map((el): DisplayElement => el.type === 'text'
+  const elements = config.elements.map((el): DisplayElement => el.type === 'image' ? el : el.type === 'text'
     ? { ...el, color: theme.text }
     : { ...el, color: theme.accent, trackColor: theme.track, warnColor: theme.alert, ...(el.type !== 'graph' ? { gradientTo: null } : {}) } as DisplayElement)
   return config.backgroundImage ? { elements } : { elements, background: theme.background }

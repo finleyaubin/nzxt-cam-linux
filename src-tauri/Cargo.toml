@@ -48,6 +48,9 @@ log = "0.4"
 env_logger = "0.11"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 dirs = "6"
+# SVG logos; no text or raster-image support, so no font or decoder dependencies
+resvg = { version = "0.45", default-features = false }
+ureq = { version = "3", features = ["json"] }
 tauri-plugin-single-instance = "2"
 
 [features]

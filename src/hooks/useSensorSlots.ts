@@ -40,6 +40,18 @@ export function useSensorCatalog(): Sensor[] {
   return catalog
 }
 
+/** Source id bound to each sensor slot (index = slot, null = free), refreshed whenever slots change. */
+export function useBoundSources(): (string | null)[] {
+  const [sources, setSources] = useState<(string | null)[]>([])
+  useEffect(() => {
+    const load = () => api.getSettings().then(s => setSources((s.sensors ?? []).map(slot => slot.source ?? null)))
+    load()
+    window.addEventListener(SLOTS_CHANGED, load)
+    return () => window.removeEventListener(SLOTS_CHANGED, load)
+  }, [])
+  return sources
+}
+
 export type BindResult = { ok: true; metric: MetricId; max: number } | { ok: false; error: string }
 
 /** Reuse the slot already bound to `sensor`, else bind it to the first free slot (holes stay put). */

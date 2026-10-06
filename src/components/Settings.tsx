@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { AIO_DEVICES } from '@shared/devices'
 import { api, AppSettings, GpuSource, Sensor } from '../lib/api'
 import { useApp } from '../context/AppContext'
-import { SensorList } from './SensorList'
+import { PickerButton, SensorList } from './SensorList'
+import { SensorDialog } from './display/SensorPicker'
 import { Cpu, Clock, Monitor, Drop, Key, Eye, EyeSlash } from '@phosphor-icons/react'
 
 const GITHUB_ISSUES_URL = 'https://github.com/cypherxdev77/nzxt-cam-linux/issues/new?template=device_support.md'
@@ -24,25 +25,26 @@ function SectionHeader({ icon, title, description }: { icon: React.ReactNode; ti
   )
 }
 
-function SensorSelect({ label, emptyLabel, value, sensors, onChange }: {
-  label: string; emptyLabel: string; value: string | null; sensors: Sensor[]; onChange: (v: string | null) => void
+function SensorSelect({ label, emptyLabel, value, sensors, accent, onChange }: {
+  label: string; emptyLabel: string; value: string | null; sensors: Sensor[]; accent: string; onChange: (v: string | null) => void
 }) {
+  const [open, setOpen] = useState(false)
+  const current = value ? sensors.find(s => s.id === value)?.label ?? 'Unavailable sensor' : emptyLabel
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>{label}</span>
-      <select value={value ?? ''} onChange={e => onChange(e.target.value || null)} style={{
-        padding: '8px 10px', borderRadius: 8, background: '#0d0d0d', color: '#c0c0c0',
-        border: '1px solid #1e1e1e', fontSize: 12,
-      }}>
-        <option value="">{emptyLabel}</option>
-        {sensors.map(s => <option key={s.id} value={s.id}>{s.label} [{s.unit}]</option>)}
-      </select>
-    </label>
+      <div style={{ display: 'flex' }}><PickerButton label={current} onClick={() => setOpen(true)}/></div>
+      {open && (
+        <SensorDialog title={label} builtins={[{ id: 'cpu', label: emptyLabel, unit: '', max: 0 }]} accent={accent} onClose={() => setOpen(false)}
+          only={s => sensors.some(x => x.id === s.id)} onBuiltin={() => onChange(null)}
+          onSensor={async s => { onChange(s.id) }}/>
+      )}
+    </div>
   )
 }
 
-function ApiKeyField({ label, help, getKeyUrl, value, onSave }: {
-  label: string; help: string; getKeyUrl: string; value: string; onSave: (v: string) => void
+function ApiKeyField({ label, help, getKeyUrl, value, onSave, placeholder = 'Paste API key', secret = true }: {
+  label: string; help: string; getKeyUrl?: string; value: string; onSave: (v: string) => void; placeholder?: string; secret?: boolean
 }) {
   const [draft, setDraft] = useState(value)
   const [visible, setVisible] = useState(false)
@@ -54,19 +56,19 @@ function ApiKeyField({ label, help, getKeyUrl, value, onSave }: {
       <span style={{ fontSize: 12, color: '#a0a0a0', fontWeight: 600 }}>{label}</span>
       <div style={{ display: 'flex', gap: 6 }}>
         <input
-          type={visible ? 'text' : 'password'} value={draft} placeholder="Paste API key" autoComplete="off" spellCheck={false}
+          type={visible || !secret ? 'text' : 'password'} value={draft} placeholder={placeholder} autoComplete="off" spellCheck={false}
           onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit() }}
           style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #2a2a2a', background: '#0d0d0d', color: '#e0e0e0', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}
         />
-        <button type="button" onClick={() => setVisible(v => !v)} aria-label={visible ? 'Hide key' : 'Show key'} style={{
+        {secret && <button type="button" onClick={() => setVisible(v => !v)} aria-label={visible ? 'Hide key' : 'Show key'} style={{
           display: 'flex', alignItems: 'center', padding: '0 10px', borderRadius: 8, border: '1px solid #2a2a2a',
           background: '#111', color: '#9a9a9a', cursor: 'pointer',
-        }}>{visible ? <EyeSlash size={14}/> : <Eye size={14}/>}</button>
+        }}>{visible ? <EyeSlash size={14}/> : <Eye size={14}/>}</button>}
       </div>
       <span style={{ fontSize: 11, color: '#7f7f7f' }}>
         {help}{' '}
-        <a href={getKeyUrl} onClick={e => { e.preventDefault(); api.openExternal(getKeyUrl) }} style={{ color: '#9a9a9a' }}>Get a key</a>
-        {value && ' · Saved'}
+        {getKeyUrl && <a href={getKeyUrl} onClick={e => { e.preventDefault(); api.openExternal(getKeyUrl) }} style={{ color: '#9a9a9a' }}>Get a key</a>}
+        {value && (getKeyUrl ? ' · Saved' : 'Saved')}
       </span>
     </label>
   )
@@ -149,6 +151,7 @@ export function Settings() {
   const update = useCallback(async (patch: Partial<AppSettings>) => {
     const res = await api.saveSettings(patch)
     if (res?.settings) setSettings(res.settings)
+    if ('homeAssistantUrl' in patch || 'apiKeys' in patch) api.listSensors().then(setSensors)
   }, [])
 
   const requestAccess = useCallback((id: string, name: string, brand: string) => {
@@ -158,6 +161,7 @@ export function Settings() {
   }, [])
 
   const brands = Array.from(new Set(AIO_DEVICES.map(d => d.brand)))
+  const detected = AIO_DEVICES.find(d => d.pid !== null && d.pid === state.deviceStatus.pid)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -229,7 +233,7 @@ export function Settings() {
       <SectionHeader icon={<IChip/>} title="Sensors" description="Extra readings for the LCD: temperatures, load, clocks, power, fans or memory. Set the value that fills a gauge or bar."/>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ maxWidth: 360 }}>
-          <SensorSelect label="CPU temperature source" emptyLabel="Automatic" value={settings?.cpuSource ?? null} sensors={sensors.filter(s => s.unit === '°')} onChange={v => update({ cpuSource: v })}/>
+          <SensorSelect label="CPU temperature source" emptyLabel="Automatic" value={settings?.cpuSource ?? null} sensors={sensors.filter(s => s.unit === '°')} accent={accent} onChange={v => update({ cpuSource: v })}/>
         </div>
         {settings && <SensorList slots={settings.sensors ?? []} catalog={sensors} accent={accent} onChange={slots => update({ sensors: slots })}/>}
       </div>
@@ -248,8 +252,26 @@ export function Settings() {
 
       <Divider/>
 
+      {/* Home Assistant */}
+      <SectionHeader icon={<IChip/>} title="Home Assistant" description="Show numeric Home Assistant entities (room temperature, power draw, …) on the LCD. They appear in the sensor picker."/>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <ApiKeyField
+          label="Server URL" secret={false} placeholder="http://homeassistant.local:8123" help=""
+          value={settings?.homeAssistantUrl ?? ''}
+          onSave={v => update({ homeAssistantUrl: v })}
+        />
+        <ApiKeyField
+          label="Long-lived access token" placeholder="Paste token"
+          help={`Create one under your Home Assistant profile > Security.${settings?.homeAssistantUrl && settings.apiKeys?.homeassistant ? ` ${sensors.filter(s => s.id.startsWith('ha:')).length} entities found.` : ''}`}
+          value={settings?.apiKeys?.homeassistant ?? ''}
+          onSave={v => update({ apiKeys: { ...(settings?.apiKeys ?? {}), homeassistant: v } })}
+        />
+      </div>
+
+      <Divider/>
+
       {/* AIO */}
-      <SectionHeader icon={<IDroplet/>} title="Watercooling AIO" description="Only the NZXT Kraken Elite V2 is tested. Other models are pending hardware support."/>
+      <SectionHeader icon={<IDroplet/>} title="Watercooling AIO" description="Tested on the NZXT Kraken Elite V2 (2024) and Kraken 2023 Elite. Other models are pending hardware support."/>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {brands.map(brand => (
           <div key={brand}>
@@ -257,13 +279,13 @@ export function Settings() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {AIO_DEVICES.filter(d => d.brand === brand).map(d => {
                 const supported = d.status === 'supported'
-                const active = settings?.selectedDevice === d.id
+                const connected = state.deviceStatus.connected && d.pid !== null && d.pid === state.deviceStatus.pid
                 return (
                   <div key={d.id} style={{
                     display: 'flex', alignItems: 'center', gap: 12,
                     padding: '10px 14px', borderRadius: 8,
                     background: supported ? '#0d0d0d' : '#090909',
-                    border: `1px solid ${active ? `${accent}44` : supported ? '#1e1e1e' : '#141414'}`,
+                    border: `1px solid ${connected ? `${accent}44` : supported ? '#1e1e1e' : '#141414'}`,
                     opacity: supported ? 1 : 0.6, transition: 'all 140ms',
                   }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -274,18 +296,11 @@ export function Settings() {
                           background: supported ? '#00e87a18' : '#1a1a1a',
                           color: supported ? '#00e87a' : '#3a3a3a',
                         }}>{supported ? 'Supported' : 'Draft'}</span>
-                        {active && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 8, background: `${accent}18`, color: accent }}>Active</span>}
+                        {connected && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 8, background: `${accent}18`, color: accent }}>Connected</span>}
                       </div>
                       <div style={{ fontSize: 10, color: '#7f7f7f' }}>Screen {d.lcd}{d.note ? ` - ${d.note}` : ''}</div>
                     </div>
-                    {supported ? (
-                      <button onClick={() => update({ selectedDevice: d.id })} disabled={active} style={{
-                        padding: '5px 14px', borderRadius: 8, border: 'none', fontSize: 11, fontWeight: 700, cursor: active ? 'default' : 'pointer',
-                        background: active ? `${accent}22` : accent,
-                        color: active ? accent : '#fff',
-                        opacity: active ? 0.7 : 1, transition: 'all 140ms',
-                      }}>{active ? 'Active' : 'Select'}</button>
-                    ) : (
+                    {!supported && (
                       <button onClick={() => requestAccess(d.id, d.name, d.brand)} style={{
                         padding: '5px 14px', borderRadius: 8, border: '1px solid #222',
                         background: 'transparent', color: '#7f7f7f', fontSize: 11, fontWeight: 600,
@@ -308,7 +323,7 @@ export function Settings() {
       {/* Monitor section placeholder */}
       <SectionHeader icon={<IMonitor/>} title="Display"/>
       <div style={{ fontSize: 11, color: '#7f7f7f', fontFamily: 'JetBrains Mono, monospace', padding: '4px 0' }}>
-        LCD resolution: 480 × 480 px · Interface: USB Direct · Firmware: Kraken Elite V2
+        LCD resolution: {detected ? detected.lcd.replace('×', ' × ') : '-'} px · Interface: USB Direct · Device: {state.deviceStatus.connected ? state.deviceStatus.productName : 'not connected'}
       </div>
     </div>
   )

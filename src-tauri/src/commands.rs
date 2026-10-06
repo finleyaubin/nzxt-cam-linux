@@ -298,9 +298,16 @@ pub fn start_visible() -> bool {
     crate::cli::START_VISIBLE.load(std::sync::atomic::Ordering::Relaxed)
 }
 
+/// Off the UI thread: listing may query nvidia-smi and a Home Assistant server.
 #[tauri::command]
-pub fn list_sensors() -> Vec<sensors::all::Sensor> {
-    sensors::all::list_sensors()
+pub async fn list_sensors() -> Result<Vec<sensors::all::Sensor>, String> {
+    tauri::async_runtime::spawn_blocking(sensors::all::list_sensors).await.map_err(|e| e.to_string())
+}
+
+/// Logos found on this machine for the Logo picker; the scan runs off the UI thread.
+#[tauri::command]
+pub async fn list_system_logos() -> Result<Vec<crate::logos::SystemLogo>, String> {
+    tauri::async_runtime::spawn_blocking(crate::logos::discover).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -327,6 +334,9 @@ pub fn save_settings(
     // Apply runtime changes.
     sensors::set_gpu_source(merged.gpu_source.clone());
     sensors::set_sensor_sources(merged.cpu_source.clone(), merged.sensor_sources());
+    if merged.home_assistant_url != previous.home_assistant_url || merged.api_keys.get("homeassistant") != previous.api_keys.get("homeassistant") {
+        merged.apply_home_assistant();
+    }
     state
         .driver
         .set_temp_timing(merged.lcd_poll_ms, merged.lcd_min_push_ms);
