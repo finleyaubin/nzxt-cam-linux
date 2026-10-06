@@ -137,6 +137,7 @@ export function Settings() {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [gpus, setGpus] = useState<GpuSource[]>([])
   const [sensors, setSensors] = useState<Sensor[]>([])
+  const [advanced, setAdvanced] = useState(false)
   const [requested, setRequested] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -165,9 +166,6 @@ export function Settings() {
       {/* Cadence */}
       <SectionHeader icon={<IClock/>} title="Polling & precision" description="Controls the sensor read frequency and LCD refresh rate."/>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <NumField label="Sensor read (ms)" help="Interval between CPU/GPU reads." value={settings?.pollIntervalMs ?? 1000} min={100} max={60000} step={50} accent={accent} onChange={v => update({ pollIntervalMs: v })}/>
-        <NumField label="LCD render (ms)" help="Scene render frequency. USB push only happens when the image changes." value={settings?.lcdPollMs ?? 500} min={50} max={60000} step={50} accent={accent} onChange={v => update({ lcdPollMs: v })}/>
-        <NumField label="LCD push cooldown (ms)" help="Minimum delay between 2 USB sends. 0 = none." value={settings?.lcdMinPushMs ?? 200} min={0} max={10000} step={50} accent={accent} onChange={v => update({ lcdMinPushMs: v })}/>
         <div>
           <div style={{ fontSize: 12, color: '#888', fontWeight: 600, marginBottom: 4 }}>Displayed decimals</div>
           <div style={{ fontSize: 10, color: '#7f7f7f', marginBottom: 7 }}>0 = 45° · 1 = 45.3° · 2 = 45.32°</div>
@@ -184,6 +182,17 @@ export function Settings() {
           </div>
         </div>
       </div>
+
+      <button onClick={() => setAdvanced(v => !v)} aria-expanded={advanced} style={{
+        marginTop: 12, padding: 0, background: 'none', border: 'none', color: '#777', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left',
+      }}>{advanced ? '▾' : '▸'} Advanced (refresh intervals)</button>
+      {advanced && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+          <NumField label="Sensor read (ms)" help="Interval between CPU/GPU reads." value={settings?.pollIntervalMs ?? 1000} min={100} max={60000} step={50} accent={accent} onChange={v => update({ pollIntervalMs: v })}/>
+          <NumField label="LCD render (ms)" help="Scene render frequency. USB push only happens when the image changes." value={settings?.lcdPollMs ?? 500} min={50} max={60000} step={50} accent={accent} onChange={v => update({ lcdPollMs: v })}/>
+          <NumField label="LCD push cooldown (ms)" help="Minimum delay between 2 USB sends. 0 = none." value={settings?.lcdMinPushMs ?? 200} min={0} max={10000} step={50} accent={accent} onChange={v => update({ lcdMinPushMs: v })}/>
+        </div>
+      )}
 
       <Divider/>
 

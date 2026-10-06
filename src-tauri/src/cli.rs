@@ -24,6 +24,9 @@ LCD:
   --lcd-dim <0-90>            Darken the background image by this percentage
   --rotation <0|90|180|270>   Rotate the LCD to match how the cooler is mounted
   --profile <name>            Apply a saved profile
+  --lcd-config <file.json>    Load a display layout (DisplayConfig JSON), validate, apply and keep it
+  --export-lcd-config <file.json>
+                              Write the current display layout to a file
 
 Window:
   --show                      Open the window
@@ -44,6 +47,8 @@ pub enum Action {
     Dim(u8),
     Rotation(u16),
     Profile(String),
+    LcdConfig(PathBuf),
+    ExportLcdConfig(PathBuf),
     Show,
     Quit,
 }
@@ -104,11 +109,26 @@ pub fn parse(args: &[String], cwd: &Path) -> Result<Cli, String> {
                 Action::Rotation(v.parse().ok().filter(|d| [0, 90, 180, 270].contains(d)).ok_or_else(|| format!("--rotation expects 0, 90, 180 or 270, got {v}"))?)
             }
             "--profile" => Action::Profile(value()?.clone()),
+            "--lcd-config" => Action::LcdConfig(path(value()?)),
+            "--export-lcd-config" => Action::ExportLcdConfig(path(value()?)),
             other => return Err(format!("Unknown option: {other}")),
         };
         cli.actions.push(action);
     }
     Ok(cli)
+}
+
+/// Read and validate a DisplayConfig JSON file; errors name the file and the problem.
+fn read_lcd_config(p: &Path) -> anyhow::Result<crate::types::DisplayConfig> {
+    let s = std::fs::read_to_string(p).map_err(|e| anyhow::anyhow!("{}: {e}", p.display()))?;
+    parse_lcd_config(&s, &p.display().to_string())
+}
+
+fn parse_lcd_config(json: &str, origin: &str) -> anyhow::Result<crate::types::DisplayConfig> {
+    let cfg: crate::types::DisplayConfig = serde_json::from_str(json)
+        .map_err(|e| anyhow::anyhow!("{origin}: invalid layout at line {}, column {}: {e}", e.line(), e.column()))?;
+    cfg.validate().map_err(|e| anyhow::anyhow!("{origin}: {e}"))?;
+    Ok(cfg)
 }
 
 fn show_window(app: &AppHandle, visible: bool) {
@@ -166,6 +186,15 @@ async fn apply(app: &AppHandle, action: Action) -> anyhow::Result<()> {
             image_io::set_lcd_rotation(deg);
             config::update(|c| c.lcd_rotation = deg)?;
             driver.refresh_display();
+        }
+        Action::LcdConfig(p) => {
+            let cfg = read_lcd_config(&p)?;
+            update_display(app, |c| *c = cfg)?;
+            start_temps(app)?;
+        }
+        Action::ExportLcdConfig(p) => {
+            let json = serde_json::to_string_pretty(&driver.get_display_config())?;
+            config::write_atomic(&p, json.as_bytes(), false)?;
         }
         Action::Profile(name) => crate::apply_profile_to_driver(&crate::profile::load_profile(&name)?, &driver).await?,
         Action::Show => show_window(app, true),
@@ -229,6 +258,22 @@ mod tests {
         assert!(parse(&args("--lcd-color red"), Path::new("/")).is_err());
         assert!(parse(&args("--lcd-image"), Path::new("/")).is_err());
         assert!(parse(&args("--bogus"), Path::new("/")).is_err());
+    }
+
+    #[test]
+    fn parses_lcd_config_flags() {
+        let cli = parse(&args("--lcd-config a.json --export-lcd-config /tmp/b.json"), Path::new("/h")).unwrap();
+        assert_eq!(cli.actions, vec![Action::LcdConfig("/h/a.json".into()), Action::ExportLcdConfig("/tmp/b.json".into())]);
+        assert!(parse(&args("--lcd-config"), Path::new("/")).is_err());
+    }
+
+    #[test]
+    fn lcd_config_validation() {
+        assert!(parse_lcd_config(r##"{"background":"#000","elements":[]}"##, "f").is_ok());
+        let e = parse_lcd_config("{", "f.json").unwrap_err().to_string();
+        assert!(e.contains("f.json") && e.contains("line"), "{e}");
+        let e = parse_lcd_config(r##"{"background":"#000","elements":[],"backgroundDim":99}"##, "f.json").unwrap_err().to_string();
+        assert!(e.contains("backgroundDim"), "{e}");
     }
 
     #[test]

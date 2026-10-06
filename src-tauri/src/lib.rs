@@ -5,6 +5,7 @@ pub mod commands;
 pub mod config;
 pub mod fans;
 pub mod image_io;
+pub mod layouts;
 pub mod profile;
 pub mod render;
 pub mod sensors;
@@ -188,6 +189,12 @@ pub fn run() {
             commands::delete_profile_cmd,
             commands::get_profile,
             commands::apply_profile,
+            commands::list_layouts,
+            commands::save_layout,
+            commands::delete_layout,
+            commands::get_layout,
+            commands::export_layouts,
+            commands::import_layouts,
             commands::quit_app,
             commands::hide_window,
             commands::show_window,

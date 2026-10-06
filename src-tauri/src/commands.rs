@@ -364,6 +364,42 @@ pub fn get_profile(name: String) -> Result<Profile, String> {
     profile::load_profile(&name).map_err(|e| e.to_string())
 }
 
+// ---- Saved layouts (named DisplayConfigs) ----
+
+#[tauri::command]
+pub fn list_layouts() -> Vec<crate::layouts::SavedLayout> {
+    crate::layouts::list_layouts()
+}
+
+#[tauri::command]
+pub fn save_layout(name: String, config_in: DisplayConfig) -> Result<CommandResult, String> {
+    crate::layouts::save_layout(&name, config_in).map_err(|e| e.to_string())?;
+    Ok(CommandResult::ok())
+}
+
+#[tauri::command]
+pub fn delete_layout(name: String) -> Result<CommandResult, String> {
+    crate::layouts::delete_layout(&name).map_err(|e| e.to_string())?;
+    Ok(CommandResult::ok())
+}
+
+#[tauri::command]
+pub fn get_layout(name: String) -> Result<crate::layouts::SavedLayout, String> {
+    crate::layouts::load_layout(&name).map_err(|e| e.to_string())
+}
+
+/// Write all saved layouts to one JSON file; returns how many.
+#[tauri::command]
+pub fn export_layouts(path: String) -> Result<usize, String> {
+    crate::layouts::export_all(std::path::Path::new(&path)).map_err(|e| e.to_string())
+}
+
+/// Import layouts from a file written by `export_layouts`; returns how many.
+#[tauri::command]
+pub fn import_layouts(path: String) -> Result<usize, String> {
+    crate::layouts::import_all(std::path::Path::new(&path)).map_err(|e| e.to_string())
+}
+
 /// Apply a saved profile: LCD + ring.
 #[tauri::command]
 pub async fn apply_profile(

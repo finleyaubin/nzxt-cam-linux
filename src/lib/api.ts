@@ -162,6 +162,17 @@ export const api = {
   getProfile: (name: string) => invoke<Profile>('get_profile', { name }),
   applyProfile: (name: string) => invoke<CommandResult>('apply_profile', { name }),
 
+  // --- Saved layouts (named DisplayConfigs) ---
+  listLayouts: () => invoke<SavedLayout[]>('list_layouts'),
+  saveLayout: (name: string, config: DisplayConfig) =>
+    invoke<CommandResult>('save_layout', { name, configIn: config }),
+  deleteLayout: (name: string) => invoke<CommandResult>('delete_layout', { name }),
+  getLayout: (name: string) => invoke<SavedLayout>('get_layout', { name }),
+  /** Write all saved layouts to one file; resolves to the count. */
+  exportLayouts: (path: string) => invoke<number>('export_layouts', { path }),
+  /** Import layouts from a file made by exportLayouts; resolves to the count. */
+  importLayouts: (path: string) => invoke<number>('import_layouts', { path }),
+
   // --- Window ---
   hideWindow:   () => invoke<void>('hide_window'),
   quitApp:      () => invoke<void>('quit_app'),
@@ -189,6 +200,11 @@ export const api = {
 }
 
 // ============================================================================
+export interface SavedLayout {
+  name: string
+  config: DisplayConfig
+}
+
 // Profile types
 // ============================================================================
 export type ProfileLcd =
