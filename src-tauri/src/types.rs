@@ -236,6 +236,18 @@ pub struct GaugeElement {
     /// Fill blends from `color` to this along the arc.
     #[serde(default)]
     pub gradient_to: Option<String>,
+    /// Print 0 and `max` at the two ends of a partial arc.
+    #[serde(default)]
+    pub show_range: bool,
+    /// Direction of the min/max labels around their arc end: 0° toward the gauge centre, 90° along the arc into the gauge.
+    #[serde(default)]
+    pub range_angle: f32,
+    /// Distance in px of the min/max labels from the centre of their arc end.
+    #[serde(default)]
+    pub range_offset: f32,
+    /// Show the value in a pill at the top of the ring, filled with the track colour, instead of in the centre.
+    #[serde(default)]
+    pub value_pill: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
