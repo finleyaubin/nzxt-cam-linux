@@ -24,6 +24,13 @@ pub fn set_gpu_source(id: Option<String>) {
 pub fn set_sensor_sources(cpu: Option<String>, slots: Vec<Option<String>>) {
     *SELECTED_CPU.write() = cpu;
     *SENSOR_SOURCES.write() = slots;
+    ha::wake();
+}
+
+/// Whether any bound sensor (or the CPU source) reads from Home Assistant.
+fn uses_home_assistant() -> bool {
+    let is_ha = |id: &String| id.starts_with(ha::PREFIX);
+    SELECTED_CPU.read().iter().any(is_ha) || SENSOR_SOURCES.read().iter().flatten().any(is_ha)
 }
 
 fn read_slot(slot: usize) -> f64 {

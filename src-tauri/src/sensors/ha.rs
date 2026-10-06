@@ -5,7 +5,7 @@ use serde_json::Value;
 use std::collections::HashSet;
 use std::sync::OnceLock;
 use std::thread::{self, Thread};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub const PREFIX: &str = "ha:";
 const POLL: Duration = Duration::from_secs(5);
@@ -21,12 +21,14 @@ static CONFIG: RwLock<Option<(String, String)>> = RwLock::new(None);
 static ENTITIES: RwLock<Vec<(String, Entity)>> = RwLock::new(Vec::new());
 static UNITS: Mutex<Option<HashSet<&'static str>>> = Mutex::new(None);
 static POLLER: OnceLock<Thread> = OnceLock::new();
+static LAST_ATTEMPT: Mutex<Option<Instant>> = Mutex::new(None);
 
 pub fn configure(url: &str, token: &str) {
     let url = url.trim().trim_end_matches('/');
     let valid = (url.starts_with("http://") || url.starts_with("https://")) && !token.trim().is_empty();
     *CONFIG.write() = valid.then(|| (url.to_string(), token.trim().to_string()));
     ENTITIES.write().clear();
+    *LAST_ATTEMPT.lock() = None;
     let poller = POLLER.get_or_init(|| thread::spawn(poll_forever).thread().clone());
     poller.unpark();
 }
@@ -35,10 +37,20 @@ pub fn configured() -> bool {
     CONFIG.read().is_some()
 }
 
+/// Called when the bound sensors change, so a newly bound entity is fetched straight away.
+pub fn wake() {
+    if let Some(poller) = POLLER.get() {
+        poller.unpark();
+    }
+}
+
+/// The server is only queried while an LCD sensor actually reads from it (or the picker is open, see `list`).
 fn poll_forever() {
     loop {
-        if let Err(e) = refresh() {
-            log::warn!("Home Assistant: {e}");
+        if super::uses_home_assistant() {
+            if let Err(e) = refresh() {
+                log::warn!("Home Assistant: {e}");
+            }
         }
         thread::park_timeout(POLL);
     }
@@ -46,6 +58,7 @@ fn poll_forever() {
 
 pub fn refresh() -> Result<(), String> {
     let Some((url, token)) = CONFIG.read().clone() else { return Ok(()) };
+    *LAST_ATTEMPT.lock() = Some(Instant::now());
     let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(5))).build().into();
     let states: Vec<Value> = agent
         .get(format!("{url}/api/states"))
@@ -95,7 +108,9 @@ fn parse_states(states: &[Value]) -> Vec<(String, Entity)> {
 }
 
 pub fn list() -> Vec<super::all::Sensor> {
-    if configured() && ENTITIES.read().is_empty() {
+    // Throttled so an unreachable server costs one timeout per poll interval, not one per call.
+    let stale = LAST_ATTEMPT.lock().map_or(true, |at| at.elapsed() >= POLL);
+    if configured() && stale {
         let _ = refresh();
     }
     ENTITIES
@@ -153,12 +168,9 @@ mod tests {
             String::from_utf8_lossy(&buf[..n]).to_lowercase()
         });
         configure(&format!("http://127.0.0.1:{port}/"), " secret ");
+        refresh().unwrap();
         let request = server.join().unwrap();
         assert!(request.starts_with("get /api/states ") && request.contains("authorization: bearer secret"), "{request}");
-        let deadline = std::time::Instant::now() + Duration::from_secs(5);
-        while read("ha:sensor.power").is_none() && std::time::Instant::now() < deadline {
-            thread::sleep(Duration::from_millis(20));
-        }
         assert_eq!(read("ha:sensor.power"), Some(412.0));
         assert_eq!(unit_of("ha:sensor.power"), "W");
         assert_eq!(list().len(), 1);

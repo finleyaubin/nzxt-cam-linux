@@ -292,39 +292,10 @@ pub fn start_visible() -> bool {
     crate::cli::START_VISIBLE.load(std::sync::atomic::Ordering::Relaxed)
 }
 
+/// Off the UI thread: listing may query nvidia-smi and a Home Assistant server.
 #[tauri::command]
-pub fn list_sensors() -> Vec<sensors::all::Sensor> {
-    sensors::all::list_sensors()
-}
-
-fn os_release_logo(os_release: &str) -> Option<&str> {
-    let name = os_release.lines().find_map(|l| l.strip_prefix("LOGO="))?.trim().trim_matches('"');
-    (!name.is_empty() && !name.contains('/')).then_some(name)
-}
-
-/// The distro's logo as a PNG, found through the LOGO name in os-release.
-#[tauri::command]
-pub fn system_logo() -> Option<String> {
-    let release = std::fs::read_to_string("/etc/os-release").or_else(|_| std::fs::read_to_string("/usr/lib/os-release")).ok()?;
-    let name = os_release_logo(&release)?;
-    let sizes = ["512x512", "256x256", "128x128", "96x96", "64x64", "48x48"];
-    std::iter::once(format!("/usr/share/pixmaps/{name}.png"))
-        .chain(sizes.iter().map(|s| format!("/usr/share/icons/hicolor/{s}/apps/{name}.png")))
-        .chain([format!("/usr/share/pixmaps/{name}.svg"), format!("/usr/share/icons/hicolor/scalable/apps/{name}.svg")])
-        .find(|p| std::path::Path::new(p).is_file())
-}
-
-#[cfg(test)]
-mod logo_tests {
-    use super::os_release_logo;
-
-    #[test]
-    fn reads_the_logo_name_and_ignores_paths() {
-        assert_eq!(os_release_logo("NAME=\"Arch Linux\"\nLOGO=archlinux-logo\nID=arch\n"), Some("archlinux-logo"));
-        assert_eq!(os_release_logo("LOGO=\"fedora-logo-icon\"\n"), Some("fedora-logo-icon"));
-        assert_eq!(os_release_logo("NAME=x\n"), None);
-        assert_eq!(os_release_logo("LOGO=../../etc/passwd\n"), None);
-    }
+pub async fn list_sensors() -> Result<Vec<sensors::all::Sensor>, String> {
+    tauri::async_runtime::spawn_blocking(sensors::all::list_sensors).await.map_err(|e| e.to_string())
 }
 
 /// Logos found on this machine for the Logo picker; the scan runs off the UI thread.

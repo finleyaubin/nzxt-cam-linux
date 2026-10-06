@@ -169,7 +169,6 @@ pub fn run() {
             commands::render_display_preview,
             commands::list_gpu_sources,
             commands::list_sensors,
-            commands::system_logo,
             commands::list_system_logos,
             commands::start_visible,
             commands::save_giphy_gif,

@@ -1,9 +1,10 @@
 import { BarElement, DisplayElement, GaugeElement, GraphElement, IMAGE_EXTENSIONS, ImageElement, MAX_SENSORS, MetricId, TEXT_VARIABLES, TextElement, defaultWarnAt } from '@shared/display'
 import { CheckField, ColorField, Field, NumField, Pill, SectionTitle, SelectField, TextField } from './fields'
 import { api } from '../../lib/api'
+import { LogoDialog } from './LogoDialog'
 import { MetricOption, optionFor } from './metrics'
 import { InsertSensor, SensorPicker } from './SensorPicker'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Copy, ImageSquare, Trash } from '@phosphor-icons/react'
 
 interface Props {
@@ -111,8 +112,7 @@ function TextFields({ el, metrics, accent, set }: { el: TextElement; metrics: Me
 }
 
 function ImageFields({ el, accent, set }: { el: ImageElement; accent: string; set: (p: Partial<ImageElement>) => void }) {
-  const [logo, setLogo] = useState<string | null>(null)
-  useEffect(() => { api.systemLogo().then(setLogo).catch(() => {}) }, [])
+  const [picking, setPicking] = useState(false)
   const choose = async () => {
     const path = await api.openFileDialog([{ name: 'Image', extensions: IMAGE_EXTENSIONS }])
     if (path) set({ path })
@@ -124,8 +124,9 @@ function ImageFields({ el, accent, set }: { el: ImageElement; accent: string; se
           <ImageSquare size={13}/>
           <span style={{ maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.path.split(/[\\/]/).pop() || 'Choose…'}</span>
         </Pill>
-        {logo && <Pill accent={accent} active={el.path === logo} onClick={() => set({ path: logo })} title="Your distribution's logo">Distro logo</Pill>}
+        <Pill accent={accent} onClick={() => setPicking(true)} title="Pick from the logos found on this system">Logos…</Pill>
       </Field>
+      {picking && <LogoDialog accent={accent} onClose={() => setPicking(false)} onPick={path => { set({ path }); setPicking(false) }}/>}
       <NumField label="Opacity" value={el.opacity} min={0} max={100} unit="%" accent={accent} onChange={opacity => set({ opacity: Math.round(opacity) })}/>
       <div style={{ fontSize: 10, color: '#7f7f7f', paddingLeft: 102, lineHeight: 1.5 }}>
         Scaled to fit the box, keeping its proportions. SVG or a PNG with a transparent background works best for logos.
