@@ -2,6 +2,7 @@ import { BarElement, DisplayElement, GaugeElement, GraphElement, MAX_SENSORS, Me
 import { CheckField, ColorField, NumField, Pill, SectionTitle, SelectField, TextField } from './fields'
 import { MetricOption, optionFor } from './metrics'
 import { SensorPicker } from './SensorPicker'
+import { CenterAxis } from './geometry'
 import { useState } from 'react'
 import { ArrowDown, ArrowUp, Copy, Trash } from '@phosphor-icons/react'
 
@@ -12,6 +13,7 @@ interface Props {
   onChange: (patch: Partial<DisplayElement>) => void
   onRemove: () => void
   onDuplicate: () => void
+  onCenter: (axis: CenterAxis) => void
   onReorder: (direction: 1 | -1) => void
 }
 
@@ -117,7 +119,7 @@ function Advanced({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function ElementInspector({ element, metrics, accent, onChange, onRemove, onDuplicate, onReorder }: Props) {
+export function ElementInspector({ element, metrics, accent, onChange, onRemove, onDuplicate, onCenter, onReorder }: Props) {
   const set = onChange as (p: Record<string, unknown>) => void
 
   return (
@@ -143,6 +145,10 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
       <SectionTitle>Size &amp; position</SectionTitle>
       <NumField label="X" value={element.x} min={0} max={640} accent={accent} onChange={x => set({ x })}/>
       <NumField label="Y" value={element.y} min={0} max={640} accent={accent} onChange={y => set({ y })}/>
+      <div style={{ display: 'flex', gap: 5, paddingLeft: 102 }}>
+        <Pill accent={accent} onClick={() => onCenter('x')} title="Centre horizontally on the screen">Centre ↔</Pill>
+        <Pill accent={accent} onClick={() => onCenter('y')} title="Centre vertically on the screen">Centre ↕</Pill>
+      </div>
       {element.type === 'gauge' && (
         <>
           <NumField label="Radius" value={element.radius} min={20} max={320} unit="px" accent={accent} onChange={radius => set({ radius })}/>

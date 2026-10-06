@@ -163,7 +163,19 @@ export function snapMove(
   return { x: bx.pos, y: by.pos, guideX: bx.guide, guideY: by.guide }
 }
 
-export type AlignMode = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom' | 'hdist' | 'vdist'
+export type CenterAxis = 'x' | 'y'
+
+/** Moves one element, or a group as a unit, so its bounds are centred on the screen along one axis. */
+export function centerPatches(els: DisplayElement[], axis: CenterAxis, resolve: Resolve): { id: string; x?: number; y?: number }[] {
+  if (!els.length) return []
+  const rects = els.map(el => elementRect(el, resolve))
+  const [lo, hi] = axis === 'x' ? (['left', 'right'] as const) : (['top', 'bottom'] as const)
+  const mid = (Math.min(...rects.map(r => r[lo])) + Math.max(...rects.map(r => r[hi]))) / 2
+  const shift = CENTER - mid
+  return els.map(el => (axis === 'x' ? { id: el.id, x: clampToScreen(el.x + shift) } : { id: el.id, y: clampToScreen(el.y + shift) }))
+}
+
+export type AlignMode ='left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom' | 'hdist' | 'vdist'
 
 /** New positions that align (or evenly distribute) a set of elements, relative to their joint bounds. */
 export function alignPatches(els: DisplayElement[], mode: AlignMode, resolve: Resolve): { id: string; x?: number; y?: number }[] {
