@@ -340,22 +340,21 @@ fn draw_gauge(
         draw_centered_stack(pm, el.x, el.y, &lines)?;
     }
     if el.show_range && !full_circle {
-        draw_range_ends(pm, el, r_in, start, sweep, decimals)?;
+        draw_range_ends(pm, el, r_mid, start, sweep, decimals)?;
     }
     Ok(())
 }
 
-/// 0 and max inside the ring at the arc's start and end, pushed in just far enough to clear the inner edge.
-fn draw_range_ends(pm: &mut Pixmap, el: &GaugeElement, r_in: f32, start: f32, sweep: f32, decimals: u8) -> Result<()> {
+/// 0 and max centred on the middle of each arc end, then moved by the label angle (along the arc) and offset (toward the centre).
+fn draw_range_ends(pm: &mut Pixmap, el: &GaugeElement, r_mid: f32, start: f32, sweep: f32, decimals: u8) -> Result<()> {
     let size = (el.value_size * 0.4).max(12.0);
     let max_decimals = if el.max.fract() == 0.0 { 0 } else { decimals };
     let shift = el.range_angle.to_radians();
     let ends = [(start + shift, crate::types::format_metric(0.0, 0)), (start + sweep - shift, crate::types::format_metric(el.max, max_decimals))];
+    let r = (r_mid - el.range_offset).max(0.0);
     for (angle, text) in ends {
         let m = measure(&text, size)?;
         let (sin, cos) = angle.sin_cos();
-        let reach = sin.abs() * m.width / 2.0 + cos.abs() * m.height / 2.0;
-        let r = (r_in - reach - 4.0 + el.range_offset).max(0.0);
         draw_text(pm, el.x + r * sin - m.width / 2.0, el.y - r * cos - m.height / 2.0, &text, size, (0x9a, 0xa0, 0xb4))?;
     }
     Ok(())
@@ -640,36 +639,45 @@ mod tests {
         (0..a.len() / 4).filter(|&i| a[i * 4..i * 4 + 3] != b[i * 4..i * 4 + 3]).map(|i| ((i % n) as f32 - 320.0, (i / n) as f32 - 320.0)).collect()
     }
 
+    fn distance(p: (f32, f32)) -> f32 {
+        (p.0 * p.0 + p.1 * p.1).sqrt()
+    }
+
+    fn label_centroid(off: &[u8], on: &[u8], left: bool) -> (f32, f32) {
+        let pts: Vec<_> = changed_pixels(off, on).into_iter().filter(|p| (p.0 < 0.0) == left).collect();
+        let n = pts.len() as f32;
+        assert!(n > 20.0, "a label was drawn");
+        (pts.iter().map(|p| p.0).sum::<f32>() / n, pts.iter().map(|p| p.1).sum::<f32>() / n)
+    }
+
     #[test]
-    fn range_ends_are_drawn_inside_the_ring_only() {
-        let changed = changed_pixels(&range_frame(false, 270.0, 0.0, 0.0), &range_frame(true, 270.0, 0.0, 0.0));
-        assert!(changed.len() > 50, "labels were drawn");
-        assert!(changed.iter().all(|&(dx, dy)| (dx * dx + dy * dy).sqrt() < 260.0), "labels stay inside the ring");
-        assert!(changed.iter().any(|p| p.0 < 0.0) && changed.iter().any(|p| p.0 > 0.0), "one label at each end");
+    fn range_labels_start_at_the_centre_of_each_arc_end() {
+        let off = range_frame(false, 270.0, 0.0, 0.0);
+        let on = range_frame(true, 270.0, 0.0, 0.0);
+        let (min, max) = (label_centroid(&off, &on, true), label_centroid(&off, &on, false));
+        let clock_deg = |p: (f32, f32)| p.0.atan2(-p.1).to_degrees();
+        assert!((distance(min) - 280.0).abs() < 8.0 && (distance(max) - 280.0).abs() < 8.0, "on the ring's mid-line");
+        assert!((clock_deg(min) + 135.0).abs() < 6.0, "min at the arc start");
+        assert!((clock_deg(max) - 135.0).abs() < 6.0, "max at the arc end");
         assert_eq!(range_frame(false, 360.0, 0.0, 0.0), range_frame(true, 360.0, 0.0, 0.0), "full rings have no ends to label");
     }
 
     #[test]
     fn range_angle_and_offset_move_both_labels_together() {
-        let plain = range_frame(true, 270.0, 0.0, 0.0);
         let off = range_frame(false, 270.0, 0.0, 0.0);
-        let centroid = |frame: &[u8], left: bool| {
-            let pts: Vec<_> = changed_pixels(&off, frame).into_iter().filter(|p| (p.0 < 0.0) == left).collect();
-            let n = pts.len() as f32;
-            (pts.iter().map(|p| p.0).sum::<f32>() / n, pts.iter().map(|p| p.1).sum::<f32>() / n)
+        let at = |angle: f32, offset: f32| {
+            let on = range_frame(true, 270.0, angle, offset);
+            (label_centroid(&off, &on, true), label_centroid(&off, &on, false))
         };
-        let (min0, max0) = (centroid(&plain, true), centroid(&plain, false));
-
-        let turned = range_frame(true, 270.0, 40.0, 0.0);
-        let (min1, max1) = (centroid(&turned, true), centroid(&turned, false));
         let clock_deg = |p: (f32, f32)| p.0.atan2(-p.1).to_degrees();
+        let ((min0, max0), (min1, max1)) = (at(0.0, 0.0), at(40.0, 0.0));
         assert!((clock_deg(min1) - clock_deg(min0) - 40.0).abs() < 8.0, "min turns 40° forward along the arc");
         assert!((clock_deg(max1) - clock_deg(max0) + 40.0).abs() < 8.0, "max turns 40° back along the arc");
 
-        let pushed = range_frame(true, 270.0, 0.0, -30.0);
-        let (min2, max2) = (centroid(&pushed, true), centroid(&pushed, false));
-        let dist = |p: (f32, f32)| (p.0 * p.0 + p.1 * p.1).sqrt();
-        assert!(dist(min2) < dist(min0) - 20.0 && dist(max2) < dist(max0) - 20.0, "negative offset moves both toward the centre");
+        let (min2, max2) = at(0.0, 40.0);
+        assert!((distance(min0) - distance(min2) - 40.0).abs() < 8.0 && (distance(max0) - distance(max2) - 40.0).abs() < 8.0, "offset moves both 40px toward the centre");
+        let (min3, _) = at(0.0, -30.0);
+        assert!(distance(min3) > distance(min0) + 20.0, "negative offset moves outward");
     }
 
     #[test]
