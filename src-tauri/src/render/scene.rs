@@ -351,7 +351,11 @@ fn draw_range_ends(pm: &mut Pixmap, el: &GaugeElement, r_mid: f32, start: f32, s
     let size = (el.value_size * 0.4).max(12.0);
     let max_decimals = if el.max.fract() == 0.0 { 0 } else { decimals };
     let (turn_sin, turn_cos) = el.range_angle.to_radians().sin_cos();
-    let ends = [(start, 1.0, crate::types::format_metric(0.0, 0)), (start + sweep, -1.0, crate::types::format_metric(el.max, max_decimals))];
+    let unit = el.metric.unit();
+    let ends = [
+        (start, 1.0, format!("{}{unit}", crate::types::format_metric(0.0, 0))),
+        (start + sweep, -1.0, format!("{}{unit}", crate::types::format_metric(el.max, max_decimals))),
+    ];
     for (angle, into_arc, text) in ends {
         let m = measure(&text, size)?;
         let (sin, cos) = angle.sin_cos();
@@ -664,6 +668,9 @@ mod tests {
         assert!((distance(min) - 280.0).abs() < 8.0 && (distance(max) - 280.0).abs() < 8.0, "on the ring's mid-line");
         assert!((clock_deg(min) + 135.0).abs() < 6.0, "min at the arc start");
         assert!((clock_deg(max) - 135.0).abs() < 6.0, "max at the arc end");
+        let xs: Vec<f32> = changed_pixels(&off, &on).into_iter().filter(|p| p.0 < 0.0).map(|p| p.0).collect();
+        let drawn_width = xs.iter().cloned().fold(f32::MIN, f32::max) - xs.iter().cloned().fold(f32::MAX, f32::min);
+        assert!(drawn_width > measure("0", 16.0).unwrap().width + 3.0, "the unit is drawn after the number");
         assert_eq!(range_frame(false, 360.0, 0.0, 0.0), range_frame(true, 360.0, 0.0, 0.0), "full rings have no ends to label");
     }
 
