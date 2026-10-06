@@ -43,11 +43,11 @@ function SaveDialog({ onSave, onCancel }: {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(4px)' }}>
       <div style={{ background: '#111', border: '1px solid #222', borderRadius: 14, padding: 24, width: 340, display: 'flex', flexDirection: 'column', gap: 18, boxShadow: '0 32px 80px rgba(0,0,0,0.8)' }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', letterSpacing: '-0.2px' }}>Nouveau profil</div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', letterSpacing: '-0.2px' }}>New profile</div>
 
         <input
           autoFocus
-          placeholder="Nom du profil (ex: gaming, idle…)"
+          placeholder="Profile name (e.g. gaming, idle…)"
           value={name}
           onChange={e => setName(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && name.trim() && onSave(name.trim(), includeLcd, includeRing)}
@@ -59,11 +59,11 @@ function SaveDialog({ onSave, onCancel }: {
         />
 
         <div>
-          <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700, marginBottom: 10 }}>Inclure dans le profil</div>
+          <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700, marginBottom: 10 }}>Include in profile</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[
-              { key: 'lcd', label: 'Mode LCD actuel', val: includeLcd, set: setIncludeLcd },
-              { key: 'ring', label: 'Ring LED actuel', val: includeRing, set: setIncludeRing },
+              { key: 'lcd', label: 'Current LCD mode', val: includeLcd, set: setIncludeLcd },
+              { key: 'ring', label: 'Current LED ring', val: includeRing, set: setIncludeRing },
             ].map(({ key, label, val, set }) => (
               <div key={key} onClick={() => set(!val)} style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, cursor: 'pointer',
@@ -90,13 +90,13 @@ function SaveDialog({ onSave, onCancel }: {
           <button onClick={onCancel} style={{
             flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid #222',
             background: 'transparent', color: '#555', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 140ms',
-          }}>Annuler</button>
+          }}>Cancel</button>
           <button onClick={() => name.trim() && onSave(name.trim(), includeLcd, includeRing)} disabled={!name.trim()} style={{
             flex: 1, padding: '9px 0', borderRadius: 8, border: 'none',
             background: name.trim() ? accent : '#252525', color: name.trim() ? '#fff' : '#444',
             fontSize: 12, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'not-allowed',
             boxShadow: name.trim() ? `0 0 14px ${accent}44` : 'none', transition: 'all 140ms',
-          }}>Sauvegarder</button>
+          }}>Save</button>
         </div>
       </div>
     </div>
@@ -180,7 +180,7 @@ export function ProfileManager() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700 }}>Saved profiles</div>
-          <div style={{ fontSize: 11, color: '#2e2e2e', marginTop: 4 }}>Sauvegarde ta configuration LCD + Ring en un clic</div>
+          <div style={{ fontSize: 11, color: '#2e2e2e', marginTop: 4 }}>Save your LCD + Ring setup in one click</div>
         </div>
         <button onClick={() => setShowSaveDialog(true)} style={{
           display: 'flex', alignItems: 'center', gap: 7,
@@ -188,15 +188,15 @@ export function ProfileManager() {
           background: accent, color: '#fff', fontSize: 12, fontWeight: 700,
           cursor: 'pointer', boxShadow: `0 0 14px ${accent}44`, transition: 'all 140ms',
         }}>
-          <IPlus/> Nouveau profil
+          <IPlus/> New profile
         </button>
       </div>
 
       {/* Profile list */}
       {profiles.length === 0 ? (
         <div style={{ padding: '28px 20px', borderRadius: 10, border: '1px dashed #1e1e1e', textAlign: 'center' }}>
-          <div style={{ fontSize: 12, color: '#2e2e2e', fontWeight: 500 }}>Aucun profil</div>
-          <div style={{ fontSize: 11, color: '#222', marginTop: 5 }}>Crée un profil pour sauvegarder ta configuration</div>
+          <div style={{ fontSize: 12, color: '#2e2e2e', fontWeight: 500 }}>No profiles</div>
+          <div style={{ fontSize: 11, color: '#222', marginTop: 5 }}>Create a profile to save your setup</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -237,11 +237,11 @@ export function ProfileManager() {
         <div>
           <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700, marginBottom: 8 }}>Autostart — Hyprland</div>
           <div style={{ fontSize: 11, color: '#2e2e2e', marginBottom: 10, lineHeight: 1.6 }}>
-            Add to <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#484848' }}>~/.config/hypr/hyprland.conf</span> to launch a profile at startup :
+            Add to <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#484848' }}>~/.config/hypr/hyprland.conf</span> to launch a profile at startup:
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {profiles.map(p => (
-              <div key={p.name} onClick={() => copyCmd(p.name)} title="Cliquer pour copier" style={{
+              <div key={p.name} onClick={() => copyCmd(p.name)} title="Click to copy" style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '8px 12px', borderRadius: 7,
                 background: '#0a0a0a', border: `1px solid ${copied === p.name ? `${accent}44` : '#181818'}`,

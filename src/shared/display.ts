@@ -15,8 +15,8 @@ export type ElementType = 'gauge' | 'bar' | 'text'
 export const METRIC_LABELS: Record<MetricId, string> = {
   cpu: 'CPU',
   gpu: 'GPU',
-  liquid: 'Liquide',
-  pump: 'Pompe'
+  liquid: 'Liquid',
+  pump: 'Pump'
 }
 
 export const METRIC_UNIT: Record<MetricId, string> = {
@@ -178,8 +178,8 @@ const BG = '#0a0a0f'
 export const PRESETS: Preset[] = [
   {
     id: 'triple-rings',
-    name: '3 anneaux',
-    description: 'CPU, GPU et liquide en jauges concentriques',
+    name: '3 rings',
+    description: 'CPU, GPU and liquid as concentric gauges',
     build: () => ({
       background: BG,
       elements: [
@@ -189,14 +189,14 @@ export const PRESETS: Preset[] = [
         makeText('CPU', { x: 320, y: 244, size: 32, color: '#9aa0b4' }),
         makeText('{cpu}°', { x: 320, y: 300, size: 64 }),
         makeText('GPU  {gpu}°', { x: 320, y: 362, size: 16, color: '#00d4ff' }),
-        makeText('LIQUIDE  {liquid}°', { x: 320, y: 392, size: 16, color: '#b478ff' })
+        makeText('LIQUID  {liquid}°', { x: 320, y: 392, size: 16, color: '#b478ff' })
       ]
     })
   },
   {
     id: 'single-cpu',
-    name: 'CPU seul',
-    description: 'Une grande jauge unique centrée',
+    name: 'CPU only',
+    description: 'One large centered gauge',
     build: () => ({
       background: BG,
       elements: [
@@ -206,8 +206,8 @@ export const PRESETS: Preset[] = [
   },
   {
     id: 'single-gpu',
-    name: 'GPU seul',
-    description: 'Une grande jauge unique centrée',
+    name: 'GPU only',
+    description: 'One large centered gauge',
     build: () => ({
       background: BG,
       elements: [
@@ -217,19 +217,19 @@ export const PRESETS: Preset[] = [
   },
   {
     id: 'single-liquid',
-    name: 'Liquide seul',
-    description: 'Température du liquide en grande jauge',
+    name: 'Liquid only',
+    description: 'Liquid temperature as a large gauge',
     build: () => ({
       background: BG,
       elements: [
-        makeGauge('liquid', { radius: 290, thickness: 46, color: '#b478ff', valueSize: 128, label: 'LIQUIDE' })
+        makeGauge('liquid', { radius: 290, thickness: 46, color: '#b478ff', valueSize: 128, label: 'LIQUID' })
       ]
     })
   },
   {
     id: 'dual-bars',
-    name: '2 barres',
-    description: 'CPU et GPU en barres horizontales (style CAM)',
+    name: '2 bars',
+    description: 'CPU and GPU as horizontal bars (CAM style)',
     build: () => ({
       background: BG,
       elements: [
@@ -240,8 +240,8 @@ export const PRESETS: Preset[] = [
   },
   {
     id: 'big-number',
-    name: 'Chiffre géant',
-    description: 'Juste la température CPU en très grand',
+    name: 'Big number',
+    description: 'Just the CPU temperature, very large',
     build: () => ({
       background: BG,
       elements: [

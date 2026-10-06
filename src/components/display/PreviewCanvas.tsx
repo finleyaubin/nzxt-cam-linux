@@ -66,7 +66,7 @@ export function PreviewCanvas({ config, previewUrl, selectedId, onSelect, onMove
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-sm">
-            Rendu…
+            Rendering…
           </div>
         )}
 

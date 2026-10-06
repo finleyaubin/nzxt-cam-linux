@@ -150,7 +150,7 @@ impl KrakenDriver {
         let info = devices
             .into_iter()
             .find(|d| d.vendor_id() == NZXT_VID && KRAKEN_PIDS.contains(&d.product_id()))
-            .ok_or_else(|| anyhow!("Aucun Kraken Elite trouvé"))?;
+            .ok_or_else(|| anyhow!("No Kraken Elite found"))?;
         let pid = info.product_id();
 
         let device = info.open().await.map_err(|e| anyhow!("Open USB: {e}"))?;
@@ -234,7 +234,7 @@ impl KrakenDriver {
     /// The firmware expects 40 duty values for temps 20°C..=59°C interpolated linearly.
     pub async fn set_pump_speed_profile(&self, points: Vec<(u8, u8)>) -> Result<()> {
         let mut hw_guard = self.0.hw.lock().await;
-        let hw = hw_guard.as_mut().ok_or_else(|| anyhow!("Non connecté"))?;
+        let hw = hw_guard.as_mut().ok_or_else(|| anyhow!("Not connected"))?;
 
         // Interpolate duty for each integer temp 20..=59 (40 values).
         let mut duties = [20u8; 40];
@@ -278,7 +278,7 @@ impl KrakenDriver {
         }
         let bulk_info = bulk_info_rgba(rgba.len() as u32);
         let mut g = self.0.hw.lock().await;
-        let hw = g.as_mut().ok_or_else(|| anyhow!("Pas connecté"))?;
+        let hw = g.as_mut().ok_or_else(|| anyhow!("Not connected"))?;
         send_data_native(hw, &rgba, &bulk_info).await
     }
 
@@ -287,7 +287,7 @@ impl KrakenDriver {
         let rgba = crate::image_io::rotate_for_lcd(rgba);
         let bulk_info = bulk_info_rgba(rgba.len() as u32);
         let mut g = self.0.hw.lock().await;
-        let hw = g.as_mut().ok_or_else(|| anyhow!("Pas connecté"))?;
+        let hw = g.as_mut().ok_or_else(|| anyhow!("Not connected"))?;
         send_data_native(hw, &rgba, &bulk_info).await
     }
 
@@ -295,7 +295,7 @@ impl KrakenDriver {
         self.stop_current_mode();
         let bulk_info = bulk_info_gif(gif_bytes.len() as u32);
         let mut g = self.0.hw.lock().await;
-        let hw = g.as_mut().ok_or_else(|| anyhow!("Pas connecté"))?;
+        let hw = g.as_mut().ok_or_else(|| anyhow!("Not connected"))?;
         send_data_native(hw, &gif_bytes, &bulk_info).await
     }
 
@@ -309,7 +309,7 @@ impl KrakenDriver {
         mode: crate::types::RingMode,
     ) -> Result<()> {
         let mut g = self.0.hw.lock().await;
-        let hw = g.as_mut().ok_or_else(|| anyhow!("Pas connecté"))?;
+        let hw = g.as_mut().ok_or_else(|| anyhow!("Not connected"))?;
         let cmd = build_ring_cmd(channel, mode);
         write_cmd(hw, &cmd).await
     }

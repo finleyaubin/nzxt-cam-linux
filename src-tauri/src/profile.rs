@@ -85,7 +85,7 @@ fn ensure_profiles_dir() {
 pub fn save_profile(profile: &Profile) -> Result<()> {
     ensure_profiles_dir();
     if profile.name.trim().is_empty() {
-        return Err(anyhow!("Le nom du profil ne peut pas être vide"));
+        return Err(anyhow!("Profile name cannot be empty"));
     }
     let json = serde_json::to_string_pretty(profile)?;
     fs::write(profile_path(&profile.name), json)?;
@@ -95,9 +95,9 @@ pub fn save_profile(profile: &Profile) -> Result<()> {
 pub fn load_profile(name: &str) -> Result<Profile> {
     let path = profile_path(name);
     let s = fs::read_to_string(&path)
-        .map_err(|_| anyhow!("Profil introuvable : {name}"))?;
+        .map_err(|_| anyhow!("Profile not found: {name}"))?;
     let p: Profile = serde_json::from_str(&s)
-        .map_err(|e| anyhow!("Profil corrompu : {e}"))?;
+        .map_err(|e| anyhow!("Corrupted profile: {e}"))?;
     Ok(p)
 }
 

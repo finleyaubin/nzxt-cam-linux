@@ -136,7 +136,7 @@ export function Settings() {
         <NumField label="LCD render (ms)" help="Scene render frequency. USB push only happens when the image changes." value={settings?.lcdPollMs ?? 500} min={50} max={60000} step={50} accent={accent} onChange={v => update({ lcdPollMs: v })}/>
         <NumField label="LCD push cooldown (ms)" help="Minimum delay between 2 USB sends. 0 = none." value={settings?.lcdMinPushMs ?? 200} min={0} max={10000} step={50} accent={accent} onChange={v => update({ lcdMinPushMs: v })}/>
         <div>
-          <div style={{ fontSize: 12, color: '#888', fontWeight: 600, marginBottom: 4 }}>Décimales affichées</div>
+          <div style={{ fontSize: 12, color: '#888', fontWeight: 600, marginBottom: 4 }}>Displayed decimals</div>
           <div style={{ fontSize: 10, color: '#3a3a3a', marginBottom: 7 }}>0 = 45° · 1 = 45.3° · 2 = 45.32°</div>
           <div style={{ display: 'flex', gap: 6 }}>
             {[0, 1, 2].map(d => (
@@ -161,12 +161,12 @@ export function Settings() {
         <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#0d0d0d', border: `1px solid ${!settings?.gpuSource ? `${accent}44` : '#1e1e1e'}`, borderRadius: 8, cursor: 'pointer', transition: 'all 140ms' }}>
           <input type="radio" name="gpu" checked={!settings?.gpuSource} onChange={() => update({ gpuSource: null })} style={{ accentColor: accent }}/>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#c0c0c0' }}>Automatique</div>
-            <div style={{ fontSize: 10, color: '#3a3a3a', marginTop: 2 }}>Carte dédiée si disponible, iGPU sinon</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#c0c0c0' }}>Automatic</div>
+            <div style={{ fontSize: 10, color: '#3a3a3a', marginTop: 2 }}>Dedicated card if available, otherwise iGPU</div>
           </div>
         </label>
         {gpus.length === 0 && (
-          <div style={{ fontSize: 11, color: '#3a3a3a', padding: '8px 14px' }}>Aucun GPU détecté via hwmon.</div>
+          <div style={{ fontSize: 11, color: '#3a3a3a', padding: '8px 14px' }}>No GPU detected via hwmon.</div>
         )}
         {gpus.map(g => (
           <label key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#0d0d0d', border: `1px solid ${settings?.gpuSource === g.id ? `${accent}44` : '#1e1e1e'}`, borderRadius: 8, cursor: 'pointer', transition: 'all 140ms' }}>
@@ -210,9 +210,9 @@ export function Settings() {
                           background: supported ? '#00e87a18' : '#1a1a1a',
                           color: supported ? '#00e87a' : '#3a3a3a',
                         }}>{supported ? 'Supported' : 'Draft'}</span>
-                        {active && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: `${accent}18`, color: accent }}>Actif</span>}
+                        {active && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: `${accent}18`, color: accent }}>Active</span>}
                       </div>
-                      <div style={{ fontSize: 10, color: '#3a3a3a' }}>Écran {d.lcd}{d.note ? ` — ${d.note}` : ''}</div>
+                      <div style={{ fontSize: 10, color: '#3a3a3a' }}>Screen {d.lcd}{d.note ? ` — ${d.note}` : ''}</div>
                     </div>
                     {supported ? (
                       <button onClick={() => update({ selectedDevice: d.id })} disabled={active} style={{
@@ -242,7 +242,7 @@ export function Settings() {
       <Divider/>
 
       {/* Monitor section placeholder */}
-      <SectionHeader icon={<IMonitor/>} title="Affichage"/>
+      <SectionHeader icon={<IMonitor/>} title="Display"/>
       <div style={{ fontSize: 11, color: '#2e2e2e', fontFamily: 'JetBrains Mono, monospace', padding: '4px 0' }}>
         LCD resolution: 480 × 480 px · Interface: USB Direct · Firmware: Kraken Elite V2
       </div>

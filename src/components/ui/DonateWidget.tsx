@@ -34,7 +34,7 @@ function QRModal({ name, symbol, color, address, onClose }: { name: string, symb
           <canvas ref={canvasRef} style={{ display: 'block', borderRadius: 6 }}/>
         </div>
         <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#484848', textAlign: 'center', maxWidth: 200, wordBreak: 'break-all', lineHeight: 1.6 }}>{address}</div>
-        <div style={{ fontSize: 10, color: '#383838' }}>Scannez avec votre application crypto</div>
+        <div style={{ fontSize: 10, color: '#383838' }}>Scan with your crypto wallet app</div>
       </div>
     </div>
   )
@@ -100,7 +100,7 @@ function DonatePanel({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       <div style={{ padding: '8px 18px 14px', textAlign: 'center' }}>
-        <div style={{ fontSize: 9, color: '#2e2e2e' }}>Merci pour votre soutien au projet NZXTCAM Linux</div>
+        <div style={{ fontSize: 9, color: '#2e2e2e' }}>Thank you for supporting NZXTCAM Linux</div>
       </div>
     </div>
     </>
@@ -128,9 +128,9 @@ export function DonateWidget() {
           transition: 'all 180ms', letterSpacing: '0.3px',
         }}>
           <span style={{ color: '#ff4757', display: 'flex', animation: 'logoPulse 2s ease-in-out infinite' }}><IHeart/></span>
-          Contribuer au projet
+          Contribute to the project
         </button>
-        <button onClick={() => { setOpen(false); setDismissed(true) }} title="Masquer" style={{
+        <button onClick={() => { setOpen(false); setDismissed(true) }} title="Hide" style={{
           background: '#131313', border: '1px solid #252525', borderRadius: '50%',
           width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#383838', cursor: 'pointer', fontSize: 14, lineHeight: 1,

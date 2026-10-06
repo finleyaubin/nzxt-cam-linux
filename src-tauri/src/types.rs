@@ -37,7 +37,7 @@ impl DeviceStatus {
     pub fn disconnected() -> Self {
         Self {
             connected: false,
-            product_name: "Non détecté".into(),
+            product_name: "Not detected".into(),
             pid: None,
             error: None,
             lcd_controllable: false,
@@ -114,8 +114,8 @@ impl MetricId {
         match self {
             MetricId::Cpu => "CPU",
             MetricId::Gpu => "GPU",
-            MetricId::Liquid => "Liquide",
-            MetricId::Pump => "Pompe",
+            MetricId::Liquid => "Liquid",
+            MetricId::Pump => "Pump",
         }
     }
     pub fn unit(&self) -> &'static str {

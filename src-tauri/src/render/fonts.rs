@@ -56,8 +56,8 @@ fn load_font_bytes() -> Result<Vec<u8>> {
         }
     }
     Err(anyhow!(
-        "Aucune police trouvée — installez ttf-inter, ttf-dejavu ou noto-fonts \
-         (Arch : `pacman -S ttf-inter` ou `ttf-dejavu`)"
+        "No font found — install ttf-inter, ttf-dejavu or noto-fonts \
+         (Arch: `pacman -S ttf-inter` or `ttf-dejavu`)"
     ))
 }
 

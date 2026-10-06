@@ -30,7 +30,7 @@ const SPEEDS: { id: RingSpeed; label: string }[] = [
 ]
 
 const CHANNELS: { id: RingChannel; label: string; hint: string }[] = [
-  { id: 'ch01', label: 'Ring AIO',     hint: 'Ring autour du LCD' },
+  { id: 'ch01', label: 'Ring AIO',     hint: 'Ring around the LCD' },
   { id: 'ch02', label: 'Fans',         hint: 'Fans / accessories'  },
   { id: 'ch07', label: 'All',          hint: 'All channels'       },
 ]
@@ -229,7 +229,7 @@ function RingDeviceRow({ name, sub, isFan, accent }: {
             <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             {sending ? 'Sending…' : 'Apply'}
           </button>
-          {lastApplied && <span style={{ fontSize: 11, color: '#00e87a' }}>Appliqué</span>}
+          {lastApplied && <span style={{ fontSize: 11, color: '#00e87a' }}>Applied</span>}
           {!connected && <span style={{ fontSize: 11, color: '#ffb347' }}>Device not connected</span>}
         </div>
       </div>
@@ -262,8 +262,8 @@ export function LightingScreen() {
           </div>
         </div>
 
-        <RingDeviceRow name="Ring AIO"     sub="Canal 1 · Ring autour du LCD" isFan={false} accent={accent}/>
-        <RingDeviceRow name="Ventilateurs" sub="Canal 2 · Fans externes"      isFan={true}  accent={accent}/>
+        <RingDeviceRow name="Ring AIO"     sub="Channel 1 · Ring around the LCD" isFan={false} accent={accent}/>
+        <RingDeviceRow name="Fans"         sub="Channel 2 · External fans"   isFan={true}  accent={accent}/>
       </Card>
     </div>
   )

@@ -60,13 +60,13 @@ export function MediaUploader() {
           <div style={{ fontSize: 13, fontWeight: 700, color: accent, marginBottom: 4 }}>
             {state.isLoading ? 'Starting…' : 'Start Temperature mode'}
           </div>
-          <div style={{ fontSize: 11, color: '#484848' }}>Affiche CPU, GPU et liquide sur le LCD</div>
+          <div style={{ fontSize: 11, color: '#484848' }}>Shows CPU, GPU and liquid on the LCD</div>
         </div>
       </div>
     )
   }
 
-  const hint = state.currentMode === 'gif' ? 'GIF animé — max 50 MB' : 'JPG, PNG, WebP — max 50 MB'
+  const hint = state.currentMode === 'gif' ? 'Animated GIF — max 50 MB' : 'JPG, PNG, WebP — max 50 MB'
 
   return (
     <div
@@ -89,7 +89,7 @@ export function MediaUploader() {
         </div>
         <div style={{ fontSize: 11, color: '#484848' }}>{hint}</div>
         {!controllable && (
-          <div style={{ fontSize: 10, color: '#ffb347', marginTop: 6 }}>Device non contrôlable</div>
+          <div style={{ fontSize: 10, color: '#ffb347', marginTop: 6 }}>Device not controllable</div>
         )}
       </div>
     </div>

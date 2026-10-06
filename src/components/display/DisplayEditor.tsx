@@ -8,8 +8,8 @@ import { PreviewCanvas } from './PreviewCanvas'
 import { ElementInspector } from './ElementInspector'
 
 function elementTitle(el: DisplayElement): string {
-  if (el.type === 'text') return `Texte « ${el.text || '…'} »`
-  return `${el.type === 'gauge' ? 'Jauge' : 'Barre'} — ${METRIC_LABELS[el.metric]}`
+  if (el.type === 'text') return `Text “${el.text || '…'}”`
+  return `${el.type === 'gauge' ? 'Gauge' : 'Bar'} — ${METRIC_LABELS[el.metric]}`
 }
 
 export function DisplayEditor() {
@@ -154,18 +154,18 @@ export function DisplayEditor() {
               </button>
             ))}
             {config.elements.length === 0 && (
-              <p className="text-xs text-gray-600 italic">Aucun élément</p>
+              <p className="text-xs text-gray-600 italic">No elements</p>
             )}
           </div>
           <div className="flex gap-1 mt-2">
-            <button onClick={() => addElement('gauge')} className="flex-1 text-xs py-1.5 rounded-lg bg-[#111118] border border-[#1e1e2e] text-gray-300 hover:border-[#00d4ff66]">+ Jauge</button>
-            <button onClick={() => addElement('bar')} className="flex-1 text-xs py-1.5 rounded-lg bg-[#111118] border border-[#1e1e2e] text-gray-300 hover:border-[#00d4ff66]">+ Barre</button>
-            <button onClick={() => addElement('text')} className="flex-1 text-xs py-1.5 rounded-lg bg-[#111118] border border-[#1e1e2e] text-gray-300 hover:border-[#00d4ff66]">+ Texte</button>
+            <button onClick={() => addElement('gauge')} className="flex-1 text-xs py-1.5 rounded-lg bg-[#111118] border border-[#1e1e2e] text-gray-300 hover:border-[#00d4ff66]">+ Gauge</button>
+            <button onClick={() => addElement('bar')} className="flex-1 text-xs py-1.5 rounded-lg bg-[#111118] border border-[#1e1e2e] text-gray-300 hover:border-[#00d4ff66]">+ Bar</button>
+            <button onClick={() => addElement('text')} className="flex-1 text-xs py-1.5 rounded-lg bg-[#111118] border border-[#1e1e2e] text-gray-300 hover:border-[#00d4ff66]">+ Text</button>
           </div>
         </div>
 
         <div>
-          <p className="text-xs text-gray-500 mb-2 uppercase tracking-widest">Fond</p>
+          <p className="text-xs text-gray-500 mb-2 uppercase tracking-widest">Background</p>
           <div className="flex items-center gap-2">
             <input
               type="color"
