@@ -36,6 +36,8 @@ struct Hardware {
     poll_shutdown: Option<oneshot::Sender<()>>,
     /// Receiver fed by the polling task with raw interrupt-in packets.
     intr_rx: mpsc::UnboundedReceiver<Vec<u8>>,
+    /// Bucket currently shown on the LCD, so a full memory can be reclaimed without blanking it.
+    active_bucket: Option<u8>,
 }
 
 // ============================================================================
@@ -194,6 +196,7 @@ impl KrakenDriver {
             intr_out,
             poll_shutdown: Some(shutdown_tx),
             intr_rx,
+            active_bucket: None,
         };
         drain_rx(&mut hw.intr_rx, Duration::from_millis(300)).await;
         *hw_guard = Some(hw);
@@ -320,7 +323,7 @@ impl KrakenDriver {
 
     pub fn start_temp_mode<F>(&self, render_fn: F) -> Result<()>
     where
-        F: Fn(&DisplayConfig, Temperatures) -> Result<Vec<u8>> + Send + Sync + 'static,
+        F: Fn(&DisplayConfig, Temperatures) -> Result<crate::render::LcdFrame> + Send + Sync + 'static,
     {
         self.stop_current_mode();
         let my_gen = self.0.temp_gen.load(Ordering::Acquire);
@@ -337,10 +340,11 @@ impl KrakenDriver {
     async fn temp_loop(
         &self,
         my_gen: u32,
-        render_fn: Arc<dyn Fn(&DisplayConfig, Temperatures) -> Result<Vec<u8>> + Send + Sync>,
+        render_fn: Arc<dyn Fn(&DisplayConfig, Temperatures) -> Result<crate::render::LcdFrame> + Send + Sync>,
     ) {
         let mut last_visual_key: Option<String> = None;
         let mut last_push_at: Option<Instant> = None;
+        let mut gif_cost = Duration::from_secs(1);
 
         loop {
             if !self.0.temp_loop_active.load(Ordering::Acquire)
@@ -362,26 +366,42 @@ impl KrakenDriver {
             let cfg_snapshot = self.0.display_config.read().clone();
             let decimals = cfg_snapshot.decimals.min(2);
             let config_version = self.0.config_version.load(Ordering::Acquire);
-            let key = visual_key(temps, decimals, config_version);
+            let key = visual_key(&cfg_snapshot, temps, decimals, config_version);
 
-            let cooldown_ok = last_push_at
-                .map(|t| {
-                    Instant::now().duration_since(t)
-                        >= Duration::from_millis(self.0.temp_min_push_ms.load(Ordering::Relaxed))
-                })
-                .unwrap_or(true);
+            let min_push = Duration::from_millis(self.0.temp_min_push_ms.load(Ordering::Relaxed));
+            // A GIF background is re-encoded per update; keep that under ~20% of a core (1-5s between updates).
+            let min_push = if crate::render::has_gif_background(&cfg_snapshot) {
+                min_push.max((gif_cost * 5).clamp(Duration::from_secs(1), Duration::from_secs(5)))
+            } else {
+                min_push
+            };
+            let cooldown_ok = last_push_at.map_or(true, |t| t.elapsed() >= min_push);
 
             if Some(&key) != last_visual_key.as_ref() && cooldown_ok {
-                match render_fn(&cfg_snapshot, temps) {
-                    Ok(rgba) => {
-                        let rgba = crate::image_io::rotate_for_lcd(rgba);
-                        let bulk_info = bulk_info_rgba(rgba.len() as u32);
+                let render_start = Instant::now();
+                let rendered = render_fn(&cfg_snapshot, temps);
+                if matches!(rendered, Ok(crate::render::LcdFrame::Gif(_))) {
+                    gif_cost = render_start.elapsed();
+                }
+                match rendered {
+                    Ok(frame) => {
+                        let (data, bulk_info) = match frame {
+                            crate::render::LcdFrame::Rgba(rgba) => {
+                                let rgba = crate::image_io::rotate_for_lcd(rgba);
+                                let info = bulk_info_rgba(rgba.len() as u32);
+                                (rgba, info)
+                            }
+                            crate::render::LcdFrame::Gif(gif) => {
+                                let info = bulk_info_gif(gif.len() as u32);
+                                (gif, info)
+                            }
+                        };
                         let mut g = self.0.hw.lock().await;
                         if let Some(hw) = g.as_mut() {
                             if self.0.temp_loop_active.load(Ordering::Acquire)
                                 && self.0.temp_gen.load(Ordering::Acquire) == my_gen
                             {
-                                if let Err(e) = send_data_native(hw, &rgba, &bulk_info).await {
+                                if let Err(e) = send_data_native(hw, &data, &bulk_info).await {
                                     log::warn!("temp push failed: {e}");
                                 } else {
                                     last_visual_key = Some(key);
@@ -417,25 +437,42 @@ impl KrakenDriver {
 // ============================================================================
 // Visual key — stable representation of what the LCD will display
 // ============================================================================
-fn visual_key(t: Temperatures, decimals: u8, config_version: u32) -> String {
-    let d = decimals.min(2) as usize;
-    format!(
-        "{}|{:.*}|{:.*}|{:.*}|{}|{:.*}|{:.*}|{:.*}",
-        config_version,
-        d,
-        t.cpu,
-        d,
-        t.gpu,
-        d,
-        t.liquid,
-        t.pump_rpm.round() as i64,
-        d,
-        t.sensor1,
-        d,
-        t.sensor2,
-        d,
-        t.sensor3
-    )
+/// Only what is actually drawn, so off-screen readings (e.g. pump RPM) don't trigger a bucket switch.
+fn visual_key(cfg: &DisplayConfig, t: Temperatures, decimals: u8, config_version: u32) -> String {
+    use crate::types::{format_metric, resolve_text, DisplayElement};
+    let mut key = config_version.to_string();
+    for el in &cfg.elements {
+        key.push('|');
+        match el {
+            DisplayElement::Gauge(g) => key.push_str(&format_metric(g.metric.value_from(t), decimals)),
+            DisplayElement::Bar(b) => key.push_str(&format_metric(b.metric.value_from(t), decimals)),
+            // A graph scrolls with every new history sample, not only when its number changes.
+            DisplayElement::Graph(g) => {
+                key.push_str(&format_metric(g.metric.value_from(t), decimals));
+                key.push(':');
+                key.push_str(&crate::sensors::history::version().to_string());
+            }
+            DisplayElement::Text(x) => key.push_str(&resolve_text(&x.text, t, decimals)),
+        }
+    }
+    key
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{TextAlign, TextElement};
+
+    #[test]
+    fn visual_key_ignores_offscreen_readings() {
+        let text = TextElement { id: "t".into(), x: 0.0, y: 0.0, text: "{liquid}°".into(), color: "#fff".into(), size: 10.0, align: TextAlign::Center };
+        let cfg = DisplayConfig { elements: vec![crate::types::DisplayElement::Text(text)], ..DisplayConfig::default() };
+        let base = Temperatures { liquid: 31.2, pump_rpm: 1500.0, ..Temperatures::default() };
+        let key = |t| visual_key(&cfg, t, 0, 1);
+        assert_eq!(key(base), key(Temperatures { pump_rpm: 1620.0, cpu: 70.0, ..base }));
+        assert_eq!(key(base), key(Temperatures { liquid: 31.4, ..base }), "same at 0 decimals");
+        assert_ne!(key(base), key(Temperatures { liquid: 32.0, ..base }));
+    }
 }
 
 // ============================================================================
@@ -717,12 +754,19 @@ async fn send_data_native(
     // 4. Memory offset.
     let mem_start = match get_bucket_memory_offset(&buckets, bucket_index, data_size) {
         Some(off) => off,
-        None => {
-            log::warn!("Mémoire saturée — reset complet de tous les buckets");
-            delete_all_buckets(hw).await;
-            bucket_index = 0;
-            [0, 0]
-        }
+        None => match reclaim_around_active(hw, &buckets, data_size).await {
+            Some((idx, off)) => {
+                bucket_index = idx;
+                off
+            }
+            None => {
+                log::warn!("LCD memory full: resetting all buckets (screen blanks briefly)");
+                delete_all_buckets(hw).await;
+                hw.active_bucket = None;
+                bucket_index = 0;
+                [0, 0]
+            }
+        },
     };
     log::debug!("Native: bucket={} memStart={:?} dataSize={} dsz={:?}", bucket_index, mem_start, data_size, dsz);
 
@@ -746,9 +790,34 @@ async fn send_data_native(
 
     // 9. Activate.
     let act_ok = switch_bucket(hw, bucket_index, 0x04).await;
+    if act_ok {
+        hw.active_bucket = Some(bucket_index);
+    }
     log::debug!("Activate bucket {}: ok={}", bucket_index, act_ok);
     log::debug!("send_data_native done (bucket {})", bucket_index);
     Ok(())
+}
+
+/// Memory is full: delete every bucket except the one on screen and place the new
+/// frame beside it. Returns (bucket index, memory offset), or None if it still won't fit.
+async fn reclaim_around_active(hw: &mut Hardware, buckets: &HashMap<u8, Vec<u8>>, data_size: u32) -> Option<(u8, [u8; 2])> {
+    let active = hw.active_bucket?;
+    let info = buckets.get(&active).filter(|b| b.len() >= 21)?;
+    let start = u16::from_le_bytes([info[17], info[18]]) as u32;
+    let end = start + u16::from_le_bytes([info[19], info[20]]) as u32;
+    let offset = if data_size <= start {
+        0
+    } else if end + data_size < LCD_TOTAL_MEMORY {
+        end
+    } else {
+        return None;
+    };
+    log::info!("LCD memory full: clearing inactive buckets, keeping bucket {active} on screen");
+    for b in (0..16u8).filter(|&b| b != active) {
+        delete_bucket(hw, b).await;
+    }
+    let idx = if active == 0 { 1 } else { 0 };
+    Some((idx, [(offset & 0xff) as u8, ((offset >> 8) & 0xff) as u8]))
 }
 
 // ============================================================================

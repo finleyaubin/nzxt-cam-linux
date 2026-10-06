@@ -3,6 +3,7 @@
 pub mod all;
 pub mod cpu;
 pub mod gpu;
+pub mod history;
 
 use crate::types::Temperatures;
 use once_cell::sync::Lazy;
@@ -57,5 +58,7 @@ pub fn read_temperatures() -> Temperatures {
     let gpu = gpu::read_gpu_temp(get_gpu_source().as_deref()).unwrap_or(0.0);
     let (liquid, pump_rpm) = DEVICE_TEMPS.read()
         .unwrap_or((0.0, 0.0));
-    Temperatures { cpu, gpu, liquid, pump_rpm, sensor1: read_slot(0), sensor2: read_slot(1), sensor3: read_slot(2) }
+    let temps = Temperatures { cpu, gpu, liquid, pump_rpm, sensors: std::array::from_fn(read_slot) };
+    history::record(temps);
+    temps
 }

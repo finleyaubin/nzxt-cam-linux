@@ -9,37 +9,37 @@
 
 export const LCD_SIZE = 640
 
-export type MetricId = 'cpu' | 'gpu' | 'liquid' | 'pump' | 'sensor1' | 'sensor2' | 'sensor3'
-export type ElementType = 'gauge' | 'bar' | 'text'
+export type BaseMetric = 'cpu' | 'gpu' | 'liquid' | 'pump'
+/** `sensorN` is the user's N-th sensor slot (Settings > Sensors), N = 1..MAX_SENSORS. */
+export type MetricId = BaseMetric | `sensor${number}`
+export type ElementType = 'gauge' | 'bar' | 'graph' | 'text'
 
-export const METRIC_LABELS: Record<MetricId, string> = {
+export const MAX_SENSORS = 8
+
+export const BASE_METRIC_LABELS: Record<BaseMetric, string> = {
   cpu: 'CPU',
   gpu: 'GPU',
   liquid: 'Liquid',
   pump: 'Pump',
-  sensor1: 'Sensor 1',
-  sensor2: 'Sensor 2',
-  sensor3: 'Sensor 3'
 }
 
-export const METRIC_UNIT: Record<MetricId, string> = {
-  cpu: '°',
-  gpu: '°',
-  liquid: '°',
-  pump: '',
-  sensor1: '°',
-  sensor2: '°',
-  sensor3: '°'
-}
-
-export const METRIC_MAX: Record<MetricId, number> = {
+const BASE_METRIC_MAX: Record<BaseMetric, number> = {
   cpu: 100,
   gpu: 100,
   liquid: 60,
   pump: 3000,
-  sensor1: 100,
-  sensor2: 100,
-  sensor3: 100
+}
+
+export const isBaseMetric = (id: MetricId): id is BaseMetric => id in BASE_METRIC_LABELS
+export const sensorMetric = (slot: number): MetricId => `sensor${slot + 1}`
+
+export const metricLabel = (id: MetricId) => isBaseMetric(id) ? BASE_METRIC_LABELS[id] : `Sensor ${id.slice(6)}`
+export const metricMax = (id: MetricId) => isBaseMetric(id) ? BASE_METRIC_MAX[id] : 100
+
+/** Sensible full-scale value for a sensor unit; % is always 100. */
+export function defaultMaxForUnit(unit: string): number {
+  const byUnit: Record<string, number> = { '°': 100, '%': 100, rpm: 3000, W: 300, MHz: 6000, MiB: 16384, GB: 64, V: 12, A: 10 }
+  return byUnit[unit] ?? 100
 }
 
 interface ElementBase {
@@ -65,6 +65,8 @@ export interface GaugeElement extends ElementBase {
   showLabel: boolean
   label: string
   valueSize: number
+  cornerRadius?: number
+  gradientTo?: string | null
 }
 
 export interface BarElement extends ElementBase {
@@ -81,6 +83,32 @@ export interface BarElement extends ElementBase {
   showLabel: boolean
   label: string
   valueSize: number
+  segments?: number
+  cornerRadius?: number | null
+  gradientTo?: string | null
+}
+
+/** Line chart of a metric's recent history, newest value at the right edge. (x, y) is the centre. */
+export interface GraphElement extends ElementBase {
+  type: 'graph'
+  metric: MetricId
+  width: number
+  height: number
+  max: number
+  color: string
+  /** Panel behind the plot. */
+  trackColor: string
+  warnColor: string
+  warnAt: number
+  showValue: boolean
+  showLabel: boolean
+  label: string
+  valueSize: number
+  /** Seconds of history across the full width. */
+  windowSecs: number
+  fill: boolean
+  lineWidth: number
+  cornerRadius: number
 }
 
 export interface TextElement extends ElementBase {
@@ -91,13 +119,15 @@ export interface TextElement extends ElementBase {
   align: 'left' | 'center' | 'right'
 }
 
-export type DisplayElement = GaugeElement | BarElement | TextElement
+export type DisplayElement = GaugeElement | BarElement | GraphElement | TextElement
 
 export interface DisplayConfig {
   background: string
   elements: DisplayElement[]
   variant?: string
   decimals?: number
+  backgroundImage?: string | null
+  backgroundDim?: number
 }
 
 export function formatMetric(v: number, decimals = 0): string {
@@ -113,7 +143,10 @@ export function genId(prefix = 'el'): string {
   return `${prefix}_${Date.now().toString(36)}_${idCounter}`
 }
 
+export const defaultWarnAt = (metric: MetricId, max: number) => metric === 'liquid' ? 50 : max * 0.85
+
 export function makeGauge(metric: MetricId, overrides: Partial<GaugeElement> = {}): GaugeElement {
+  const max = overrides.max ?? metricMax(metric)
   return {
     id: genId('gauge'),
     type: 'gauge',
@@ -122,22 +155,23 @@ export function makeGauge(metric: MetricId, overrides: Partial<GaugeElement> = {
     y: LCD_SIZE / 2,
     radius: 250,
     thickness: 38,
-    max: METRIC_MAX[metric],
+    max,
     color: '#00e696',
     trackColor: '#1c1c2a',
     startAngle: 0,
     sweep: 360,
     warnColor: '#ff4444',
-    warnAt: metric === 'liquid' ? 50 : 85,
+    warnAt: defaultWarnAt(metric, max),
     showValue: true,
     showLabel: true,
-    label: METRIC_LABELS[metric],
+    label: metricLabel(metric),
     valueSize: 64,
     ...overrides
   }
 }
 
 export function makeBar(metric: MetricId, overrides: Partial<BarElement> = {}): BarElement {
+  const max = overrides.max ?? metricMax(metric)
   return {
     id: genId('bar'),
     type: 'bar',
@@ -146,15 +180,42 @@ export function makeBar(metric: MetricId, overrides: Partial<BarElement> = {}): 
     y: LCD_SIZE / 2,
     width: 380,
     height: 34,
-    max: METRIC_MAX[metric],
+    max,
     color: '#00e696',
     trackColor: '#1c1c2a',
     warnColor: '#ff4444',
-    warnAt: metric === 'liquid' ? 50 : 85,
+    warnAt: defaultWarnAt(metric, max),
     showValue: true,
     showLabel: true,
-    label: METRIC_LABELS[metric],
+    label: metricLabel(metric),
     valueSize: 32,
+    ...overrides
+  }
+}
+
+export function makeGraph(metric: MetricId, overrides: Partial<GraphElement> = {}): GraphElement {
+  const max = overrides.max ?? metricMax(metric)
+  return {
+    id: genId('graph'),
+    type: 'graph',
+    metric,
+    x: LCD_SIZE / 2,
+    y: LCD_SIZE / 2,
+    width: 400,
+    height: 180,
+    max,
+    color: '#00e696',
+    trackColor: '#14141f',
+    warnColor: '#ff4444',
+    warnAt: defaultWarnAt(metric, max),
+    showValue: true,
+    showLabel: true,
+    label: metricLabel(metric),
+    valueSize: 22,
+    windowSecs: 60,
+    fill: true,
+    lineWidth: 3,
+    cornerRadius: 16,
     ...overrides
   }
 }
@@ -265,19 +326,40 @@ export function defaultConfig(): DisplayConfig {
   return PRESETS[0].build()
 }
 
-export function resolveText(
-  text: string,
-  temps: { cpu: number; gpu: number; liquid: number; pumpRpm: number },
-  decimals = 0
-): string {
-  const pick = (k: string): number => {
-    if (k === 'cpu') return temps.cpu
-    if (k === 'gpu') return temps.gpu
-    if (k === 'liquid') return temps.liquid
-    return temps.pumpRpm
-  }
-  return text.replace(/\{(cpu|gpu|liquid|pump)(?::(\d))?\}/gi, (_m, key, d) => {
-    const dec = d != null ? parseInt(d, 10) : decimals
-    return formatMetric(pick(key.toLowerCase()), dec)
+/** Variables a text element can use; `sensorN` tokens are added per bound sensor by the editor. */
+export const TEXT_VARIABLES: { token: string; label: string }[] = [
+  { token: '{cpu}', label: 'CPU temperature' },
+  { token: '{gpu}', label: 'GPU temperature' },
+  { token: '{liquid}', label: 'Liquid temperature' },
+  { token: '{pump}', label: 'Pump speed' },
+  { token: '{time}', label: 'Time' },
+  { token: '{date}', label: 'Date' },
+]
+
+export interface Readings {
+  cpu: number
+  gpu: number
+  liquid: number
+  pumpRpm: number
+  sensors?: number[]
+}
+
+/** Mirrors the backend's `resolve_text`: `{metric}`, `{metric:decimals}`, `{time}`, `{date}`; unknown tokens stay as typed. */
+export function resolveText(text: string, temps: Readings, decimals = 0): string {
+  return text.replace(/\{([a-z0-9]+)(?::(\d))?\}/gi, (whole, key: string, d?: string) => {
+    const k = key.toLowerCase()
+    const now = new Date()
+    if (d == null && k === 'time') return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+    if (d == null && k === 'date') return now.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }).replace(',', '')
+    let v: number | undefined
+    if (k === 'cpu') v = temps.cpu
+    else if (k === 'gpu') v = temps.gpu
+    else if (k === 'liquid') v = temps.liquid
+    else if (k === 'pump') v = temps.pumpRpm
+    else {
+      const n = /^sensor([1-8])$/.exec(k)
+      if (n) v = temps.sensors?.[Number(n[1]) - 1] ?? 0
+    }
+    return v === undefined ? whole : formatMetric(v, d != null ? parseInt(d, 10) : decimals)
   })
 }

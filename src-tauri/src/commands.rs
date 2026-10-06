@@ -239,7 +239,7 @@ pub struct PreviewResult {
 }
 
 #[tauri::command]
-pub fn render_display_preview(config_in: DisplayConfig) -> PreviewResult {
+pub async fn render_display_preview(config_in: DisplayConfig) -> PreviewResult {
     let temps = sensors::read_temperatures();
     match render::render_preview_png(&config_in, temps) {
         Ok(png) => {
@@ -265,6 +265,31 @@ pub fn render_display_preview(config_in: DisplayConfig) -> PreviewResult {
 #[tauri::command]
 pub fn list_gpu_sources() -> Vec<GpuSource> {
     sensors::gpu::list_gpu_sources(true)
+}
+
+/// Store a GIF downloaded from GIPHY (raw IPC body, id in the `x-giphy-id` header) and return its path.
+#[tauri::command]
+pub fn save_giphy_gif(request: tauri::ipc::Request<'_>) -> Result<String, String> {
+    let id = request.headers().get("x-giphy-id").and_then(|v| v.to_str().ok()).unwrap_or_default();
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("Expected raw GIF bytes".into());
+    };
+    if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Err("Invalid GIPHY id".into());
+    }
+    if !bytes.starts_with(b"GIF8") {
+        return Err("Download is not a GIF".into());
+    }
+    let dir = dirs::cache_dir().ok_or("Cache dir not found")?.join("nzxtcam-archlinux-rust/giphy");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let path = dir.join(format!("{id}.gif"));
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub fn start_visible() -> bool {
+    crate::cli::START_VISIBLE.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 #[tauri::command]
@@ -295,7 +320,7 @@ pub fn save_settings(
 
     // Apply runtime changes.
     sensors::set_gpu_source(merged.gpu_source.clone());
-    sensors::set_sensor_sources(merged.cpu_source.clone(), merged.sensor_sources.clone());
+    sensors::set_sensor_sources(merged.cpu_source.clone(), merged.sensor_sources());
     state
         .driver
         .set_temp_timing(merged.lcd_poll_ms, merged.lcd_min_push_ms);

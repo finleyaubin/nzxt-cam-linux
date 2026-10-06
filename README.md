@@ -5,7 +5,7 @@ Native alternative to NZXT CAM (Windows only) — built with Tauri 2 + Rust.
 
 ## Features
 
-- LCD display: image, GIF, real-time temperatures
+- LCD display: one screen you lay out freely. Add rings, gauges, bars, history graphs and text (with `{cpu}`, `{gpu}`, `{liquid}`, `{pump}`, `{sensorN}`, `{time}`, `{date}` variables), drag and resize them on a live preview, and use a photo or GIF as the background
 - RGB Ring AIO + fan control
 - CPU / GPU / liquid / pump monitoring
 - Saveable profiles with Hyprland autostart support

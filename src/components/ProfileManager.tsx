@@ -115,18 +115,12 @@ export function ProfileManager() {
   const handleSave = async (name: string, includeLcd: boolean, includeRing: boolean) => {
     setShowSaveDialog(false)
     setError(null)
-    let lcd: ProfileLcd = { type: 'none' }
-    if (includeLcd) {
-      switch (state.currentMode) {
-        case 'image':       if (state.currentImagePath) lcd = { type: 'image', path: state.currentImagePath }; break
-        case 'gif':         if (state.currentGifPath)   lcd = { type: 'gif',   path: state.currentGifPath   }; break
-        case 'temperatures': lcd = { type: 'temperatures' }; break
-      }
-    }
+    // The LCD is a single scene (elements plus optional photo/GIF background), saved whole.
+    const lcd: ProfileLcd = includeLcd ? { type: 'temperatures' } : { type: 'none' }
     const profile: Profile = {
       name, lcd,
       ring: includeRing ? undefined : undefined,
-      displayConfig: includeLcd && state.currentMode === 'temperatures' ? state.displayConfig ?? undefined : undefined,
+      displayConfig: includeLcd ? state.displayConfig ?? undefined : undefined,
     }
     const result = await api.saveProfile(profile)
     if (!result.success) setError(result.error ?? 'Unknown error')

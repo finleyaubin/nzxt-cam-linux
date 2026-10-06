@@ -1,5 +1,6 @@
 //! Library crate — exposes `run()` which is called from main.rs.
 
+pub mod cli;
 pub mod commands;
 pub mod config;
 pub mod fans;
@@ -24,11 +25,25 @@ pub fn run() {
     let log_level = if cfg!(debug_assertions) { "debug" } else { "info" };
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
 
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let cli = match cli::parse(&args, &std::env::current_dir().unwrap_or_default()) {
+        Ok(cli) => cli,
+        Err(e) => {
+            eprintln!("{e}\n\n{}", cli::USAGE);
+            std::process::exit(2);
+        }
+    };
+    if cli.help {
+        println!("{}", cli::USAGE);
+        return;
+    }
+    cli::START_VISIBLE.store(cli.starts_visible(), std::sync::atomic::Ordering::Relaxed);
+
     // Build the driver and seed runtime state from persisted config.
     let driver = usb::KrakenDriver::new();
     let settings = config::load_settings();
     sensors::set_gpu_source(settings.gpu_source.clone());
-    sensors::set_sensor_sources(settings.cpu_source.clone(), settings.sensor_sources.clone());
+    sensors::set_sensor_sources(settings.cpu_source.clone(), settings.sensor_sources());
     driver.set_temp_timing(settings.lcd_poll_ms, settings.lcd_min_push_ms);
 
     // Apply persisted display config (or leave the default).
@@ -50,6 +65,8 @@ pub fn run() {
     };
 
     tauri::Builder::default()
+        // Must be the first plugin: later launches forward their args here and exit.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| cli::forward(app, argv, cwd)))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
@@ -117,29 +134,17 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Check for --profile <name> CLI argument.
-            let startup_profile = std::env::args()
-                .skip_while(|a| a != "--profile")
-                .nth(1);
-
+            if !cli.starts_visible() {
+                driver.set_window_visible(false);
+            }
             let driver_for_connect = driver.clone();
-            let driver_for_profile = driver.clone();
+            let handle = app.handle().clone();
+            let actions = cli.actions.clone();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = driver_for_connect.connect().await {
-                    log::info!("Connexion auto au démarrage: {}", e);
-                    return;
+                    log::info!("Auto-connect at startup failed: {}", e);
                 }
-                if let Some(pname) = startup_profile {
-                    log::info!("Application du profil au démarrage: {pname}");
-                    match profile::load_profile(&pname) {
-                        Ok(p) => {
-                            if let Err(e) = apply_profile_to_driver(&p, &driver_for_profile).await {
-                                log::warn!("Profil démarrage échoué: {e}");
-                            }
-                        }
-                        Err(e) => log::warn!("Profil introuvable: {e}"),
-                    }
-                }
+                cli::run_actions(handle, actions).await;
             });
             Ok(())
         })
@@ -159,6 +164,8 @@ pub fn run() {
             commands::render_display_preview,
             commands::list_gpu_sources,
             commands::list_sensors,
+            commands::start_visible,
+            commands::save_giphy_gif,
             commands::get_settings,
             commands::save_settings,
             commands::open_external,

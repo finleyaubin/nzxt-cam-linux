@@ -58,7 +58,11 @@ pub fn load() -> ConfigFile {
 pub fn save(cfg: &ConfigFile) -> anyhow::Result<()> {
     ensure_config_dir();
     let json = serde_json::to_string_pretty(cfg)?;
-    fs::write(config_file_path(), json)?;
+    let path = config_file_path();
+    fs::write(&path, json)?;
+    // Holds API keys, so keep it private to the user.
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
     Ok(())
 }
 

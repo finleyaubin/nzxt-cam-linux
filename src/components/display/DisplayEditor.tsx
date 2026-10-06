@@ -1,214 +1,344 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../../context/AppContext'
-import {
-  DisplayConfig, DisplayElement, PRESETS, makeGauge, makeBar, makeText, METRIC_LABELS
-} from '@shared/display'
+import { Card } from '../ui/Card'
 import { api } from '../../lib/api'
-import { PreviewCanvas } from './PreviewCanvas'
+import {
+  DisplayConfig, DisplayElement, PRESETS, Preset, genId, makeBar, makeGauge, makeGraph, makeText, resolveText,
+} from '@shared/display'
+import { SceneCanvas } from './SceneCanvas'
 import { ElementInspector } from './ElementInspector'
+import { ScenePanel } from './ScenePanel'
+import { Pill, SectionTitle } from './fields'
+import { MetricOption, optionFor, useMetricOptions } from './metrics'
+import { clampToScreen } from './geometry'
+import {
+  ArrowCounterClockwise, ChartLine, Circle, Gauge as GaugeIcon, Hash, Play, Rectangle, TextT, X,
+} from '@phosphor-icons/react'
 
-function elementTitle(el: DisplayElement): string {
-  if (el.type === 'text') return `Text “${el.text || '…'}”`
-  return `${el.type === 'gauge' ? 'Gauge' : 'Bar'} - ${METRIC_LABELS[el.metric]}`
+type AddKind = 'ring' | 'gauge' | 'bar' | 'graph' | 'value' | 'label'
+
+const ADD_BUTTONS: { kind: AddKind; label: string; Icon: typeof Circle }[] = [
+  { kind: 'ring',  label: 'Ring',  Icon: Circle },
+  { kind: 'gauge', label: 'Gauge', Icon: GaugeIcon },
+  { kind: 'bar',   label: 'Bar',   Icon: Rectangle },
+  { kind: 'graph', label: 'Graph', Icon: ChartLine },
+  { kind: 'value', label: 'Value', Icon: Hash },
+  { kind: 'label', label: 'Label', Icon: TextT },
+]
+
+const MAX_UNDO = 100
+const COALESCE_MS = 900
+
+const unitSuffix = (unit: string) => (unit === '°' || unit === '%' || unit === '' ? unit : ` ${unit}`)
+
+function iconFor(el: DisplayElement) {
+  if (el.type === 'gauge') return el.sweep >= 360 ? Circle : GaugeIcon
+  return { bar: Rectangle, graph: ChartLine, text: TextT }[el.type]
+}
+
+/** Renders the scene on the backend (same engine as the LCD), coalescing requests while the user drags. */
+function useScenePreview(config: DisplayConfig | null): string | null {
+  const [url, setUrl] = useState<string | null>(null)
+  const latest = useRef(config)
+  const running = useRef(false)
+  const again = useRef(false)
+  latest.current = config
+
+  const pump = useCallback(async () => {
+    if (running.current) { again.current = true; return }
+    running.current = true
+    try {
+      do {
+        again.current = false
+        if (!latest.current) break
+        const res = await api.renderDisplayPreview(latest.current)
+        if (res.success && res.dataUrl) setUrl(res.dataUrl)
+      } while (again.current)
+    } finally {
+      running.current = false
+    }
+  }, [])
+
+  const key = JSON.stringify(config)
+  useEffect(() => { pump() }, [key, pump])
+  // Live readings and graphs move on their own.
+  useEffect(() => {
+    const t = setInterval(pump, 2000)
+    return () => clearInterval(t)
+  }, [pump])
+  return url
 }
 
 export function DisplayEditor() {
   const { state, dispatch } = useApp()
-  const config = state.displayConfig
-  const selectedId = state.selectedElementId
+  const { accent, deviceStatus, temperatures, displayConfig: config, selectedElementId: selectedId, displayApplied } = state
+  const metrics = useMetricOptions()
+  const [status, setStatus] = useState<'idle' | 'applying' | 'done' | 'error'>('idle')
+  const [error, setError] = useState<string | null>(null)
+  const previewUrl = useScenePreview(config)
 
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [applyState, setApplyState] = useState<'idle' | 'applying' | 'done' | 'error'>('idle')
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const configRef = useRef(config)
+  configRef.current = config
+  const undoStack = useRef<DisplayConfig[]>([])
+  const lastEdit = useRef<{ key: string; at: number } | null>(null)
 
-  // Initial load of the persisted scene.
+  // Load the persisted scene once. An empty one gets a starter layout the user can change.
   useEffect(() => {
     if (config) return
-    api.getDisplayConfig().then((cfg: DisplayConfig) => {
-      // If the backend has an empty default scene, fall back to a frontend preset.
-      const initial = cfg && cfg.elements && cfg.elements.length > 0 ? cfg : PRESETS[0].build()
-      dispatch({ type: 'SET_DISPLAY_CONFIG', payload: initial })
+    api.getDisplayConfig().then(cfg => {
+      const saved = cfg?.elements?.length > 0
+      dispatch({ type: 'SET_DISPLAY_CONFIG', payload: saved ? cfg : { ...cfg, ...PRESETS[0].build() } })
+      dispatch({ type: 'SET_DISPLAY_APPLIED', payload: saved ? JSON.stringify(cfg) : null })
     })
   }, [config, dispatch])
 
-  // Debounced preview render.
-  useEffect(() => {
-    if (!config) return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(async () => {
-      const res = await api.renderDisplayPreview(config)
-      if (res?.success && res.dataUrl) setPreviewUrl(res.dataUrl)
-    }, 90)
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
-  }, [config])
+  const setConfig = useCallback((next: DisplayConfig) => {
+    dispatch({ type: 'SET_DISPLAY_CONFIG', payload: next })
+    setStatus('idle')
+  }, [dispatch])
 
-  const setConfig = useCallback(
-    (next: DisplayConfig) => {
-      dispatch({ type: 'SET_DISPLAY_CONFIG', payload: next })
-      setApplyState('idle')
-    },
-    [dispatch]
-  )
+  const select = useCallback((id: string | null) => dispatch({ type: 'SELECT_ELEMENT', payload: id }), [dispatch])
 
-  const updateElement = useCallback(
-    (id: string, patch: Partial<DisplayElement>) => {
-      if (!config) return
-      setConfig({
-        ...config,
-        elements: config.elements.map((el) => (el.id === id ? ({ ...el, ...patch } as DisplayElement) : el))
-      })
-    },
-    [config, setConfig]
-  )
+  /** Remember the current scene for Ctrl+Z. Edits sharing a `key` in quick succession count as one step. */
+  const snapshot = useCallback((key?: string) => {
+    const now = Date.now()
+    const last = lastEdit.current
+    lastEdit.current = key ? { key, at: now } : null
+    if (key && last?.key === key && now - last.at < COALESCE_MS) return
+    if (configRef.current) undoStack.current = [...undoStack.current.slice(-(MAX_UNDO - 1)), configRef.current]
+  }, [])
 
-  const moveElement = useCallback(
-    (id: string, x: number, y: number) => updateElement(id, { x, y } as Partial<DisplayElement>),
-    [updateElement]
-  )
+  const undo = useCallback(() => {
+    const prev = undoStack.current.pop()
+    lastEdit.current = null
+    if (prev) setConfig(prev)
+  }, [setConfig])
 
-  const addElement = useCallback(
-    (type: DisplayElement['type']) => {
-      if (!config) return
-      const el =
-        type === 'gauge' ? makeGauge('cpu', { radius: 200, thickness: 32 })
-        : type === 'bar' ? makeBar('cpu')
-        : makeText('{cpu}°', { size: 64 })
-      setConfig({ ...config, elements: [...config.elements, el] })
-      dispatch({ type: 'SELECT_ELEMENT', payload: el.id })
-    },
-    [config, setConfig, dispatch]
-  )
+  const mapElement = useCallback((id: string, patch: Partial<DisplayElement>) => {
+    const cfg = configRef.current
+    if (!cfg) return
+    setConfig({ ...cfg, elements: cfg.elements.map(el => (el.id === id ? ({ ...el, ...patch } as DisplayElement) : el)) })
+  }, [setConfig])
 
-  const removeElement = useCallback(
-    (id: string) => {
-      if (!config) return
-      setConfig({ ...config, elements: config.elements.filter((el) => el.id !== id) })
-      dispatch({ type: 'SELECT_ELEMENT', payload: null })
-    },
-    [config, setConfig, dispatch]
-  )
+  /** Inspector edit: undoable, bursts on the same field collapse into one step. */
+  const editElement = useCallback((id: string, patch: Partial<DisplayElement>) => {
+    snapshot(`${id}:${Object.keys(patch).join(',')}`)
+    mapElement(id, patch)
+  }, [snapshot, mapElement])
 
-  const applyPreset = useCallback(
-    (presetId: string) => {
-      const preset = PRESETS.find((p) => p.id === presetId)
-      if (!preset) return
-      setConfig(preset.build())
-      dispatch({ type: 'SELECT_ELEMENT', payload: null })
-    },
-    [setConfig, dispatch]
+  const editScene = useCallback((patch: Partial<DisplayConfig>) => {
+    if (!configRef.current) return
+    snapshot(`scene:${Object.keys(patch).join(',')}`)
+    setConfig({ ...configRef.current, ...patch })
+  }, [snapshot, setConfig])
+
+  const addElement = useCallback((kind: AddKind) => {
+    const cfg = configRef.current
+    if (!cfg) return
+    const used = new Set(cfg.elements.flatMap(el => (el.type === 'text' ? [] : [el.metric])))
+    const m: MetricOption = metrics.find(o => !used.has(o.id)) ?? metrics[0]
+    const shift = (cfg.elements.length % 6) * 18
+    const at = { x: 320 + shift, y: 320 + shift }
+    const reading = { max: m.max, label: m.label }
+    const el: DisplayElement =
+      kind === 'ring'  ? makeGauge(m.id, { ...at, ...reading, radius: 130, thickness: 26, valueSize: 44 })
+      : kind === 'gauge' ? makeGauge(m.id, { ...at, ...reading, radius: 130, thickness: 26, valueSize: 44, startAngle: -135, sweep: 270 })
+      : kind === 'bar'   ? makeBar(m.id, { ...at, ...reading, width: 320, height: 26, valueSize: 24 })
+      : kind === 'graph' ? makeGraph(m.id, { ...at, ...reading, width: 360, height: 170 })
+      : kind === 'value' ? makeText(`{${m.id}}${unitSuffix(m.unit)}`, { ...at, size: 64 })
+      : makeText('Label', { ...at, size: 32, color: '#9aa0b4' })
+    snapshot()
+    setConfig({ ...cfg, elements: [...cfg.elements, el] })
+    select(el.id)
+  }, [metrics, snapshot, setConfig, select])
+
+  const removeElement = useCallback((id: string) => {
+    const cfg = configRef.current
+    if (!cfg) return
+    snapshot()
+    setConfig({ ...cfg, elements: cfg.elements.filter(el => el.id !== id) })
+    select(null)
+  }, [snapshot, setConfig, select])
+
+  const duplicateElement = useCallback((id: string) => {
+    const cfg = configRef.current
+    const src = cfg?.elements.find(el => el.id === id)
+    if (!cfg || !src) return
+    const copy = { ...src, id: genId(src.type), x: clampToScreen(src.x + 20), y: clampToScreen(src.y + 20) } as DisplayElement
+    snapshot()
+    setConfig({ ...cfg, elements: [...cfg.elements, copy] })
+    select(copy.id)
+  }, [snapshot, setConfig, select])
+
+  const reorderElement = useCallback((id: string, direction: 1 | -1) => {
+    const cfg = configRef.current
+    if (!cfg) return
+    const from = cfg.elements.findIndex(el => el.id === id)
+    const to = from + direction
+    if (from < 0 || to < 0 || to >= cfg.elements.length) return
+    const elements = [...cfg.elements]
+    ;[elements[from], elements[to]] = [elements[to], elements[from]]
+    snapshot()
+    setConfig({ ...cfg, elements })
+  }, [snapshot, setConfig])
+
+  const applyTemplate = useCallback((preset: Preset) => {
+    const cfg = configRef.current
+    if (!cfg) return
+    const built = preset.build()
+    snapshot()
+    // Keep the user's background photo and settings; a template only supplies the layout and colours.
+    setConfig({ ...cfg, elements: built.elements, background: cfg.backgroundImage ? cfg.background : built.background })
+    select(null)
+  }, [snapshot, setConfig, select])
+
+  const resolve = useCallback(
+    (text: string) => resolveText(text, temperatures, config?.decimals ?? 0),
+    [temperatures, config?.decimals],
   )
 
   const applyToLcd = useCallback(async () => {
-    if (!config) return
-    setApplyState('applying')
+    const cfg = configRef.current
+    if (!cfg) return
+    setStatus('applying')
+    setError(null)
     try {
-      await api.saveDisplayConfig(config)
-      const res = await api.startTempMode()
-      setApplyState(res?.success === false ? 'error' : 'done')
-    } catch {
-      setApplyState('error')
+      await api.saveDisplayConfig(cfg)
+      dispatch({ type: 'SET_DISPLAY_APPLIED', payload: JSON.stringify(cfg) })
+      if (deviceStatus.connected) {
+        const res = await api.startTempMode()
+        if (res?.success === false) throw new Error(res.error ?? 'The LCD did not accept the image')
+      }
+      setStatus('done')
+      setTimeout(() => setStatus(s => (s === 'done' ? 'idle' : s)), 3000)
+    } catch (e) {
+      setStatus('error')
+      setError(e instanceof Error ? e.message : String(e))
     }
-  }, [config])
+  }, [dispatch, deviceStatus.connected])
 
-  if (!config) {
-    return <div className="text-gray-400 text-sm p-8">Loading editor…</div>
-  }
+  // Keyboard: Delete, arrows to nudge, Ctrl+Z / Ctrl+D.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
+      const cfg = configRef.current
+      const el = cfg?.elements.find(x => x.id === selectedId)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); return }
+      if (!el) return
+      if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeElement(el.id) }
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateElement(el.id) }
+      else if (e.key.startsWith('Arrow')) {
+        e.preventDefault()
+        const step = e.shiftKey ? 10 : 1
+        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
+        const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0
+        editElement(el.id, { x: clampToScreen(el.x + dx), y: clampToScreen(el.y + dy) })
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedId, undo, removeElement, duplicateElement, editElement])
 
-  const selected = config.elements.find((el) => el.id === selectedId) ?? null
+  // Fit the canvas to the space available.
+  const areaRef = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState(460)
+  useLayoutEffect(() => {
+    const node = areaRef.current
+    if (!node) return
+    const measure = () => setSize(Math.max(260, Math.min(620, Math.floor(Math.min(node.clientWidth, node.clientHeight)) - 32)))
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(node)
+    return () => ro.disconnect()
+  }, [config === null])
+
+  const titles = useMemo(() => {
+    const names = new Map<string, string>()
+    config?.elements.forEach(el => {
+      if (el.type === 'text') names.set(el.id, `“${resolve(el.text) || '…'}”`)
+      else names.set(el.id, `${el.type === 'gauge' ? (el.sweep >= 360 ? 'Ring' : 'Gauge') : el.type === 'bar' ? 'Bar' : 'Graph'} · ${el.label || optionFor(metrics, el.metric).label}`)
+    })
+    return names
+  }, [config, metrics, resolve])
+
+  if (!config) return <div style={{ color: '#7f7f7f', fontSize: 13, padding: 24 }}>Loading editor…</div>
+
+  const selected = config.elements.find(el => el.id === selectedId) ?? null
+  const dirty = JSON.stringify(config) !== displayApplied
+  const connected = deviceStatus.connected
 
   return (
-    <div className="flex gap-5 h-full overflow-hidden">
-      <div className="w-56 shrink-0 flex flex-col gap-4 overflow-y-auto pr-1">
-        <div>
-          <p className="text-xs text-gray-400 mb-2 uppercase tracking-widest">Templates</p>
-          <div className="grid grid-cols-2 gap-2">
-            {PRESETS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => applyPreset(p.id)}
-                title={p.description}
-                className="text-xs px-2 py-2 rounded-lg bg-[#111111] border border-[#1e1e1e] text-gray-300 hover:border-[#00d4ff66] hover:text-white transition-all text-left"
-              >
-                {p.name}
-              </button>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 330px', gap: 16, height: '100%', minHeight: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, minHeight: 0 }}>
+        <div ref={areaRef} style={{ flex: 1, minHeight: 0, display: 'grid', placeItems: 'center' }}>
+          <SceneCanvas
+            config={config} previewUrl={previewUrl} selectedId={selectedId} size={size} accent={accent} resolve={resolve}
+            onSelect={select} onGestureStart={() => snapshot()} onPatch={mapElement}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <button onClick={applyToLcd} disabled={status === 'applying'} style={{
+            display: 'flex', alignItems: 'center', gap: 7, background: accent, border: 'none', color: '#fff',
+            borderRadius: 8, padding: '8px 18px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            boxShadow: dirty ? `0 0 16px ${accent}55` : 'none', transition: 'all 140ms',
+          }}>
+            <Play size={12} weight="fill"/>
+            {status === 'applying' ? 'Sending…' : status === 'done' ? (connected ? 'Applied' : 'Saved') : connected ? 'Apply to LCD' : 'Save layout'}
+          </button>
+          <Pill accent={accent} onClick={undo} title="Undo (Ctrl+Z)"><ArrowCounterClockwise size={13}/>Undo</Pill>
+          {status === 'error' && <span style={{ fontSize: 11, color: '#ff4757' }}>{error}</span>}
+          {status !== 'error' && dirty && <span style={{ fontSize: 11, color: '#ffb347' }}>Not applied yet</span>}
+          {!connected && <span style={{ fontSize: 11, color: '#7f7f7f' }}>Cooler not connected, layout is saved for when it is</span>}
+        </div>
+      </div>
+
+      <Card style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }} accent={accent} glow={false}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <SectionTitle>Add to screen</SectionTitle>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {ADD_BUTTONS.map(({ kind, label, Icon }) => (
+              <Pill key={kind} accent={accent} onClick={() => addElement(kind)}><Icon size={13}/>{label}</Pill>
             ))}
           </div>
         </div>
 
-        <div>
-          <p className="text-xs text-gray-400 mb-2 uppercase tracking-widest">Elements</p>
-          <div className="flex flex-col gap-1">
-            {config.elements.map((el) => (
-              <button
-                key={el.id}
-                onClick={() => dispatch({ type: 'SELECT_ELEMENT', payload: el.id })}
-                className={`text-xs px-2 py-1.5 rounded-lg text-left truncate transition-all ${
-                  el.id === selectedId
-                    ? 'bg-[#00d4ff] text-[#0a0a0a] font-medium'
-                    : 'bg-[#111111] border border-[#1e1e1e] text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                {elementTitle(el)}
-              </button>
-            ))}
-            {config.elements.length === 0 && (
-              <p className="text-xs text-gray-400 italic">No elements</p>
-            )}
-          </div>
-          <div className="flex gap-1 mt-2">
-            <button onClick={() => addElement('gauge')} className="flex-1 text-xs py-1.5 rounded-lg bg-[#111111] border border-[#1e1e1e] text-gray-300 hover:border-[#00d4ff66]">+ Gauge</button>
-            <button onClick={() => addElement('bar')} className="flex-1 text-xs py-1.5 rounded-lg bg-[#111111] border border-[#1e1e1e] text-gray-300 hover:border-[#00d4ff66]">+ Bar</button>
-            <button onClick={() => addElement('text')} className="flex-1 text-xs py-1.5 rounded-lg bg-[#111111] border border-[#1e1e1e] text-gray-300 hover:border-[#00d4ff66]">+ Text</button>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <SectionTitle>Layers (top first)</SectionTitle>
+          {config.elements.length === 0 && <div style={{ fontSize: 11, color: '#7f7f7f' }}>Nothing on the screen yet. Add something above.</div>}
+          {[...config.elements].reverse().map(el => {
+            const Icon = iconFor(el)
+            const active = el.id === selectedId
+            return (
+              <div key={el.id} onClick={() => select(el.id)} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '5px 6px 5px 9px', borderRadius: 8, cursor: 'pointer',
+                background: active ? `${accent}18` : '#0f0f0f', border: `1px solid ${active ? `${accent}55` : '#1a1a1a'}`,
+                color: active ? accent : '#b8b8b8', fontSize: 12,
+              }}>
+                <Icon size={13} style={{ flexShrink: 0 }}/>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titles.get(el.id)}</span>
+                <button onClick={e => { e.stopPropagation(); removeElement(el.id) }} aria-label="Remove" title="Remove" style={{
+                  display: 'flex', padding: 4, border: 'none', background: 'transparent', color: '#7f7f7f', cursor: 'pointer',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#ff4757' }}
+                onMouseLeave={e => { e.currentTarget.style.color = '#7f7f7f' }}><X size={12}/></button>
+              </div>
+            )
+          })}
         </div>
 
-        <div>
-          <p className="text-xs text-gray-400 mb-2 uppercase tracking-widest">Background</p>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={config.background}
-              onChange={(e) => setConfig({ ...config, background: e.target.value })}
-              className="w-9 h-7 bg-transparent border border-[#2a2a3e] rounded cursor-pointer"
+        <div style={{ height: 1, background: '#1c1c1c' }}/>
+
+        {selected
+          ? <ElementInspector
+              key={selected.id} element={selected} metrics={metrics} accent={accent}
+              onChange={patch => editElement(selected.id, patch)}
+              onRemove={() => removeElement(selected.id)}
+              onDuplicate={() => duplicateElement(selected.id)}
+              onReorder={dir => reorderElement(selected.id, dir)}
             />
-            <span className="text-xs text-gray-400 font-mono">{config.background}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 min-w-0">
-        <PreviewCanvas
-          config={config}
-          previewUrl={previewUrl}
-          selectedId={selectedId}
-          onSelect={(id) => dispatch({ type: 'SELECT_ELEMENT', payload: id })}
-          onMoveElement={moveElement}
-        />
-        <button
-          onClick={applyToLcd}
-          disabled={applyState === 'applying' || !state.deviceStatus.lcdControllable}
-          className="px-6 py-2.5 rounded-xl bg-[#00d4ff] text-[#0a0a0a] font-semibold text-sm hover:bg-[#33ddff] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(0,212,255,0.3)]"
-        >
-          {applyState === 'applying' ? 'Sending…'
-            : applyState === 'done' ? 'Applied to LCD'
-            : applyState === 'error' ? 'Error - retry'
-            : 'Apply to LCD'}
-        </button>
-        {!state.deviceStatus.lcdControllable && (
-          <p className="text-xs text-amber-500">LCD not available - check device connection</p>
-        )}
-      </div>
-
-      <div className="w-80 shrink-0 overflow-y-auto bg-[#0d0d14] border border-[#1e1e1e] rounded-xl p-4">
-        <p className="text-xs text-gray-400 mb-3 uppercase tracking-widest">Properties</p>
-        <ElementInspector
-          element={selected}
-          onChange={(patch) => selectedId && updateElement(selectedId, patch)}
-          onRemove={() => selectedId && removeElement(selectedId)}
-        />
-      </div>
+          : <ScenePanel config={config} accent={accent} onChange={editScene} onTemplate={applyTemplate}/>}
+      </Card>
     </div>
   )
 }
