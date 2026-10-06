@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext'
 import { Card } from '../ui/Card'
 import { api } from '../../lib/api'
 import {
-  DisplayConfig, DisplayElement, genId, makeBar, makeGauge, makeGraph, makeText, resolveText,
+  DisplayConfig, DisplayElement, IMAGE_EXTENSIONS, genId, makeBar, makeGauge, makeGraph, makeImage, makeText, resolveText,
 } from '@shared/display'
 import { SceneCanvas } from './SceneCanvas'
 import { ElementInspector } from './ElementInspector'
@@ -13,10 +13,10 @@ import { Pill, SectionTitle } from './fields'
 import { MetricOption, optionFor, useMetricOptions } from './metrics'
 import { AlignMode, alignPatches, clampToScreen } from './geometry'
 import {
-  ArrowCounterClockwise, ArrowClockwise, ArrowUUpLeft, ChartLine, Circle, Gauge as GaugeIcon, Hash, Play, Rectangle, TextT, X,
+  ArrowCounterClockwise, ArrowClockwise, ArrowUUpLeft, ChartLine, Circle, Gauge as GaugeIcon, Hash, ImageSquare, Play, Rectangle, TextT, X,
 } from '@phosphor-icons/react'
 
-type AddKind = 'ring' | 'gauge' | 'bar' | 'graph' | 'value' | 'label'
+type AddKind = 'ring' | 'gauge' | 'bar' | 'graph' | 'value' | 'label' | 'image'
 
 const ADD_BUTTONS: { kind: AddKind; label: string; Icon: typeof Circle }[] = [
   { kind: 'ring',  label: 'Ring',  Icon: Circle },
@@ -25,6 +25,7 @@ const ADD_BUTTONS: { kind: AddKind; label: string; Icon: typeof Circle }[] = [
   { kind: 'graph', label: 'Graph', Icon: ChartLine },
   { kind: 'value', label: 'Value', Icon: Hash },
   { kind: 'label', label: 'Label', Icon: TextT },
+  { kind: 'image', label: 'Image', Icon: ImageSquare },
 ]
 
 const ALIGN_BUTTONS: { mode: AlignMode; label: string }[] = [
@@ -45,7 +46,7 @@ const unitSuffix = (unit: string) => (unit === '°' || unit === '%' || unit === 
 
 function iconFor(el: DisplayElement) {
   if (el.type === 'gauge') return el.sweep >= 360 ? Circle : GaugeIcon
-  return { bar: Rectangle, graph: ChartLine, text: TextT }[el.type]
+  return { bar: Rectangle, graph: ChartLine, text: TextT, image: ImageSquare }[el.type]
 }
 
 /** Renders the scene on the backend (same engine as the LCD), coalescing requests while the user drags. */
@@ -196,10 +197,10 @@ export function DisplayEditor() {
     setConfig({ ...configRef.current, ...patch })
   }, [snapshot, setConfig])
 
-  const addElement = useCallback((kind: AddKind, where?: { x: number; y: number }) => {
+  const addElement = useCallback((kind: Exclude<AddKind, 'image'>, where?: { x: number; y: number }) => {
     const cfg = configRef.current
     if (!cfg) return
-    const used = new Set(cfg.elements.flatMap(el => (el.type === 'text' ? [] : [el.metric])))
+    const used = new Set(cfg.elements.flatMap(el => (el.type === 'text' || el.type === 'image' ? [] : [el.metric])))
     const m: MetricOption = metrics.find(o => !used.has(o.id)) ?? metrics[0]
     const shift = (cfg.elements.length % 6) * 18
     const at = where ?? { x: 320 + shift, y: 320 + shift }
@@ -215,6 +216,19 @@ export function DisplayEditor() {
     setConfig({ ...cfg, elements: [...cfg.elements, el] })
     select(el.id)
   }, [metrics, snapshot, setConfig, select])
+
+  const addImage = useCallback(async (where?: { x: number; y: number }) => {
+    const path = await api.openFileDialog([{ name: 'Image', extensions: IMAGE_EXTENSIONS }])
+    const cfg = configRef.current
+    if (!path || !cfg) return
+    const shift = (cfg.elements.length % 6) * 18
+    const el = makeImage(path, where ?? { x: 320 + shift, y: 320 + shift })
+    snapshot()
+    setConfig({ ...cfg, elements: [...cfg.elements, el] })
+    select(el.id)
+  }, [snapshot, setConfig, select])
+
+  const addKind = (kind: AddKind, where?: { x: number; y: number }) => (kind === 'image' ? addImage(where) : addElement(kind, where))
 
   const removeElement = useCallback((id: string, ids: string[] = [id]) => {
     const cfg = configRef.current
@@ -370,6 +384,7 @@ export function DisplayEditor() {
     const names = new Map<string, string>()
     config?.elements.forEach(el => {
       if (el.type === 'text') names.set(el.id, `“${resolve(el.text) || '…'}”`)
+      else if (el.type === 'image') names.set(el.id, `Image · ${el.path.split(/[\\/]/).pop() || 'none'}`)
       else names.set(el.id, `${el.type === 'gauge' ? (el.sweep >= 360 ? 'Ring' : 'Gauge') : el.type === 'bar' ? 'Bar' : 'Graph'} · ${el.label || optionFor(metrics, el.metric).label}`)
     })
     return names
@@ -396,7 +411,7 @@ export function DisplayEditor() {
             onSelect={select} onGestureStart={() => snapshot()} onPatch={mapElement} onPatchMany={mapMany}
             onTextEdit={(id, text) => editElement(id, { text })}
             onContextMenu={(id, x, y) => setMenu({ id, x, y })}
-            onDropKind={(kind, x, y) => addElement(kind as AddKind, { x, y })}
+            onDropKind={(kind, x, y) => addKind(kind as AddKind, { x, y })}
           />
         </div>
         {selectedIds.length >= 2 && (
@@ -433,7 +448,7 @@ export function DisplayEditor() {
             {ADD_BUTTONS.map(({ kind, label, Icon }) => (
               <div key={kind} draggable title="Click to add, or drag onto the screen"
                 onDragStart={e => { e.dataTransfer.setData('text/plain', `kraken-add:${kind}`); e.dataTransfer.effectAllowed = 'copy' }}>
-                <Pill accent={accent} onClick={() => addElement(kind)}><Icon size={13}/>{label}</Pill>
+                <Pill accent={accent} onClick={() => addKind(kind)}><Icon size={13}/>{label}</Pill>
               </div>
             ))}
           </div>

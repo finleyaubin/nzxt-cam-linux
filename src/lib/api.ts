@@ -139,6 +139,7 @@ export const api = {
   saveGiphyGif: (id: string, bytes: ArrayBuffer) =>
     invoke<string>('save_giphy_gif', new Uint8Array(bytes), { headers: { 'x-giphy-id': id } }),
   listSensors: () => invoke<Sensor[]>('list_sensors'),
+  systemLogo: () => invoke<string | null>('system_logo'),
   listGpuSources: () => invoke<GpuSource[]>('list_gpu_sources'),
   getSettings: () => invoke<AppSettings>('get_settings'),
   saveSettings: async (patch: Partial<AppSettings>): Promise<SaveSettingsResult> => {

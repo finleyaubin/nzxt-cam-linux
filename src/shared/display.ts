@@ -12,7 +12,9 @@ export const LCD_SIZE = 640
 export type BaseMetric = 'cpu' | 'gpu' | 'liquid' | 'pump'
 /** `sensorN` is the user's N-th sensor slot (Settings > Sensors), N = 1..MAX_SENSORS. */
 export type MetricId = BaseMetric | `sensor${number}`
-export type ElementType = 'gauge' | 'bar' | 'graph' | 'text'
+export type ElementType = 'gauge' | 'bar' | 'graph' | 'text' | 'image'
+
+export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif']
 
 export const MAX_SENSORS = 8
 
@@ -123,7 +125,17 @@ export interface TextElement extends ElementBase {
   align: 'left' | 'center' | 'right'
 }
 
-export type DisplayElement = GaugeElement | BarElement | GraphElement | TextElement
+/** A picture (logo, icon, photo) scaled to fit its box. */
+export interface ImageElement extends ElementBase {
+  type: 'image'
+  width: number
+  height: number
+  path: string
+  /** 0-100 */
+  opacity: number
+}
+
+export type DisplayElement = GaugeElement | BarElement | GraphElement | TextElement | ImageElement
 
 export interface DisplayConfig {
   background: string
@@ -220,6 +232,20 @@ export function makeGraph(metric: MetricId, overrides: Partial<GraphElement> = {
     fill: true,
     lineWidth: 3,
     cornerRadius: 16,
+    ...overrides
+  }
+}
+
+export function makeImage(path: string, overrides: Partial<ImageElement> = {}): ImageElement {
+  return {
+    id: genId('image'),
+    type: 'image',
+    x: LCD_SIZE / 2,
+    y: LCD_SIZE / 2,
+    width: 160,
+    height: 160,
+    path,
+    opacity: 100,
     ...overrides
   }
 }

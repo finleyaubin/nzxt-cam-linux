@@ -1,9 +1,10 @@
-import { BarElement, DisplayElement, GaugeElement, GraphElement, MAX_SENSORS, MetricId, TEXT_VARIABLES, TextElement, defaultWarnAt } from '@shared/display'
-import { CheckField, ColorField, NumField, Pill, SectionTitle, SelectField, TextField } from './fields'
+import { BarElement, DisplayElement, GaugeElement, GraphElement, IMAGE_EXTENSIONS, ImageElement, MAX_SENSORS, MetricId, TEXT_VARIABLES, TextElement, defaultWarnAt } from '@shared/display'
+import { CheckField, ColorField, Field, NumField, Pill, SectionTitle, SelectField, TextField } from './fields'
+import { api } from '../../lib/api'
 import { MetricOption, optionFor } from './metrics'
 import { InsertSensor, SensorPicker } from './SensorPicker'
-import { useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Copy, Trash } from '@phosphor-icons/react'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, Copy, ImageSquare, Trash } from '@phosphor-icons/react'
 
 interface Props {
   element: DisplayElement
@@ -17,7 +18,7 @@ interface Props {
 
 type Reading = GaugeElement | BarElement | GraphElement
 
-const TYPE_NAME: Record<DisplayElement['type'], string> = { gauge: 'Gauge', bar: 'Bar', graph: 'Graph', text: 'Text' }
+const TYPE_NAME: Record<DisplayElement['type'], string> = { gauge: 'Gauge', bar: 'Bar', graph: 'Graph', text: 'Text', image: 'Image' }
 
 function IconButton({ title, onClick, danger, children }: { title: string; onClick: () => void; danger?: boolean; children: React.ReactNode }) {
   return (
@@ -109,6 +110,30 @@ function TextFields({ el, metrics, accent, set }: { el: TextElement; metrics: Me
   )
 }
 
+function ImageFields({ el, accent, set }: { el: ImageElement; accent: string; set: (p: Partial<ImageElement>) => void }) {
+  const [logo, setLogo] = useState<string | null>(null)
+  useEffect(() => { api.systemLogo().then(setLogo).catch(() => {}) }, [])
+  const choose = async () => {
+    const path = await api.openFileDialog([{ name: 'Image', extensions: IMAGE_EXTENSIONS }])
+    if (path) set({ path })
+  }
+  return (
+    <>
+      <Field label="File">
+        <Pill accent={accent} onClick={choose}>
+          <ImageSquare size={13}/>
+          <span style={{ maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.path.split(/[\\/]/).pop() || 'Choose…'}</span>
+        </Pill>
+        {logo && <Pill accent={accent} active={el.path === logo} onClick={() => set({ path: logo })} title="Your distribution's logo">Distro logo</Pill>}
+      </Field>
+      <NumField label="Opacity" value={el.opacity} min={0} max={100} unit="%" accent={accent} onChange={opacity => set({ opacity: Math.round(opacity) })}/>
+      <div style={{ fontSize: 10, color: '#7f7f7f', paddingLeft: 102, lineHeight: 1.5 }}>
+        Scaled to fit the box, keeping its proportions. A PNG with a transparent background works best for logos.
+      </div>
+    </>
+  )
+}
+
 const ADV_KEY = 'inspector.advancedOpen'
 
 /** Collapsible section for rarely-changed options; open state is remembered. */
@@ -144,7 +169,7 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
         <IconButton title="Delete (Del)" onClick={onRemove} danger><Trash size={13}/></IconButton>
       </div>
 
-      {element.type !== 'text' && (
+      {element.type !== 'text' && element.type !== 'image' && (
         <>
           <SectionTitle>Reading</SectionTitle>
           <ReadingFields el={element} metrics={metrics} accent={accent} set={set}/>
@@ -174,6 +199,12 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
           <NumField label="Text size" value={element.valueSize} min={8} max={160} unit="px" accent={accent} onChange={valueSize => set({ valueSize })}/>
         </>
       )}
+      {element.type === 'image' && (
+        <>
+          <NumField label="Width" value={element.width} min={16} max={640} unit="px" accent={accent} onChange={width => set({ width })}/>
+          <NumField label="Height" value={element.height} min={16} max={640} unit="px" accent={accent} onChange={height => set({ height })}/>
+        </>
+      )}
       {element.type === 'bar' && (
         <>
           <NumField label="Width" value={element.width} min={40} max={640} unit="px" accent={accent} onChange={width => set({ width })}/>
@@ -189,7 +220,7 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
         </>
       )}
 
-      {element.type !== 'text' && (
+      {element.type !== 'text' && element.type !== 'image' && (
         <Advanced>
           {element.type === 'gauge' && (
             <>
@@ -215,6 +246,12 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
           <ScaleFields el={element} accent={accent} set={set}/>
           {element.type !== 'graph' && <GradientField el={element} accent={accent} set={set}/>}
         </Advanced>
+      )}
+      {element.type === 'image' && (
+        <>
+          <SectionTitle>Picture</SectionTitle>
+          <ImageFields el={element} accent={accent} set={set}/>
+        </>
       )}
       {element.type === 'text' && (
         <>
