@@ -1,12 +1,13 @@
 import { useRef, useState, useCallback } from 'react'
 import { DisplayConfig, DisplayElement, LCD_SIZE } from '@shared/display'
+import { Gauge, Rectangle, TextT } from '@phosphor-icons/react'
 
 const CANVAS_PX = 440
 
-const TYPE_ICON: Record<DisplayElement['type'], string> = {
-  gauge: '◠',
-  bar: '▭',
-  text: 'T'
+const TYPE_ICON: Record<DisplayElement['type'], React.ReactNode> = {
+  gauge: <Gauge size={12} weight="regular" />,
+  bar: <Rectangle size={12} weight="regular" />,
+  text: <TextT size={12} weight="regular" />
 }
 
 interface Props {
@@ -65,7 +66,7 @@ export function PreviewCanvas({ config, previewUrl, selectedId, onSelect, onMove
             className="absolute inset-0 w-full h-full pointer-events-none"
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-gray-600 text-sm">
+          <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-sm">
             Rendering…
           </div>
         )}
@@ -81,7 +82,7 @@ export function PreviewCanvas({ config, previewUrl, selectedId, onSelect, onMove
               title={`${el.type}`}
               className={`absolute flex items-center justify-center rounded-full text-[10px] font-bold cursor-grab active:cursor-grabbing transition-shadow ${
                 selected
-                  ? 'bg-[#00d4ff] text-[#0a0a0f] ring-2 ring-white shadow-[0_0_12px_rgba(0,212,255,0.8)] z-20'
+                  ? 'bg-[#00d4ff] text-[#0a0a0a] ring-2 ring-white shadow-[0_0_12px_rgba(0,212,255,0.8)] z-20'
                   : 'bg-black/60 text-[#00d4ff] ring-1 ring-[#00d4ff66] z-10 hover:bg-black/80'
               }`}
               style={{
@@ -96,7 +97,7 @@ export function PreviewCanvas({ config, previewUrl, selectedId, onSelect, onMove
           )
         })}
       </div>
-      <p className="text-xs text-gray-600">Drag handles to reposition • {LCD_SIZE}×{LCD_SIZE}</p>
+      <p className="text-xs text-gray-400">Drag handles to reposition • {LCD_SIZE}×{LCD_SIZE}</p>
     </div>
   )
 }

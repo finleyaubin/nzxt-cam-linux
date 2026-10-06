@@ -26,7 +26,7 @@ function NumberField({
         min={min} max={max} step={step}
         value={Math.round(value)}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-14 bg-[#0a0a0f] border border-[#2a2a3e] rounded px-1 py-0.5 text-xs text-gray-200"
+        className="w-14 bg-[#0a0a0a] border border-[#2a2a3e] rounded px-1 py-0.5 text-xs text-gray-200"
       />
     </Row>
   )
@@ -42,7 +42,7 @@ function TextField({
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-44 bg-[#0a0a0f] border border-[#2a2a3e] rounded px-2 py-1 text-xs text-gray-200"
+        className="w-44 bg-[#0a0a0a] border border-[#2a2a3e] rounded px-2 py-1 text-xs text-gray-200"
       />
     </Row>
   )
@@ -59,7 +59,7 @@ function ColorField({
         onChange={(e) => onChange(e.target.value)}
         className="w-9 h-7 bg-transparent border border-[#2a2a3e] rounded cursor-pointer"
       />
-      <span className="text-xs text-gray-500 font-mono w-16">{value}</span>
+      <span className="text-xs text-gray-400 font-mono w-16">{value}</span>
     </Row>
   )
 }
@@ -72,7 +72,7 @@ function SelectField<T extends string>({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
-        className="w-44 bg-[#0a0a0f] border border-[#2a2a3e] rounded px-2 py-1 text-xs text-gray-200"
+        className="w-44 bg-[#0a0a0a] border border-[#2a2a3e] rounded px-2 py-1 text-xs text-gray-200"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>{o.label}</option>
@@ -115,7 +115,7 @@ interface Props {
 export function ElementInspector({ element, onChange, onRemove }: Props) {
   if (!element) {
     return (
-      <div className="text-sm text-gray-600 p-4 text-center border border-dashed border-[#2a2a3e] rounded-xl">
+      <div className="text-sm text-gray-400 p-4 text-center border border-dashed border-[#2a2a3e] rounded-xl">
         Select an element (handle on preview or list on the left) to edit it.
       </div>
     )
@@ -182,8 +182,8 @@ export function ElementInspector({ element, onChange, onRemove }: Props) {
             onChange={(v) => c({ text: v })}
             placeholder="Text or {cpu} {gpu} {liquid}"
           />
-          <p className="text-[10px] text-gray-600 -mt-1">
-            Tokens : <span className="font-mono text-gray-500">{'{cpu} {gpu} {liquid} {pump}'}</span>
+          <p className="text-[10px] text-gray-400 -mt-1">
+            Tokens : <span className="font-mono text-gray-400">{'{cpu} {gpu} {liquid} {pump}'}</span>
           </p>
           <NumberField label="Size" value={element.size} onChange={(v) => c({ size: v })} min={8} max={128} />
           <SelectField

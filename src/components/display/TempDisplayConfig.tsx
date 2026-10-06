@@ -8,6 +8,7 @@ import {
   DisplayConfig, MetricId, METRIC_LABELS, PRESETS,
   makeGauge, makeBar, makeText,
 } from '@shared/display'
+import { Play } from '@phosphor-icons/react'
 
 type VizType = 'gauge' | 'ring' | 'linear' | 'none'
 
@@ -67,7 +68,7 @@ function buildConfig(s: Settings): DisplayConfig {
 function Swatch({ color, selected, onClick }: { color: string; selected: boolean; onClick: () => void }) {
   return (
     <div onClick={onClick} style={{
-      width: 22, height: 22, borderRadius: 5, background: color, cursor: 'pointer',
+      width: 22, height: 22, borderRadius: 8, background: color, cursor: 'pointer',
       border: `2px solid ${selected ? '#fff' : 'transparent'}`,
       boxShadow: selected ? `0 0 7px ${color}99` : 'none',
       outline: color === '#ffffff' ? '1px solid #2a2a2a' : 'none',
@@ -154,16 +155,16 @@ export function TempDisplayConfig() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {/* Presets row */}
         <Card style={{ padding: '12px 16px' }} accent={accent}>
-          <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10, fontWeight: 700 }}>Templates</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10, fontWeight: 700 }}>Templates</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {PRESETS.map(p => (
               <button key={p.id} onClick={() => loadPreset(p.id)} title={p.description} style={{
-                padding: '4px 11px', borderRadius: 6, border: '1px solid #252525',
-                background: '#111', color: '#666', fontSize: 11, fontWeight: 600,
+                padding: '4px 11px', borderRadius: 8, border: '1px solid #252525',
+                background: '#111', color: '#9a9a9a', fontSize: 11, fontWeight: 600,
                 cursor: 'pointer', transition: 'all 130ms',
               }}
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = `${accent}55`; (e.currentTarget as HTMLButtonElement).style.color = accent }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#252525'; (e.currentTarget as HTMLButtonElement).style.color = '#666' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#252525'; (e.currentTarget as HTMLButtonElement).style.color = '#9a9a9a' }}
               >{p.name}</button>
             ))}
           </div>
@@ -171,7 +172,7 @@ export function TempDisplayConfig() {
 
         {/* Display settings */}
         <Card style={{ padding: '16px 18px' }} accent={accent}>
-          <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14, fontWeight: 700 }}>Display Settings</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 14, fontWeight: 700 }}>Display Settings</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
             <CheckRow label="Background" checked={true} onChange={() => {}}>
@@ -189,7 +190,7 @@ export function TempDisplayConfig() {
               <div style={{ paddingLeft: 100, display: 'flex', gap: 5, opacity: s.showViz ? 1 : 0.35, pointerEvents: s.showViz ? 'auto' : 'none', transition: 'opacity 150ms' }}>
                 {VIZ_TYPES.map(({ id, label }) => (
                   <button key={id} onClick={() => upd('vizType', id)} style={{
-                    padding: '3px 10px', borderRadius: 5, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: 'pointer',
                     border: `1px solid ${s.vizType === id ? `${accent}55` : '#252525'}`,
                     background: s.vizType === id ? `${accent}18` : '#111',
                     color: s.vizType === id ? accent : '#555',
@@ -232,8 +233,8 @@ export function TempDisplayConfig() {
               boxShadow: connected ? `0 0 14px ${accent}44` : 'none',
               transition: 'all 140ms',
             }}>
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              {status === 'applying' ? 'Sending…' : status === 'done' ? 'Applied ✓' : status === 'error' ? 'Error' : 'Apply to LCD'}
+              <Play size={12} weight="fill" />
+              {status === 'applying' ? 'Sending…' : status === 'done' ? 'Applied' : status === 'error' ? 'Error' : 'Apply to LCD'}
             </button>
 
             <div style={{ display: 'flex', gap: 4 }}>
@@ -257,18 +258,18 @@ export function TempDisplayConfig() {
       {/* Right: preview + info */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <Card style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }} accent={accent}>
-          <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>Live Preview</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700 }}>Live Preview</div>
           <LCDCircularPreview
             temp={metricTemp}
             source={METRIC_LABELS[s.primaryMetric]}
             showLogo={s.showLogo}
             color={s.showViz ? s.vizColor : undefined}
           />
-          <div style={{ fontSize: 10, color: '#2e2e2e', fontFamily: 'JetBrains Mono, monospace' }}>480 × 480 px · 60 fps</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', fontFamily: 'JetBrains Mono, monospace' }}>480 × 480 px · 60 fps</div>
         </Card>
 
         <Card style={{ padding: 16 }} accent={accent}>
-          <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>Display Info</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>Display Info</div>
           {[
             { label: 'Resolution', val: '480 × 480' },
             { label: 'Interface',  val: 'USB Direct' },
@@ -276,7 +277,7 @@ export function TempDisplayConfig() {
             { label: 'Rotation',   val: `${rotation}°` },
           ].map(({ label, val }) => (
             <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 9, alignItems: 'center' }}>
-              <span style={{ fontSize: 11, color: '#484848' }}>{label}</span>
+              <span style={{ fontSize: 11, color: '#7f7f7f' }}>{label}</span>
               <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#888' }}>{val}</span>
             </div>
           ))}

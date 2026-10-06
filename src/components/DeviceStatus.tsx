@@ -1,11 +1,12 @@
 import { useApp } from '../context/AppContext'
+import { Warning } from '@phosphor-icons/react'
 
 export function DeviceStatus() {
   const { state } = useApp()
   const { deviceStatus } = state
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 bg-[#111118] border border-[#1e1e2e] rounded-xl text-sm">
+    <div className="flex items-center gap-2 px-4 py-2 bg-[#111111] border border-[#1e1e1e] rounded-xl text-sm">
       <span
         className={`w-2 h-2 rounded-full ${deviceStatus.connected ? 'bg-[#00d4ff] shadow-[0_0_8px_#00d4ff]' : 'bg-red-500'}`}
       />
@@ -15,7 +16,7 @@ export function DeviceStatus() {
       </span>
       {deviceStatus.error && (
         <span className="text-yellow-500 text-xs ml-2 truncate max-w-[200px]" title={deviceStatus.error}>
-          ⚠ {deviceStatus.error}
+          <Warning size={12} weight="regular" className="inline align-[-2px] mr-1" />{deviceStatus.error}
         </span>
       )}
     </div>

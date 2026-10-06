@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext'
 import { CircularGauge } from '../ui/CircularGauge'
 import { Card } from '../ui/Card'
 import { Dropdown } from '../ui/Dropdown'
+import { GraphicsCard } from '@phosphor-icons/react'
 
 interface FanPoint { t: number; s: number }
 
@@ -31,7 +32,7 @@ function ProfileButton({ label, color, active, onClick }: { id: string; label: s
       padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700,
       background: active ? color + '18' : 'transparent',
       border: `1px solid ${active ? color + '66' : '#232323'}`,
-      color: active ? color : '#484848',
+      color: active ? color : '#7f7f7f',
       transition: 'all 160ms', letterSpacing: '0.2px',
     }}>{label}</button>
   )
@@ -96,10 +97,10 @@ function FanCurveChart({ chartId, tempSource, currentTemp, accent, pts, onChange
 
   return (
     <div style={{ userSelect: 'none' }}>
-      <div style={{ fontSize: 11, color: '#555', marginBottom: 6, fontFamily: 'JetBrains Mono, monospace' }}>
+      <div style={{ fontSize: 11, color: '#9a9a9a', marginBottom: 6, fontFamily: 'JetBrains Mono, monospace' }}>
         {tempSource}: <span style={{ color: curveColor }}>{Math.round(currentTemp)}°</span>
-        {!editable && <span style={{ color: '#2a2a2a', marginLeft: 10, fontSize: 10 }}>(read-only — preset profile)</span>}
-        {editable && <span style={{ color: '#2a2a2a', marginLeft: 10, fontSize: 10 }}>drag points to edit</span>}
+        {!editable && <span style={{ color: '#7f7f7f', marginLeft: 10, fontSize: 10 }}>(read-only - preset profile)</span>}
+        {editable && <span style={{ color: '#7f7f7f', marginLeft: 10, fontSize: 10 }}>drag points to edit</span>}
       </div>
       <svg ref={svgRef} width="100%" viewBox={`0 0 ${W} ${H}`}
         style={{ overflow: 'visible', cursor: drag !== null ? 'grabbing' : 'default' }}
@@ -217,23 +218,23 @@ function GpuFanSection({ accent }: { accent: string }) {
     <Card style={{ padding: '16px 20px', border: `1px solid #2a2020` }} glow={false} accent={accent}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>RX 6700 XT — GPU fans</div>
-          <div style={{ fontSize: 10, color: '#383838', marginTop: 3 }}>Control via hwmon · GPU temp source</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>RX 6700 XT - GPU fans</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 3 }}>Control via hwmon · GPU temp source</div>
           {error && <div style={{ fontSize: 10, color: '#ff4757', marginTop: 4 }}>{error}</div>}
           {!status.controllable && !error && (
             <div style={{ fontSize: 10, color: '#ff9800', marginTop: 4 }}>
-              Missing udev rule — re-run <code>install.sh</code> with sudo then reboot
+              Missing udev rule - re-run <code>install.sh</code> with sudo then reboot
             </div>
           )}
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700, color: '#f0f0f0' }}>{status.rpm} <span style={{ fontSize: 10, color: '#484848' }}>RPM</span></div>
-          <div style={{ fontSize: 10, color: '#484848', marginTop: 2 }}>{status.duty}% · {Math.round(status.gpuTemp)}°C</div>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700, color: '#f0f0f0' }}>{status.rpm} <span style={{ fontSize: 10, color: '#7f7f7f' }}>RPM</span></div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 2 }}>{status.duty}% · {Math.round(status.gpuTemp)}°C</div>
         </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-        <ProfileButton id="auto" label="Auto" color="#484848" active={profile === 'auto'} onClick={() => handleProfileClick('auto')}/>
+        <ProfileButton id="auto" label="Auto" color="#7f7f7f" active={profile === 'auto'} onClick={() => handleProfileClick('auto')}/>
         {(Object.entries(GPU_PROFILES) as [Exclude<GpuProfileId, 'auto' | 'manual'>, typeof GPU_PROFILES[keyof typeof GPU_PROFILES]][]).map(([id, p]) => (
           <ProfileButton key={id} id={id} label={p.label} color={p.color} active={profile === id} onClick={() => handleProfileClick(id)}/>
         ))}
@@ -346,14 +347,14 @@ function CaseFanSection({ accent }: { accent: string }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>Case Fans</div>
-          <div style={{ fontSize: 10, color: '#383838', marginTop: 3 }}>
+          <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 3 }}>
             Control via hwmon · CPU temp source
             {channels.length > 0 && ` · ${channels.length} channel${channels.length > 1 ? 's' : ''} detected`}
           </div>
           {error && <div style={{ fontSize: 10, color: '#ff4757', marginTop: 4 }}>{error}</div>}
           {channels.length > 0 && controllableCount === 0 && !error && (
             <div style={{ fontSize: 10, color: '#ff9800', marginTop: 4 }}>
-              Missing udev rule — re-run <code>install.sh</code> with sudo then reboot
+              Missing udev rule - re-run <code>install.sh</code> with sudo then reboot
             </div>
           )}
         </div>
@@ -361,10 +362,10 @@ function CaseFanSection({ accent }: { accent: string }) {
           {channels.slice(0, 4).map(ch => (
             <div key={ch.id} style={{ textAlign: 'right' }}>
               <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 700, color: '#f0f0f0' }}>
-                {ch.rpm} <span style={{ fontSize: 10, color: '#484848' }}>RPM</span>
+                {ch.rpm} <span style={{ fontSize: 10, color: '#7f7f7f' }}>RPM</span>
               </div>
-              <div style={{ fontSize: 9, color: '#484848', marginTop: 1 }}>
-                {ch.label.includes('—') ? ch.label.split('—')[1].trim() : ch.label}
+              <div style={{ fontSize: 9, color: '#7f7f7f', marginTop: 1 }}>
+                {ch.label.includes('-') ? ch.label.split('-')[1].trim() : ch.label}
               </div>
             </div>
           ))}
@@ -372,13 +373,13 @@ function CaseFanSection({ accent }: { accent: string }) {
       </div>
 
       {channels.length === 0 ? (
-        <div style={{ fontSize: 11, color: '#383838', padding: '4px 0 8px' }}>
+        <div style={{ fontSize: 11, color: '#7f7f7f', padding: '4px 0 8px' }}>
           No fans detected via hwmon
         </div>
       ) : (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-            <ProfileButton id="auto" label="Auto" color="#484848" active={profile === 'auto'} onClick={() => handleProfileClick('auto')}/>
+            <ProfileButton id="auto" label="Auto" color="#7f7f7f" active={profile === 'auto'} onClick={() => handleProfileClick('auto')}/>
             {(Object.entries(CASE_PROFILES) as [Exclude<CaseFanProfileId, 'auto' | 'manual'>, typeof CASE_PROFILES[keyof typeof CASE_PROFILES]][]).map(([id, p]) => (
               <ProfileButton key={id} id={id} label={p.label} color={p.color} active={profile === id} onClick={() => handleProfileClick(id)}/>
             ))}
@@ -411,12 +412,12 @@ function TempCard({ label, value, tempUnit, accent }: { label: string; value: nu
   const unit = tempUnit === '°F' ? '°F' : '°C'
   return (
     <Card style={{ padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-      <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700 }}>{label}</div>
+      <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700 }}>{label}</div>
       <div style={{ position: 'relative', width: 90, height: 90 }}>
         <CircularGauge value={pct} max={100} size={90} stroke={8} color={color}/>
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 8 }}>
           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 20, fontWeight: 700, color: '#f0f0f0', lineHeight: 1 }}>{disp}</span>
-          <span style={{ fontSize: 9, color: '#484848', marginTop: 3 }}>{unit}</span>
+          <span style={{ fontSize: 9, color: '#7f7f7f', marginTop: 3 }}>{unit}</span>
         </div>
       </div>
     </Card>
@@ -429,12 +430,12 @@ function PumpCard({ rpm, accent }: { rpm: number; accent: string }) {
   const color = pct > 85 ? '#ff4757' : pct > 65 ? '#ffb347' : accent
   return (
     <Card style={{ padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-      <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700 }}>Pump</div>
+      <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700 }}>Pump</div>
       <div style={{ position: 'relative', width: 90, height: 90 }}>
         <CircularGauge value={pct} max={100} size={90} stroke={8} color={color}/>
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 8 }}>
           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700, color: '#f0f0f0', lineHeight: 1 }}>{rpm}</span>
-          <span style={{ fontSize: 9, color: '#484848', marginTop: 3 }}>RPM</span>
+          <span style={{ fontSize: 9, color: '#7f7f7f', marginTop: 3 }}>RPM</span>
         </div>
       </div>
     </Card>
@@ -490,18 +491,18 @@ export function CoolingScreen() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>
-              {deviceStatus.connected ? deviceStatus.productName : 'Kraken Elite V2'} — Pump
+              {deviceStatus.connected ? deviceStatus.productName : 'Kraken Elite V2'} - Pump
             </div>
-            <div style={{ fontSize: 10, color: '#383838', marginTop: 3 }}>Watercooling · CPU &amp; liquid control</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 3 }}>Watercooling · CPU &amp; liquid control</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700, color: '#f0f0f0' }}>{temperatures.pumpRpm}</span>
-            <span style={{ fontSize: 10, color: '#484848' }}>RPM</span>
+            <span style={{ fontSize: 10, color: '#7f7f7f' }}>RPM</span>
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-          <ProfileButton id="auto" label="Auto" color="#484848" active={profile === 'auto'} onClick={() => setProfile('auto')}/>
+          <ProfileButton id="auto" label="Auto" color="#7f7f7f" active={profile === 'auto'} onClick={() => setProfile('auto')}/>
           {(Object.entries(PROFILES) as [Exclude<ProfileId, 'auto' | 'manual'>, typeof PROFILES[keyof typeof PROFILES]][]).map(([id, p]) => (
             <ProfileButton key={id} id={id} label={p.label} color={p.color} active={profile === id} onClick={() => setProfile(id)}/>
           ))}
@@ -511,10 +512,10 @@ export function CoolingScreen() {
         {profile !== 'auto' && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <span style={{ fontSize: 11, color: '#484848' }}>Source</span>
+              <span style={{ fontSize: 11, color: '#7f7f7f' }}>Source</span>
               <Dropdown value={tempSource} options={['Liquid', 'CPU']} onChange={setTempSource} width={100} small accent={accent}/>
               {profile !== 'manual' && (
-                <span style={{ fontSize: 10, color: '#2e2e2e', marginLeft: 4 }}>Switch to Manual mode to edit the curve</span>
+                <span style={{ fontSize: 10, color: '#7f7f7f', marginLeft: 4 }}>Switch to Manual mode to edit the curve</span>
               )}
             </div>
             <FanCurveChart
@@ -537,20 +538,18 @@ export function CoolingScreen() {
       <Card style={{ padding: '14px 20px' }} glow={false} accent={accent}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, background: '#111', border: '1px solid #222', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#484848" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="7" width="20" height="14" rx="2"/><path d="M6 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/>
-            </svg>
+            <GraphicsCard size={18} weight="regular" color="#7f7f7f" />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#686868' }}>GPU — Independent fans</div>
-            <div style={{ fontSize: 10, color: '#303030', marginTop: 3 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#9a9a9a' }}>GPU - Independent fans</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 3 }}>
               The GPU has its own fans managed by the graphics driver. They are not part of the Kraken watercooling circuit and cannot be controlled here.
             </div>
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 18, fontWeight: 700, color: '#555' }}>
+            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 18, fontWeight: 700, color: '#9a9a9a' }}>
               {tempUnit === '°F' ? Math.round(temperatures.gpu * 9/5 + 32) : Math.round(temperatures.gpu)}
-              <span style={{ fontSize: 10, color: '#383838', marginLeft: 3 }}>{tempUnit === '°F' ? '°F' : '°C'}</span>
+              <span style={{ fontSize: 10, color: '#7f7f7f', marginLeft: 3 }}>{tempUnit === '°F' ? '°F' : '°C'}</span>
             </div>
           </div>
         </div>

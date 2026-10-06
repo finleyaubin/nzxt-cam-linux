@@ -1,5 +1,6 @@
 import { useApp } from '../context/AppContext'
 import { api } from '../lib/api'
+import { Minus, X } from '@phosphor-icons/react'
 
 const drag = { WebkitAppRegion: 'drag' } as React.CSSProperties
 const noDrag = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
@@ -39,14 +40,10 @@ export function AppHeader() {
       {/* Right: window controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, ...noDrag }}>
         <WinBtn title="Minimize" onClick={() => api.hideWindow()}>
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
+          <Minus size={13} weight="regular" />
         </WinBtn>
         <WinBtn title="Quit" onClick={() => api.quitApp()} danger>
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
+          <X size={12} weight="regular" />
         </WinBtn>
       </div>
     </div>
@@ -58,7 +55,7 @@ function WinBtn({ onClick, title, children, danger }: { onClick: () => void; tit
     <button
       onClick={onClick}
       title={title}
-      style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3a3a3a', transition: 'all 130ms' }}
+      style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7f7f7f', transition: 'all 130ms' }}
       onMouseEnter={e => {
         const b = e.currentTarget as HTMLButtonElement
         b.style.background = danger ? '#ff475720' : '#1e1e1e'
@@ -67,7 +64,7 @@ function WinBtn({ onClick, title, children, danger }: { onClick: () => void; tit
       onMouseLeave={e => {
         const b = e.currentTarget as HTMLButtonElement
         b.style.background = 'transparent'
-        b.style.color = '#3a3a3a'
+        b.style.color = '#7f7f7f'
       }}
     >
       {children}

@@ -9,7 +9,7 @@ export function ToggleSwitch({ on, onChange, color = '#9d4edd', size = 'md' }: P
   const W = size === 'sm' ? 30 : 38, H = size === 'sm' ? 18 : 22, B = size === 'sm' ? 12 : 16
   return (
     <div onClick={() => onChange(!on)} style={{
-      width: W, height: H, borderRadius: H / 2, background: on ? color : '#252525',
+      width: W, height: H, borderRadius: H / 2, background: on ? color : '#7f7f7f',
       position: 'relative', cursor: 'pointer', flexShrink: 0,
       transition: 'background 160ms ease',
       boxShadow: on ? `0 0 10px ${color}55` : 'none',

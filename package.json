@@ -13,6 +13,7 @@
     "install:udev": "sudo cp src-tauri/resources/99-nzxt-kraken.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",

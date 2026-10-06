@@ -42,7 +42,7 @@ export const translations = {
     lcd_apply: 'Apply to LCD',
     lcd_applied: 'Applied to LCD',
     lcd_sending: 'Sending…',
-    lcd_not_available: 'LCD not available — check device connection',
+    lcd_not_available: 'LCD not available: check device connection',
     device_not_connected: 'Device not connected',
     device_not_controllable: 'Device not controllable',
 
@@ -52,7 +52,7 @@ export const translations = {
     elements: 'Elements',
     properties: 'Properties',
     no_elements: 'No elements',
-    apply_error: '✕ Error — retry',
+    apply_error: 'Error: retry',
     select_element: 'Select an element (handle on preview or list on the left) to edit it.',
 
     // Element Inspector
@@ -87,14 +87,14 @@ export const translations = {
     fx_fading_desc: 'Multi-color transition',
     fx_rainbow_pulse_desc: 'Pulsing rainbow',
     fx_marquee_desc: 'Rotating color',
-    ring_tip: 'Try ⭕ Ring AIO for the white ring around the LCD screen',
+    ring_tip: 'Try Ring AIO for the white ring around the LCD screen',
 
     // Cooling
     preset_balanced: 'Balanced',
-    preset_readonly: '(read-only — preset profile)',
+    preset_readonly: '(read-only: preset profile)',
     gpu_control_sub: 'Control via hwmon · GPU temp source',
     cpu_control_sub: 'Control via hwmon · CPU temp source',
-    udev_missing: 'Missing udev rule — re-run',
+    udev_missing: 'Missing udev rule: re-run',
     udev_reboot: 'with sudo then reboot',
     case_fans: 'Case Fans',
     channels_detected_one: 'channel detected',
@@ -102,7 +102,7 @@ export const translations = {
     no_fans: 'No fans detected via hwmon',
     watercooling_sub: 'Watercooling · CPU & liquid control',
     edit_curve_hint: 'Switch to Manual mode to edit the curve',
-    gpu_fans_title: 'GPU — Independent fans',
+    gpu_fans_title: 'GPU: Independent fans',
     gpu_fans_sub: 'The GPU has its own fans managed by the graphics driver. They are not part of the Kraken watercooling circuit and cannot be controlled here.',
     manual_mode: 'Manual',
 
@@ -152,7 +152,7 @@ export const translations = {
     device_draft: 'Draft',
     device_active: 'Active',
     device_select: 'Select',
-    request_sent: '✓ Request sent',
+    request_sent: 'Request sent',
     request_support: 'Request support',
     lcd_info: 'LCD resolution: 480 × 480 px · Interface: USB Direct · Firmware: Kraken Elite V2',
 
@@ -166,7 +166,7 @@ export const translations = {
     collapse: 'Collapse',
 
     // Donate
-    donate_text: "This project is open source and developed for free. If you appreciate it and want to support its development, any contribution is welcome. 🙏",
+    donate_text: "This project is open source and developed for free. If you appreciate it and want to support its development, any contribution is welcome.",
 
     // Error
     unknown_error: 'Unknown error',
@@ -211,7 +211,7 @@ export const translations = {
     lcd_apply: 'Appliquer sur le LCD',
     lcd_applied: 'Appliqué sur le LCD',
     lcd_sending: 'Envoi…',
-    lcd_not_available: 'LCD non disponible — vérifie la connexion du device',
+    lcd_not_available: 'LCD non disponible: vérifie la connexion du device',
     device_not_connected: 'Device non connecté',
     device_not_controllable: 'Device non contrôlable',
 
@@ -220,7 +220,7 @@ export const translations = {
     elements: 'Éléments',
     properties: 'Propriétés',
     no_elements: 'Aucun élément',
-    apply_error: '✕ Erreur — réessayer',
+    apply_error: 'Erreur: réessayer',
     select_element: "Sélectionne un élément (poignée sur l'aperçu ou liste à gauche) pour l'éditer.",
 
     metric: 'Métrique',
@@ -252,13 +252,13 @@ export const translations = {
     fx_fading_desc: 'Transition multi-couleurs',
     fx_rainbow_pulse_desc: 'Arc-en-ciel pulsé',
     fx_marquee_desc: 'Couleur tournante',
-    ring_tip: "Essayez ⭕ Ring AIO pour le ring blanc autour de l'écran LCD",
+    ring_tip: "Essayez Ring AIO pour le ring blanc autour de l'écran LCD",
 
     preset_balanced: 'Équilibré',
-    preset_readonly: '(lecture seule — profil prédéfini)',
+    preset_readonly: '(lecture seule: profil prédéfini)',
     gpu_control_sub: 'Contrôle via hwmon · source temp GPU',
     cpu_control_sub: 'Contrôle via hwmon · source temp CPU',
-    udev_missing: 'Règle udev manquante — relance',
+    udev_missing: 'Règle udev manquante: relance',
     udev_reboot: 'avec sudo puis redémarre',
     case_fans: 'Ventilateurs Boîtier',
     channels_detected_one: 'canal détecté',
@@ -266,7 +266,7 @@ export const translations = {
     no_fans: 'Aucun ventilateur détecté via hwmon',
     watercooling_sub: 'Watercooling · contrôle CPU & liquide',
     edit_curve_hint: 'Passer en mode Manuel pour éditer la courbe',
-    gpu_fans_title: 'GPU — Ventilateurs indépendants',
+    gpu_fans_title: 'GPU: Ventilateurs indépendants',
     gpu_fans_sub: 'Le GPU possède ses propres ventilateurs gérés directement par le pilote graphique. Ils ne font pas partie du circuit watercooling Kraken et ne peuvent pas être contrôlés ici.',
     manual_mode: 'Manuel',
 
@@ -311,7 +311,7 @@ export const translations = {
     device_draft: 'Brouillon',
     device_active: 'Actif',
     device_select: 'Sélectionner',
-    request_sent: '✓ Demande envoyée',
+    request_sent: 'Demande envoyée',
     request_support: "Demander l'accès",
     lcd_info: 'Résolution LCD : 480 × 480 px · Interface : USB Direct · Firmware : Kraken Elite V2',
 
@@ -322,7 +322,7 @@ export const translations = {
     sidebar_expand: 'Ouvrir le menu',
     collapse: 'Réduire',
 
-    donate_text: "Ce projet est open source et développé bénévolement. Si vous l'appréciez et souhaitez soutenir son développement, toute contribution est la bienvenue. 🙏",
+    donate_text: "Ce projet est open source et développé bénévolement. Si vous l'appréciez et souhaitez soutenir son développement, toute contribution est la bienvenue.",
 
     unknown_error: 'Erreur inconnue',
     error: 'Erreur',

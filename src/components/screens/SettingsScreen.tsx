@@ -7,6 +7,7 @@ import { Settings } from '../Settings'
 import { ProfileManager } from '../ProfileManager'
 import { api } from '../../lib/api'
 import type { Lang } from '../../i18n/translations'
+import { GithubLogo, Bug, ChatCircle, Copy, Check, CaretRight } from '@phosphor-icons/react'
 
 const ACCENT_COLORS = [
   { name: 'Violet', c: '#9d4edd' },
@@ -23,26 +24,11 @@ const WALLETS = [
   { id: 'sol', name: 'Solana',   symbol: 'SOL',      color: '#9945ff', icon: '◎', address: '7nA4q7dDXujLe6SbBX6hx91dMkwTMKcttCX1SNP1bc2v' },
 ]
 
-const IGithub = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.34-3.369-1.34-.454-1.154-1.11-1.462-1.11-1.462-.908-.62.069-.607.069-.607 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.268 2.75 1.026A9.578 9.578 0 0 1 12 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.026 2.747-1.026.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/>
-  </svg>
-)
-const IBug = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M8 2l1.5 1.5"/><path d="M14.5 3.5L16 2"/><path d="M9 9h6"/><path d="M9 12h6"/>
-    <path d="M12 21c-3.314 0-6-2.686-6-6V9a3 3 0 0 1 6 0v6"/><path d="M12 21c3.314 0 6-2.686 6-6V9a3 3 0 0 0-6 0v6"/>
-    <line x1="3" y1="10" x2="6" y2="10"/><line x1="18" y1="10" x2="21" y2="10"/>
-    <line x1="3" y1="15" x2="6" y2="15"/><line x1="18" y1="15" x2="21" y2="15"/>
-  </svg>
-)
-const IChat = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-  </svg>
-)
-const ICopy = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-const ICheck = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+const IGithub = () => <GithubLogo size={16} weight="fill" />
+const IBug = () => <Bug size={16} weight="regular" />
+const IChat = () => <ChatCircle size={16} weight="regular" />
+const ICopy = () => <Copy size={13} weight="regular" />
+const ICheck = () => <Check size={13} weight="regular" />
 
 function SupportTab({ accent }: { accent: string }) {
   const { t } = useLanguage()
@@ -65,24 +51,24 @@ function SupportTab({ accent }: { accent: string }) {
       {SUPPORT_LINKS.map(({ title, desc, Icon, url }) => (
         <div key={title}
           onClick={() => window.open(url, '_blank')}
-          style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px', background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 9, cursor: 'pointer', transition: 'all 140ms' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '13px 16px', background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 8, cursor: 'pointer', transition: 'all 140ms' }}
           onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = `${accent}44`; (e.currentTarget as HTMLDivElement).style.background = '#111' }}
           onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = '#1e1e1e'; (e.currentTarget as HTMLDivElement).style.background = '#0d0d0d' }}
         >
-          <div style={{ width: 34, height: 34, borderRadius: 8, background: '#161616', border: '1px solid #2a2a2a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', flexShrink: 0 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 8, background: '#161616', border: '1px solid #2a2a2a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9a9a9a', flexShrink: 0 }}>
             <Icon/>
           </div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#d0d0d0', marginBottom: 2 }}>{title}</div>
-            <div style={{ fontSize: 10, color: '#3a3a3a' }}>{desc}</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f' }}>{desc}</div>
           </div>
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#2a2a2a" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <CaretRight size={13} weight="regular" color="#7f7f7f" />
         </div>
       ))}
 
-      <div style={{ marginTop: 8, padding: '14px 16px', background: '#080808', borderRadius: 10, border: '1px solid #161616' }}>
-        <div style={{ fontSize: 10, color: '#3a3a3a', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700, marginBottom: 12 }}>{t('support_donate_title')}</div>
-        <div style={{ fontSize: 11, color: '#383838', lineHeight: 1.6, marginBottom: 12 }}>
+      <div style={{ marginTop: 8, padding: '14px 16px', background: '#080808', borderRadius: 12, border: '1px solid #161616' }}>
+        <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700, marginBottom: 12 }}>{t('support_donate_title')}</div>
+        <div style={{ fontSize: 11, color: '#7f7f7f', lineHeight: 1.6, marginBottom: 12 }}>
           {t('support_donate_sub')}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -91,11 +77,11 @@ function SupportTab({ accent }: { accent: string }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                 <div style={{ width: 22, height: 22, borderRadius: '50%', background: color + '18', border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color, fontWeight: 700 }}>{icon}</div>
                 <span style={{ fontSize: 12, fontWeight: 700, color: '#b0b0b0' }}>{name}</span>
-                <span style={{ fontSize: 9, color: '#3a3a3a', background: '#1a1a1a', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>{symbol}</span>
+                <span style={{ fontSize: 9, color: '#7f7f7f', background: '#1a1a1a', padding: '1px 6px', borderRadius: 8, fontWeight: 700 }}>{symbol}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#111', borderRadius: 6, padding: '6px 10px', border: '1px solid #1e1e1e' }}>
-                <div style={{ flex: 1, fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#505050', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{address}</div>
-                <button onClick={() => copyAddress(id, address)} style={{ background: copied === id ? color + '22' : 'transparent', border: `1px solid ${copied === id ? color + '55' : '#2a2a2a'}`, borderRadius: 5, color: copied === id ? color : '#444', cursor: 'pointer', padding: '4px 7px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, transition: 'all 160ms', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#111', borderRadius: 8, padding: '6px 10px', border: '1px solid #1e1e1e' }}>
+                <div style={{ flex: 1, fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#9a9a9a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{address}</div>
+                <button onClick={() => copyAddress(id, address)} style={{ background: copied === id ? color + '22' : 'transparent', border: `1px solid ${copied === id ? color + '55' : '#2a2a2a'}`, borderRadius: 8, color: copied === id ? color : '#7f7f7f', cursor: 'pointer', padding: '4px 7px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, transition: 'all 160ms', flexShrink: 0 }}>
                   {copied === id ? <><ICheck/> {t('copied')}</> : <><ICopy/> {t('copy')}</>}
                 </button>
               </div>
@@ -105,8 +91,8 @@ function SupportTab({ accent }: { accent: string }) {
       </div>
 
       <div style={{ padding: '10px 16px', background: '#080808', borderRadius: 8, border: '1px solid #141414' }}>
-        <div style={{ fontSize: 11, color: '#2e2e2e', fontFamily: 'JetBrains Mono, monospace' }}>NZXT CAM · Linux Edition · v1.0.0</div>
-        <div style={{ fontSize: 10, color: '#242424', marginTop: 3, fontFamily: 'JetBrains Mono, monospace' }}>Tauri 2 · Rust · Arch Linux</div>
+        <div style={{ fontSize: 11, color: '#7f7f7f', fontFamily: 'JetBrains Mono, monospace' }}>NZXT CAM · Linux Edition · v1.0.0</div>
+        <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 3, fontFamily: 'JetBrains Mono, monospace' }}>Tauri 2 · Rust · Arch Linux</div>
       </div>
     </div>
   )
@@ -147,10 +133,10 @@ export function SettingsScreen() {
     <div style={{ height: '100%', overflowY: 'auto', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>Settings</div>
 
-      <div style={{ display: 'flex', gap: 2, background: '#0f0f0f', padding: 4, borderRadius: 9, alignSelf: 'flex-start' }}>
+      <div style={{ display: 'flex', gap: 2, background: '#0f0f0f', padding: 4, borderRadius: 8, alignSelf: 'flex-start' }}>
         {TABS.map(tb => (
           <button key={tb.id} onClick={() => setTab(tb.id)} style={{
-            padding: '7px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+            padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
             background: tab === tb.id ? '#222' : 'transparent',
             color: tab === tb.id ? '#e0e0e0' : '#484848',
             transition: 'all 140ms',
@@ -162,7 +148,7 @@ export function SettingsScreen() {
         <Card style={{ padding: 24 }} accent={accent}>
           {/* Accent color */}
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>{t('accent_color')}</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>{t('accent_color')}</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               {ACCENT_COLORS.map(({ name, c }) => (
                 <div key={c} onClick={() => dispatch({ type: 'SET_ACCENT', payload: c })} title={name}
@@ -173,11 +159,11 @@ export function SettingsScreen() {
 
           {/* Temp unit */}
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>{t('temp_unit')}</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>{t('temp_unit')}</div>
             <div style={{ display: 'flex', gap: 6 }}>
               {(['°C', '°F'] as const).map(u => (
                 <button key={u} onClick={() => dispatch({ type: 'SET_TEMP_UNIT', payload: u })} style={{
-                  padding: '7px 24px', borderRadius: 6, border: `1px solid ${tempUnit === u ? accent : '#2c2c2c'}`,
+                  padding: '7px 24px', borderRadius: 8, border: `1px solid ${tempUnit === u ? accent : '#2c2c2c'}`,
                   background: tempUnit === u ? `${accent}1a` : 'transparent',
                   color: tempUnit === u ? accent : '#555', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 140ms',
                 }}>{u}</button>
@@ -187,11 +173,11 @@ export function SettingsScreen() {
 
           {/* Language */}
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 10, color: '#484848', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>{t('language')}</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>{t('language')}</div>
             <div style={{ display: 'flex', gap: 6 }}>
               {LANGS.map(l => (
                 <button key={l.id} onClick={() => setLang(l.id)} style={{
-                  padding: '7px 18px', borderRadius: 6, border: `1px solid ${lang === l.id ? accent : '#2c2c2c'}`,
+                  padding: '7px 18px', borderRadius: 8, border: `1px solid ${lang === l.id ? accent : '#2c2c2c'}`,
                   background: lang === l.id ? `${accent}1a` : 'transparent',
                   color: lang === l.id ? accent : '#555', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 140ms',
                   display: 'flex', alignItems: 'center', gap: 6,
@@ -207,16 +193,16 @@ export function SettingsScreen() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div>
               <div style={{ fontSize: 13, color: '#c0c0c0', fontWeight: 500 }}>{t('compact_sidebar')}</div>
-              <div style={{ fontSize: 11, color: '#484848', marginTop: 2 }}>{t('compact_sidebar_sub')}</div>
+              <div style={{ fontSize: 11, color: '#7f7f7f', marginTop: 2 }}>{t('compact_sidebar_sub')}</div>
             </div>
             <ToggleSwitch on={compact} onChange={v => dispatch({ type: 'SET_COMPACT', payload: v })} color={accent}/>
           </div>
 
           {/* Autostart */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, padding: '14px 16px', background: '#0d0d0d', borderRadius: 9, border: `1px solid ${autostart ? `${accent}33` : '#1a1a1a'}`, transition: 'border-color 200ms' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, padding: '14px 16px', background: '#0d0d0d', borderRadius: 8, border: `1px solid ${autostart ? `${accent}33` : '#1a1a1a'}`, transition: 'border-color 200ms' }}>
             <div>
               <div style={{ fontSize: 13, color: '#c0c0c0', fontWeight: 600, marginBottom: 3 }}>{t('autostart')}</div>
-              <div style={{ fontSize: 10, color: '#3a3a3a' }}>
+              <div style={{ fontSize: 10, color: '#7f7f7f' }}>
                 {autostart ? t('autostart_on') : t('autostart_off')}
               </div>
             </div>
