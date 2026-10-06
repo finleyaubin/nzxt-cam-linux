@@ -19,6 +19,7 @@ pub struct ConfigFile {
     pub last_image_path: Option<String>,
     pub last_gif_path: Option<String>,
     pub last_color: Option<LastColor>,
+    pub lcd_rotation: u16,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

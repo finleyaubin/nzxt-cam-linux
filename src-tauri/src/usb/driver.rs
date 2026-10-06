@@ -257,6 +257,11 @@ impl KrakenDriver {
         Ok(())
     }
 
+    /// Force the temperature loop to re-render on its next tick.
+    pub fn refresh_display(&self) {
+        self.0.config_version.fetch_add(1, Ordering::Release);
+    }
+
     // ========================================================================
     // Public actions
     // ========================================================================
@@ -279,6 +284,7 @@ impl KrakenDriver {
 
     pub async fn send_rgba_image(&self, rgba: Vec<u8>) -> Result<()> {
         self.stop_current_mode();
+        let rgba = crate::image_io::rotate_for_lcd(rgba);
         let bulk_info = bulk_info_rgba(rgba.len() as u32);
         let mut g = self.0.hw.lock().await;
         let hw = g.as_mut().ok_or_else(|| anyhow!("Pas connecté"))?;
@@ -368,6 +374,7 @@ impl KrakenDriver {
             if Some(&key) != last_visual_key.as_ref() && cooldown_ok {
                 match render_fn(&cfg_snapshot, temps) {
                     Ok(rgba) => {
+                        let rgba = crate::image_io::rotate_for_lcd(rgba);
                         let bulk_info = bulk_info_rgba(rgba.len() as u32);
                         let mut g = self.0.hw.lock().await;
                         if let Some(hw) = g.as_mut() {

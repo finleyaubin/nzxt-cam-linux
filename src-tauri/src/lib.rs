@@ -63,6 +63,7 @@ pub fn run() {
         .setup(move |app| {
             // Wire up the driver's callbacks so it can emit Tauri events.
             commands::setup_callbacks(&app.handle(), &driver);
+            image_io::set_lcd_rotation(config::load().lcd_rotation);
 
             // Tray icon — left click toggles window, right click shows menu.
             let show_item = MenuItem::with_id(app, "show", "Afficher la fenêtre", true, None::<&str>)?;
@@ -162,6 +163,7 @@ pub fn run() {
             commands::get_config,
             commands::save_config,
             commands::set_pump_profile,
+            commands::set_lcd_orientation,
             commands::get_gpu_fan_status,
             commands::set_gpu_fan_curve,
             commands::set_gpu_fan_auto,

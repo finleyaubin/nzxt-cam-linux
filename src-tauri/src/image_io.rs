@@ -10,7 +10,29 @@ use crate::types::{LCD_HEIGHT, LCD_WIDTH};
 use anyhow::{anyhow, Result};
 use image::{imageops::FilterType, ImageBuffer, Rgba};
 use std::io::Cursor;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Instant;
+
+static LCD_QUARTER_TURNS: AtomicU8 = AtomicU8::new(0);
+
+pub fn set_lcd_rotation(degrees: u16) {
+    LCD_QUARTER_TURNS.store(((degrees / 90) % 4) as u8, Ordering::Relaxed);
+}
+
+/// Rotate a full-screen RGBA frame clockwise by the configured mount offset.
+pub fn rotate_for_lcd(rgba: Vec<u8>) -> Vec<u8> {
+    let turns = LCD_QUARTER_TURNS.load(Ordering::Relaxed);
+    if turns == 0 || rgba.len() != (LCD_WIDTH * LCD_HEIGHT * 4) as usize {
+        return rgba;
+    }
+    let img = ImageBuffer::<Rgba<u8>, _>::from_raw(LCD_WIDTH, LCD_HEIGHT, rgba).expect("length checked");
+    match turns {
+        1 => image::imageops::rotate90(&img),
+        2 => image::imageops::rotate180(&img),
+        _ => image::imageops::rotate270(&img),
+    }
+    .into_raw()
+}
 
 /// Decode an image (jpg/png/webp/bmp), cover-fit it to 640×640, return RGBA
 /// with alpha forced to 0x00 (firmware requirement).
@@ -96,7 +118,7 @@ pub fn resize_gif(bytes: &[u8]) -> Result<Vec<u8>> {
 
             gif_composite(&mut canvas, canvas_w, canvas_h, left, top, fw, fh, &frame.buffer);
 
-            let rgba = gif_resize(&canvas, same_size, tw32, th32);
+            let rgba = rotate_for_lcd(gif_resize(&canvas, same_size, tw32, th32));
             let indices: Vec<u8> = rgba
                 .chunks_exact(4)
                 .map(|px| lut[palette_lut_idx(px[0], px[1], px[2])])

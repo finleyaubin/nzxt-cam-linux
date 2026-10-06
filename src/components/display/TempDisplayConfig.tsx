@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useApp } from '../../context/AppContext'
 import { LCDCircularPreview } from '../ui/LCDCircularPreview'
 import { Dropdown } from '../ui/Dropdown'
@@ -103,6 +103,13 @@ export function TempDisplayConfig() {
   const { accent, temperatures, deviceStatus } = state
   const [s, setS] = useState<Settings>(DEFAULT)
   const [status, setStatus] = useState<'idle' | 'applying' | 'done' | 'error'>('idle')
+  const [rotation, setRotation] = useState(0)
+  useEffect(() => { api.getLcdOrientation().then(setRotation) }, [])
+
+  const rotate = async (deg: number) => {
+    const res = await api.setLcdOrientation(deg)
+    if (res.success) setRotation(deg)
+  }
 
   const upd = <K extends keyof Settings>(k: K, v: Settings[K]) => setS(prev => ({ ...prev, [k]: v }))
 
@@ -229,18 +236,18 @@ export function TempDisplayConfig() {
               {status === 'applying' ? 'Sending…' : status === 'done' ? 'Applied ✓' : status === 'error' ? 'Error' : 'Apply to LCD'}
             </button>
 
-            <button onClick={() => {}} style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '7px 14px', borderRadius: 8, border: '1px solid #252525',
-              background: 'transparent', color: '#555', fontSize: 12, fontWeight: 600,
-              cursor: 'pointer', transition: 'all 130ms',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#3a3a3a'; (e.currentTarget as HTMLButtonElement).style.color = '#888' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#252525'; (e.currentTarget as HTMLButtonElement).style.color = '#555' }}
-            >
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-              Rotate display
-            </button>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[0, 90, 180, 270].map(deg => (
+                <button key={deg} onClick={() => rotate(deg)} style={{
+                  padding: '7px 10px', borderRadius: 8,
+                  border: `1px solid ${rotation === deg ? accent : '#252525'}`,
+                  background: 'transparent', color: rotation === deg ? accent : '#555',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 130ms',
+                }}>
+                  {deg}°
+                </button>
+              ))}
+            </div>
 
             {!connected && <span style={{ fontSize: 11, color: '#ffb347' }}>Device not connected</span>}
           </div>
@@ -266,7 +273,7 @@ export function TempDisplayConfig() {
             { label: 'Resolution', val: '480 × 480' },
             { label: 'Interface',  val: 'USB Direct' },
             { label: 'Brightness', val: '100%' },
-            { label: 'Rotation',   val: '0°' },
+            { label: 'Rotation',   val: `${rotation}°` },
           ].map(({ label, val }) => (
             <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 9, alignItems: 'center' }}>
               <span style={{ fontSize: 11, color: '#484848' }}>{label}</span>
