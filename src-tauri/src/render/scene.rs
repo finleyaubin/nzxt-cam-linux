@@ -7,15 +7,16 @@
 use crate::render::fonts::{draw_text, draw_text_centered, lookup, measure, resolve};
 use ab_glyph::FontVec;
 use crate::types::{
-    hex_to_rgb, resolve_text, BarElement, DisplayConfig, DisplayElement, GaugeElement, GraphElement,
+    hex_to_rgb, resolve_text, BarElement, DisplayConfig, DisplayElement, GaugeElement, GraphElement, ImageElement,
     MetricId, TextElement, Temperatures, LCD_SIZE,
 };
 use anyhow::Result;
 use crate::image_io;
 use parking_lot::Mutex;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::f32::consts::PI;
-use tiny_skia::{Pixmap, PremultipliedColorU8};
+use tiny_skia::{IntSize, Pixmap, PixmapPaint, PremultipliedColorU8, Transform};
 
 // ============================================================================
 // Public API
@@ -156,6 +157,11 @@ fn render_scene(config: &DisplayConfig, temps: Temperatures, base: Base) -> Resu
                     log::warn!("text draw error: {e}");
                 }
             }
+            DisplayElement::Image(i) => {
+                if let Err(e) = draw_image(&mut pixmap, i) {
+                    log::warn!("image draw error: {e}");
+                }
+            }
         }
     }
     Ok(pixmap)
@@ -251,6 +257,66 @@ fn fill_round_rect(pm: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, radius: Opti
             }
         }
     }
+}
+
+// ============================================================================
+// Image — a picture scaled to fit its box
+// ============================================================================
+
+type ImageKey = (String, u32, u32, u64);
+static IMAGE_CACHE: Mutex<Option<HashMap<ImageKey, Arc<Pixmap>>>> = Mutex::new(None);
+const IMAGE_CACHE_LIMIT: usize = 32;
+
+fn raster_scaled(path: &str, w: u32, h: u32) -> Result<Pixmap> {
+    let img = image::open(path).map_err(|e| anyhow::anyhow!("Decode image {path}: {e}"))?.to_rgba8();
+    let (iw, ih) = img.dimensions();
+    let scale = (w as f32 / iw as f32).min(h as f32 / ih as f32);
+    let (tw, th) = (((iw as f32 * scale).round() as u32).max(1), ((ih as f32 * scale).round() as u32).max(1));
+    let mut data = image::imageops::resize(&img, tw, th, image::imageops::FilterType::Lanczos3).into_raw();
+    for px in data.chunks_exact_mut(4) {
+        let alpha = px[3] as u16;
+        for c in &mut px[..3] {
+            *c = ((*c as u16 * alpha + 127) / 255) as u8;
+        }
+    }
+    IntSize::from_wh(tw, th)
+        .and_then(|size| Pixmap::from_vec(data, size))
+        .ok_or_else(|| anyhow::anyhow!("Image {path} has unusable dimensions"))
+}
+
+/// The picture at `path` (PNG, JPEG, WebP, BMP, GIF or SVG) scaled to fit w×h (aspect kept), premultiplied, decoded once per file version and size.
+fn scaled_image(path: &str, w: u32, h: u32) -> Result<Arc<Pixmap>> {
+    let modified = std::fs::metadata(path)
+        .map_err(|e| anyhow::anyhow!("Read image {path}: {e}"))?
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_secs());
+    let key = (path.to_string(), w, h, modified);
+    if let Some(hit) = IMAGE_CACHE.lock().as_ref().and_then(|c| c.get(&key)) {
+        return Ok(hit.clone());
+    }
+    let pixmap = if super::svg::is_svg(path) { super::svg::render_svg(std::path::Path::new(path), w, h)? } else { raster_scaled(path, w, h)? };
+    let pixmap = Arc::new(pixmap);
+    let mut cache = IMAGE_CACHE.lock();
+    let cache = cache.get_or_insert_with(HashMap::new);
+    if cache.len() >= IMAGE_CACHE_LIMIT {
+        cache.clear();
+    }
+    cache.insert(key, pixmap.clone());
+    Ok(pixmap)
+}
+
+fn draw_image(pm: &mut Pixmap, el: &ImageElement) -> Result<()> {
+    if el.path.is_empty() || el.width < 1.0 || el.height < 1.0 {
+        return Ok(());
+    }
+    let scaled = scaled_image(&el.path, el.width.round() as u32, el.height.round() as u32)?;
+    let paint = PixmapPaint { opacity: el.opacity.min(100) as f32 / 100.0, ..PixmapPaint::default() };
+    let left = (el.x - scaled.width() as f32 / 2.0).round() as i32;
+    let top = (el.y - scaled.height() as f32 / 2.0).round() as i32;
+    pm.draw_pixmap(left, top, Pixmap::as_ref(&scaled), &paint, Transform::identity(), None);
+    Ok(())
 }
 
 // ============================================================================
@@ -752,6 +818,53 @@ mod tests {
         let lit_near_centre = |f: &[u8]| (220..420).flat_map(|y| (220..420).map(move |x| (x, y))).filter(|&(x, y)| px(f, x, y) != [0, 0, 0]).count();
         assert!(lit_near_centre(&plain) > 50, "the value is normally drawn in the centre");
         assert_eq!(lit_near_centre(&pill), 0, "with the pill the centre is empty");
+    }
+
+    fn image_frame(file: &str, size: (u32, u32), opacity: u8) -> Vec<u8> {
+        let path = std::env::temp_dir().join(file);
+        RgbaImage::from_pixel(size.0, size.1, Rgba([255, 0, 0, 255])).save(&path).unwrap();
+        let img = ImageElement { id: "i".into(), x: 320.0, y: 320.0, width: 100.0, height: 100.0, path: path.to_string_lossy().into_owned(), opacity };
+        let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Image(img)], ..DisplayConfig::default() };
+        let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures::default()).unwrap() else { panic!("expected rgba") };
+        rgba
+    }
+
+    #[test]
+    fn image_is_scaled_to_fit_the_box_keeping_its_aspect() {
+        let frame = image_frame("nzxt-img-wide.png", (40, 20), 100);
+        let px = |x: usize, y: usize| { let i = (y * LCD_SIZE as usize + x) * 4; [frame[i], frame[i + 1], frame[i + 2]] };
+        assert_eq!(px(320, 320), [255, 0, 0], "centre is covered");
+        assert_eq!(px(275, 320), [255, 0, 0], "fills the box width");
+        assert_eq!(px(320, 340), [255, 0, 0], "a 2:1 picture is 50px tall");
+        assert_eq!(px(320, 355), [0, 0, 0], "the box's spare height stays background");
+        assert_eq!(px(260, 320), [0, 0, 0], "nothing outside the box");
+    }
+
+    #[test]
+    fn svg_logos_are_rasterised_to_fit_the_box() {
+        let path = std::env::temp_dir().join("nzxt-img-logo.svg");
+        std::fs::write(&path, r##"<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20" viewBox="0 0 40 20"><rect width="40" height="20" fill="#ff0000"/></svg>"##).unwrap();
+        let img = ImageElement { id: "i".into(), x: 320.0, y: 320.0, width: 100.0, height: 100.0, path: path.to_string_lossy().into_owned(), opacity: 100 };
+        let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Image(img)], ..DisplayConfig::default() };
+        let LcdFrame::Rgba(frame) = render_for_device(&cfg, Temperatures::default()).unwrap() else { panic!("expected rgba") };
+        let px = |x: usize, y: usize| { let i = (y * LCD_SIZE as usize + x) * 4; [frame[i], frame[i + 1], frame[i + 2]] };
+        assert_eq!(px(320, 320), [255, 0, 0], "centre is covered");
+        assert_eq!(px(275, 320), [255, 0, 0], "a 2:1 svg fills the box width");
+        assert_eq!(px(320, 355), [0, 0, 0], "and leaves the spare height as background");
+    }
+
+    #[test]
+    fn image_opacity_blends_with_the_background() {
+        let frame = image_frame("nzxt-img-half.png", (20, 20), 50);
+        let i = (320 * LCD_SIZE as usize + 320) * 4;
+        assert!((frame[i] as i32 - 128).abs() <= 2 && frame[i + 1] == 0, "half-transparent red over black, got {:?}", &frame[i..i + 3]);
+    }
+
+    #[test]
+    fn missing_image_draws_nothing_and_does_not_fail_the_frame() {
+        let img = ImageElement { id: "i".into(), x: 320.0, y: 320.0, width: 100.0, height: 100.0, path: "/nonexistent/logo.png".into(), opacity: 100 };
+        let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Image(img)], ..DisplayConfig::default() };
+        assert!(render_for_device(&cfg, Temperatures::default()).is_ok());
     }
 
     #[test]

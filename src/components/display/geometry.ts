@@ -38,6 +38,7 @@ export function elementRect(el: DisplayElement, resolve: Resolve): Rect {
       return { left: el.x - el.radius, top: el.y - el.radius, right: el.x + el.radius, bottom: el.y + el.radius }
     case 'bar':
     case 'graph':
+    case 'image':
       return { left: el.x - el.width / 2, top: el.y - el.height / 2, right: el.x + el.width / 2, bottom: el.y + el.height / 2 }
     case 'text': {
       const { w, h } = textBox(resolve(el.text) || ' ', el.size, el.font)
@@ -93,7 +94,7 @@ export function handlesFor(el: DisplayElement, resolve: Resolve): Handle[] {
   }))
 }
 
-const MIN_SIZE = { bar: { w: 40, h: 6 }, graph: { w: 90, h: 60 } }
+const MIN_SIZE = { bar: { w: 40, h: 6 }, graph: { w: 90, h: 60 }, image: { w: 16, h: 16 } }
 
 /** Patch that moves the grabbed handle to the pointer (x, y), keeping the opposite side fixed. */
 export function resizePatch(el: DisplayElement, handleId: string, px: number, py: number, resolve: Resolve): Partial<DisplayElement> {

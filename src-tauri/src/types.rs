@@ -335,6 +335,25 @@ pub struct TextElement {
     pub font: Option<String>,
 }
 
+fn full_opacity() -> u8 {
+    100
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageElement {
+    pub id: String,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    /// Picture file (PNG, JPEG, WebP, BMP or the first frame of a GIF), scaled to fit the box.
+    pub path: String,
+    /// 0-100
+    #[serde(default = "full_opacity")]
+    pub opacity: u8,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TextAlign {
@@ -350,6 +369,7 @@ pub enum DisplayElement {
     Bar(BarElement),
     Graph(GraphElement),
     Text(TextElement),
+    Image(ImageElement),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -390,6 +410,13 @@ impl DisplayConfig {
         }
         if self.elements.len() > 64 {
             return Err(format!("elements has {} entries, the maximum is 64", self.elements.len()));
+        }
+        for (i, el) in self.elements.iter().enumerate() {
+            if let DisplayElement::Image(img) = el {
+                if img.opacity > 100 {
+                    return Err(format!("elements[{i}].opacity must be 0-100, got {}", img.opacity));
+                }
+            }
         }
         Ok(())
     }

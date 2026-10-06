@@ -7,6 +7,7 @@ Native alternative to NZXT CAM (Windows only) — built with Tauri 2 + Rust.
 
 - LCD display: one screen you lay out freely. Add rings, gauges, bars, history graphs and text (with `{cpu}`, `{gpu}`, `{liquid}`, `{pump}`, `{sensorN}`, `{time}`, `{date}` variables), drag and resize them on a live preview, and use a photo or GIF as the background
 - Home Assistant: in Settings, enter your server URL and a long-lived access token, then pick any numeric entity (room temperature, power draw, …) as an LCD sensor
+- Images and logos: add PNG, JPEG, WebP or SVG pictures as widgets, or pick the logos found on your system (distro, desktop, Tux, GPU/CPU vendor); drop your own into `~/.config/nzxtcam-archlinux-rust/logos`
 - Gauges can show min/max labels at the ends of the arc and put the value in a pill cut into the ring
 - RGB Ring AIO + fan control
 - CPU / GPU / liquid / pump monitoring
