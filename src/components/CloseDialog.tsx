@@ -43,7 +43,7 @@ export function CloseDialog() {
             Close window?
           </div>
           <div style={{ fontSize: 12, color: '#9a9a9a', lineHeight: 1.6 }}>
-            {t('close_sub')}
+            {t('dialog.close.sub')}
           </div>
         </div>
 
@@ -53,7 +53,7 @@ export function CloseDialog() {
             background: accent, color: '#fff', fontSize: 13, fontWeight: 700,
             cursor: 'pointer', boxShadow: `0 0 18px ${accent}44`, transition: 'all 140ms',
           }}>
-            {t('close_bg')}
+            {t('dialog.close.keep_background')}
           </button>
           <button onClick={quitApp} style={{
             padding: '10px 0', borderRadius: 8, border: '1px solid #252525',
@@ -63,7 +63,7 @@ export function CloseDialog() {
           onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#ff4757'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#ff475733' }}
           onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9a9a9a'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#252525' }}
           >
-            {t('close_quit')}
+            {t('dialog.close.quit')}
           </button>
         </div>
       </div>

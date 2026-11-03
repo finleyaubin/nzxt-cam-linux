@@ -6,7 +6,7 @@ import { ToggleSwitch } from '../ui/ToggleSwitch'
 import { Settings } from '../Settings'
 import { ProfileManager } from '../ProfileManager'
 import { api } from '../../lib/api'
-import type { Lang } from '../../i18n/translations'
+import { languages, Lang } from '../../i18n/languages'
 import { GithubLogo, Bug, ChatCircle, Copy, Check, CaretRight } from '@phosphor-icons/react'
 
 const ACCENT_COLORS = [
@@ -35,9 +35,9 @@ function SupportTab({ accent }: { accent: string }) {
   const [copied, setCopied] = useState<string | null>(null)
 
   const SUPPORT_LINKS = [
-    { title: t('support_github'), desc: t('support_github_sub'), Icon: IGithub, url: 'https://github.com/cypherxdev77/nzxt-cam-linux' },
-    { title: t('support_bug'),    desc: t('support_bug_sub'),    Icon: IBug,    url: 'https://github.com/cypherxdev77/nzxt-cam-linux/issues/new' },
-    { title: t('support_reddit'), desc: t('support_reddit_sub'), Icon: IChat,   url: 'https://reddit.com/r/NZXT' },
+    { title: t('settings.support.github.title'), desc: t('settings.support.github.desc'), Icon: IGithub, url: 'https://github.com/cypherxdev77/nzxt-cam-linux' },
+    { title: t('settings.support.bug.title'),    desc: t('settings.support.bug.desc'),    Icon: IBug,    url: 'https://github.com/cypherxdev77/nzxt-cam-linux/issues/new' },
+    { title: t('settings.support.reddit.title'), desc: t('settings.support.reddit.desc'), Icon: IChat,   url: 'https://reddit.com/r/NZXT' },
   ]
 
   const copyAddress = (id: string, addr: string) => {
@@ -67,9 +67,9 @@ function SupportTab({ accent }: { accent: string }) {
       ))}
 
       <div style={{ marginTop: 8, padding: '14px 16px', background: '#080808', borderRadius: 12, border: '1px solid #161616' }}>
-        <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700, marginBottom: 12 }}>{t('support_donate_title')}</div>
+        <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700, marginBottom: 12 }}>{t('settings.support.donate.title')}</div>
         <div style={{ fontSize: 11, color: '#7f7f7f', lineHeight: 1.6, marginBottom: 12 }}>
-          {t('support_donate_sub')}
+          {t('settings.support.donate.desc')}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {WALLETS.map(({ id, name, symbol, color, icon, address }) => (
@@ -82,7 +82,7 @@ function SupportTab({ accent }: { accent: string }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#111', borderRadius: 8, padding: '6px 10px', border: '1px solid #1e1e1e' }}>
                 <div style={{ flex: 1, fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#9a9a9a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{address}</div>
                 <button onClick={() => copyAddress(id, address)} style={{ background: copied === id ? color + '22' : 'transparent', border: `1px solid ${copied === id ? color + '55' : '#2a2a2a'}`, borderRadius: 8, color: copied === id ? color : '#7f7f7f', cursor: 'pointer', padding: '4px 7px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, transition: 'all 160ms', flexShrink: 0 }}>
-                  {copied === id ? <><ICheck/> {t('copied')}</> : <><ICopy/> {t('copy')}</>}
+                  {copied === id ? <><ICheck/> {t('common.copied')}</> : <><ICopy/> {t('common.copy')}</>}
                 </button>
               </div>
             </div>
@@ -119,15 +119,14 @@ export function SettingsScreen() {
   }
 
   const TABS: { id: 'general' | 'profiles' | 'support'; label: string }[] = [
-    { id: 'general',  label: t('tab_general')  },
-    { id: 'profiles', label: t('tab_profiles') },
-    { id: 'support',  label: t('tab_support')  },
+    { id: 'general',  label: t('settings.tab.general')  },
+    { id: 'profiles', label: t('settings.tab.profiles') },
+    { id: 'support',  label: t('settings.tab.support')  },
   ]
 
-  const LANGS: { id: Lang; label: string; flag: string }[] = [
-    { id: 'en', label: 'English', flag: '🇬🇧' },
-    { id: 'fr', label: 'Français', flag: '🇫🇷' },
-  ]
+  const LANGS = (Object.keys(languages) as Lang[]).map(id => ({
+    id, label: languages[id]['language.name'], flag: languages[id]['language.flag'],
+  }))
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -148,7 +147,7 @@ export function SettingsScreen() {
         <Card style={{ padding: 24 }} accent={accent}>
           {/* Accent color */}
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>{t('accent_color')}</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>{t('settings.accent_color')}</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               {ACCENT_COLORS.map(({ name, c }) => (
                 <div key={c} onClick={() => dispatch({ type: 'SET_ACCENT', payload: c })} title={name}
@@ -159,7 +158,7 @@ export function SettingsScreen() {
 
           {/* Temp unit */}
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>{t('temp_unit')}</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>{t('settings.temperature_unit')}</div>
             <div style={{ display: 'flex', gap: 6 }}>
               {(['°C', '°F'] as const).map(u => (
                 <button key={u} onClick={() => dispatch({ type: 'SET_TEMP_UNIT', payload: u })} style={{
@@ -173,7 +172,7 @@ export function SettingsScreen() {
 
           {/* Language */}
           <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>{t('language')}</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>{t('settings.language')}</div>
             <div style={{ display: 'flex', gap: 6 }}>
               {LANGS.map(l => (
                 <button key={l.id} onClick={() => setLang(l.id)} style={{
@@ -192,8 +191,8 @@ export function SettingsScreen() {
           {/* Compact sidebar */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
             <div>
-              <div style={{ fontSize: 13, color: '#c0c0c0', fontWeight: 500 }}>{t('compact_sidebar')}</div>
-              <div style={{ fontSize: 11, color: '#7f7f7f', marginTop: 2 }}>{t('compact_sidebar_sub')}</div>
+              <div style={{ fontSize: 13, color: '#c0c0c0', fontWeight: 500 }}>{t('settings.compact_sidebar.title')}</div>
+              <div style={{ fontSize: 11, color: '#7f7f7f', marginTop: 2 }}>{t('settings.compact_sidebar.desc')}</div>
             </div>
             <ToggleSwitch on={compact} onChange={v => dispatch({ type: 'SET_COMPACT', payload: v })} color={accent}/>
           </div>
@@ -201,9 +200,9 @@ export function SettingsScreen() {
           {/* Autostart */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, padding: '14px 16px', background: '#0d0d0d', borderRadius: 8, border: `1px solid ${autostart ? `${accent}33` : '#1a1a1a'}`, transition: 'border-color 200ms' }}>
             <div>
-              <div style={{ fontSize: 13, color: '#c0c0c0', fontWeight: 600, marginBottom: 3 }}>{t('autostart')}</div>
+              <div style={{ fontSize: 13, color: '#c0c0c0', fontWeight: 600, marginBottom: 3 }}>{t('settings.autostart.title')}</div>
               <div style={{ fontSize: 10, color: '#7f7f7f' }}>
-                {autostart ? t('autostart_on') : t('autostart_off')}
+                {autostart ? t('settings.autostart.on') : t('settings.autostart.off')}
               </div>
             </div>
             <ToggleSwitch on={autostart} onChange={toggleAutostart} color={accent}/>
