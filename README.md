@@ -40,6 +40,25 @@ Then launch from your app launcher by searching **nzxt-cam-linux**, or via:
 nzxtcam-v1
 ```
 
+### Prebuilt packages
+
+Each [GitHub release](https://github.com/finleyaubin/nzxt-cam-linux/releases) ships a `.deb`, an `.rpm` and an AppImage. Install the udev rule for USB access without sudo:
+
+```bash
+sudo cp src-tauri/resources/99-nzxt-kraken.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+### Arch (makepkg)
+
+```bash
+git clone https://github.com/finleyaubin/nzxt-cam-linux.git
+cd nzxt-cam-linux/packaging/aur
+makepkg -si
+```
+
+This installs the binary, desktop entry, icon and udev rule system-wide. An AUR package will follow.
+
 ### Uninstall
 
 ```bash

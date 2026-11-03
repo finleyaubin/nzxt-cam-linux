@@ -11,16 +11,19 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Check tag matches Cargo version
+      - name: Check tag matches Cargo version and changelog exists
         run: |
           cargo_version=$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)
           test "v$cargo_version" = "${GITHUB_REF_NAME}"
+          test -f "Changelogs/${GITHUB_REF_NAME}.md" || { echo "::error::No changelog at Changelogs/${GITHUB_REF_NAME}.md - add it before tagging"; exit 1; }
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file "Changelogs/${GITHUB_REF_NAME}.md"
 
   aur:
+    # Disabled until an AUR account and the first manual package push exist (AUR registration closed).
+    if: false
     needs: github-release
     runs-on: ubuntu-latest
     steps:
