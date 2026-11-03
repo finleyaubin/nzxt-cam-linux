@@ -42,6 +42,11 @@ function ReadingFields({ el, metrics, accent, set }: { el: Reading; metrics: Met
       <TextField label="Label" value={el.label} onChange={label => set({ label })} maxLength={24}/>
       <CheckField label="Show label" checked={el.showLabel} accent={accent} onChange={showLabel => set({ showLabel })}/>
       <CheckField label="Show value" checked={el.showValue} accent={accent} onChange={showValue => set({ showValue })}/>
+      {el.type === 'gauge' && (
+        <SelectField label="Text position" value={el.textPosition ?? 'center'} accent={accent}
+          onChange={v => set({ textPosition: v as 'center' | 'bottom' })}
+          options={[{ value: 'center', label: 'Centre of ring' }, { value: 'bottom', label: 'Bottom of ring' }]}/>
+      )}
     </>
   )
 }
@@ -124,7 +129,7 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
     <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <div style={{ flex: 1, fontSize: 13, fontWeight: 700 }}>
-          {element.type === 'gauge' ? (element.sweep >= 360 ? 'Ring' : 'Gauge') : TYPE_NAME[element.type]}
+          {element.type === 'gauge' ? (element.sweep >= 360 ? 'Ring' : element.textPosition === 'bottom' ? 'Split ring' : 'Gauge') : TYPE_NAME[element.type]}
         </div>
         <IconButton title="Bring forward" onClick={() => onReorder(1)}><ArrowUp size={13}/></IconButton>
         <IconButton title="Send backward" onClick={() => onReorder(-1)}><ArrowDown size={13}/></IconButton>

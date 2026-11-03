@@ -13,13 +13,14 @@ import { Pill, SectionTitle } from './fields'
 import { MetricOption, optionFor, useMetricOptions } from './metrics'
 import { AlignMode, alignPatches, clampToScreen } from './geometry'
 import {
-  ArrowCounterClockwise, ArrowClockwise, ArrowUUpLeft, ChartLine, Circle, Gauge as GaugeIcon, Hash, Play, Rectangle, TextT, X,
+  ArrowCounterClockwise, ArrowClockwise, ArrowUUpLeft, ChartLine, Circle, CircleHalf, Gauge as GaugeIcon, Hash, Play, Rectangle, TextT, X,
 } from '@phosphor-icons/react'
 
-type AddKind = 'ring' | 'gauge' | 'bar' | 'graph' | 'value' | 'label'
+type AddKind = 'ring' | 'split' | 'gauge' | 'bar' | 'graph' | 'value' | 'label'
 
 const ADD_BUTTONS: { kind: AddKind; label: string; Icon: typeof Circle }[] = [
   { kind: 'ring',  label: 'Ring',  Icon: Circle },
+  { kind: 'split', label: 'Split ring', Icon: CircleHalf },
   { kind: 'gauge', label: 'Gauge', Icon: GaugeIcon },
   { kind: 'bar',   label: 'Bar',   Icon: Rectangle },
   { kind: 'graph', label: 'Graph', Icon: ChartLine },
@@ -206,6 +207,7 @@ export function DisplayEditor() {
     const reading = { max: m.max, label: m.label }
     const el: DisplayElement =
       kind === 'ring'  ? makeGauge(m.id, { ...at, ...reading, radius: 130, thickness: 26, valueSize: 44 })
+      : kind === 'split' ? makeGauge(m.id, { ...at, ...reading, radius: 150, thickness: 26, valueSize: 40, startAngle: -135, sweep: 270, cornerRadius: 13, textPosition: 'bottom' })
       : kind === 'gauge' ? makeGauge(m.id, { ...at, ...reading, radius: 130, thickness: 26, valueSize: 44, startAngle: -135, sweep: 270 })
       : kind === 'bar'   ? makeBar(m.id, { ...at, ...reading, width: 320, height: 26, valueSize: 24 })
       : kind === 'graph' ? makeGraph(m.id, { ...at, ...reading, width: 360, height: 170 })
@@ -370,7 +372,7 @@ export function DisplayEditor() {
     const names = new Map<string, string>()
     config?.elements.forEach(el => {
       if (el.type === 'text') names.set(el.id, `“${resolve(el.text) || '…'}”`)
-      else names.set(el.id, `${el.type === 'gauge' ? (el.sweep >= 360 ? 'Ring' : 'Gauge') : el.type === 'bar' ? 'Bar' : 'Graph'} · ${el.label || optionFor(metrics, el.metric).label}`)
+      else names.set(el.id, `${el.type === 'gauge' ? (el.sweep >= 360 ? 'Ring' : el.textPosition === 'bottom' ? 'Split ring' : 'Gauge') : el.type === 'bar' ? 'Bar' : 'Graph'} · ${el.label || optionFor(metrics, el.metric).label}`)
     })
     return names
   }, [config, metrics, resolve])

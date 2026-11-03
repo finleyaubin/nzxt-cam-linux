@@ -67,6 +67,8 @@ export interface GaugeElement extends ElementBase {
   valueSize: number
   cornerRadius?: number
   gradientTo?: string | null
+  /** Where the label and value go; 'bottom' suits split rings (a sweep under 360 with the opening at the bottom). */
+  textPosition?: 'center' | 'bottom'
 }
 
 export interface BarElement extends ElementBase {
@@ -246,6 +248,24 @@ export interface Preset {
 const BG = '#0a0a0f'
 
 export const PRESETS: Preset[] = [
+  {
+    id: 'nzxt-cam',
+    name: 'NZXT CAM',
+    description: 'The stock look: a split ring with the reading, label and logo text inside',
+    build: () => ({
+      background: '#000000',
+      elements: [
+        makeGauge('liquid', {
+          radius: 296, thickness: 44, startAngle: -135, sweep: 270, max: 100, cornerRadius: 22,
+          color: '#a84dff', gradientTo: '#2f7bff', trackColor: '#1c1c22', showValue: false, showLabel: false,
+        }),
+        makeText('NZXT', { x: 320, y: 170, size: 40, color: '#ffffff' }),
+        makeText('{liquid}', { x: 320, y: 325, size: 190, color: '#ffffff' }),
+        makeText('°', { x: 440, y: 256, size: 80, color: '#ffffff', align: 'left' }),
+        makeText('Liquid', { x: 320, y: 470, size: 46, color: '#ffffff' }),
+      ]
+    })
+  },
   {
     id: 'triple-rings',
     name: '3 rings',

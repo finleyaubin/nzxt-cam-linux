@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { DisplayConfig, DisplayElement, LCD_SIZE } from '@shared/display'
-import { elementRect, handlesFor, hitTest, resizePatch, snapMove, clampToScreen } from './geometry'
+import { elementRect, handlesFor, hitTest, resizePatch, snapMove, snapResize, clampToScreen, SnapHint } from './geometry'
 
 const GUTTER = 14
 
@@ -37,6 +37,7 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
   const rootRef = useRef<HTMLDivElement>(null)
   const drag = useRef<Drag | null>(null)
   const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null })
+  const [hints, setHints] = useState<SnapHint[]>([])
   const [hoverId, setHoverId] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const editDone = useRef(false)
@@ -84,22 +85,41 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
     }
     const el = config.elements.find(x => x.id === d.id)
     if (!el) return
+    // About 6 screen pixels of pull, whatever the canvas size. Hold Alt to drag freely.
+    const threshold = e.altKey ? 0 : 6 / scale
     if (d.kind === 'move') {
       const o = d.origin.find(x => x.id === d.id)!
       const moving = new Set(d.origin.map(x => x.id))
-      const s = snapMove(el, clampToScreen(o.x + p.x - d.start.x), clampToScreen(o.y + p.y - d.start.y),
-        config.elements.filter(x => !moving.has(x.id)), resolve)
+      let rawX = p.x - d.start.x
+      let rawY = p.y - d.start.y
+      // Shift locks the drag to the dominant axis.
+      if (e.shiftKey) { if (Math.abs(rawX) >= Math.abs(rawY)) rawY = 0; else rawX = 0 }
+      const tx = clampToScreen(o.x + rawX)
+      const ty = clampToScreen(o.y + rawY)
+      const s = threshold > 0
+        ? snapMove(el, tx, ty, config.elements.filter(x => !moving.has(x.id)), resolve, threshold)
+        : { x: tx, y: ty, guideX: null, guideY: null, hints: [] as SnapHint[] }
+      // A locked axis stays locked even if something snaps along it.
+      const nx = e.shiftKey && rawX === 0 ? o.x : s.x
+      const ny = e.shiftKey && rawY === 0 ? o.y : s.y
       setGuides({ x: s.guideX, y: s.guideY })
-      const dx = s.x - o.x, dy = s.y - o.y
+      setHints(s.hints)
+      const dx = nx - o.x, dy = ny - o.y
       onPatchMany(d.origin.map(x => ({ id: x.id, patch: { x: clampToScreen(x.x + dx), y: clampToScreen(x.y + dy) } })))
     } else {
-      onPatch(el.id, resizePatch(el, d.handle, p.x, p.y, resolve))
+      const s = threshold > 0
+        ? snapResize(el, d.handle, p.x, p.y, config.elements.filter(x => x.id !== el.id), resolve, threshold)
+        : { patch: resizePatch(el, d.handle, p.x, p.y, resolve), guideX: null, guideY: null }
+      setGuides({ x: s.guideX, y: s.guideY })
+      setHints([])
+      onPatch(el.id, s.patch)
     }
   }
 
   const endDrag = () => {
     drag.current = null
     setGuides({ x: null, y: null })
+    setHints([])
   }
 
   const finishEdit = (commit: boolean, value: string) => {
@@ -179,6 +199,18 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
           <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.12)', pointerEvents: 'none' }}/>
           {guides.x !== null && <div style={{ position: 'absolute', left: guides.x * scale, top: 0, bottom: 0, width: 1, background: accent, opacity: 0.8, pointerEvents: 'none' }}/>}
           {guides.y !== null && <div style={{ position: 'absolute', top: guides.y * scale, left: 0, right: 0, height: 1, background: accent, opacity: 0.8, pointerEvents: 'none' }}/>}
+          {hints.map((h, i) => (
+            <div key={i} style={{
+              position: 'absolute', pointerEvents: 'none', background: accent, opacity: 0.9,
+              left: Math.min(h.x1, h.x2) * scale, top: Math.min(h.y1, h.y2) * scale,
+              width: Math.max(1, Math.abs(h.x2 - h.x1) * scale), height: Math.max(1, Math.abs(h.y2 - h.y1) * scale),
+            }}>
+              <span style={{
+                position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -150%)', fontSize: 10, fontWeight: 700,
+                color: '#fff', background: accent, borderRadius: 4, padding: '0 4px', whiteSpace: 'nowrap',
+              }}>{h.label}</span>
+            </div>
+          ))}
         </div>
 
         {hover && <div style={{ ...box(hover), border: `1px dashed ${accent}88` }}/>}

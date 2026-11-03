@@ -7,7 +7,7 @@
 use crate::render::fonts::{draw_text, draw_text_centered, font, measure};
 use crate::types::{
     hex_to_rgb, resolve_text, BarElement, DisplayConfig, DisplayElement, GaugeElement, GraphElement,
-    MetricId, TextElement, Temperatures, LCD_SIZE,
+    MetricId, TextElement, TextPosition, Temperatures, LCD_SIZE,
 };
 use anyhow::Result;
 use crate::image_io;
@@ -337,9 +337,24 @@ fn draw_gauge(
         lines.push((txt, el.value_size, color));
     }
     if !lines.is_empty() {
-        draw_centered_stack(pm, el.x, el.y, &lines)?;
+        let cy = match el.text_position {
+            TextPosition::Center => el.y,
+            // Sit in the opening at the bottom of a split ring, just inside the outer edge.
+            TextPosition::Bottom => el.y + r_out - 4.0 - stack_height(&lines)? / 2.0,
+        };
+        draw_centered_stack(pm, el.x, cy, &lines)?;
     }
     Ok(())
+}
+
+const STACK_GAP: f32 = 4.0;
+
+fn stack_height(lines: &[(String, f32, (u8, u8, u8))]) -> Result<f32> {
+    let mut total = STACK_GAP * (lines.len().saturating_sub(1) as f32);
+    for (s, sz, _) in lines {
+        total += measure(s, *sz)?.height;
+    }
+    Ok(total)
 }
 
 fn draw_centered_stack(
@@ -592,7 +607,7 @@ mod tests {
             id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
             color: "#000000".into(), track_color: "#0000ff".into(), start_angle: 0.0, sweep: 180.0,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
-            value_size: 20.0, corner_radius: 20.0, gradient_to: Some("#ffffff".into()),
+            value_size: 20.0, corner_radius: 20.0, gradient_to: Some("#ffffff".into()), text_position: Default::default(),
         };
         let cfg = DisplayConfig { background: "#101010".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let temps = Temperatures { cpu: 100.0, ..Temperatures::default() };
@@ -605,12 +620,31 @@ mod tests {
     }
 
     #[test]
+    fn split_ring_puts_its_text_in_the_bottom_opening() {
+        let gauge = GaugeElement {
+            id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 200.0, thickness: 30.0, max: 100.0,
+            color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep: 270.0,
+            warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: true, show_label: false, label: String::new(),
+            value_size: 48.0, corner_radius: 0.0, gradient_to: None, text_position: TextPosition::Bottom,
+        };
+        let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
+        let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures { cpu: 50.0, ..Temperatures::default() }).unwrap() else { panic!() };
+        let red_in = |x0: usize, x1: usize, y0: usize, y1: usize| {
+            (y0..y1).flat_map(|y| (x0..x1).map(move |x| (x, y)))
+                .filter(|&(x, y)| { let i = (y * LCD_SIZE as usize + x) * 4; rgba[i] > 200 && rgba[i + 2] < 60 })
+                .count()
+        };
+        assert!(red_in(270, 370, 440, 520) > 100, "value text sits in the bottom opening");
+        assert_eq!(red_in(270, 370, 290, 350), 0, "the middle of the ring stays empty");
+    }
+
+    #[test]
     fn negative_start_angle_draws_whole_gauge() {
         let gauge = GaugeElement {
             id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
             color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep: 270.0,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
-            value_size: 20.0, corner_radius: 0.0, gradient_to: None,
+            value_size: 20.0, corner_radius: 0.0, gradient_to: None, text_position: Default::default(),
         };
         let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures { cpu: 100.0, ..Temperatures::default() }).unwrap() else { panic!() };

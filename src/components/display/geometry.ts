@@ -138,29 +138,155 @@ export const clampToScreen = (v: number) => Math.round(clamp(v, 0, LCD_SIZE))
  * Snaps a moving element's centre/edges to the screen centre and to other elements' centres/edges
  * (which also lines rings up concentrically). Guides are scene coordinates of the line that matched.
  */
+export interface SnapHint {
+  /** Gap indicator in scene units: a short bar from (x1, y1) to (x2, y2) labelled with the gap size. */
+  x1: number; y1: number; x2: number; y2: number; label: string
+}
+
+interface Candidate { off: number; target: number; guide: number; hint?: SnapHint }
+
+/** Nearest candidate within `threshold` of the dragged position `pos`. */
+function nearest(pos: number, cands: Candidate[], threshold: number): { pos: number; guide: number; hint?: SnapHint } | null {
+  let best: Candidate | null = null
+  let min = threshold + 0.001
+  for (const c of cands) {
+    const d = Math.abs(c.target - (pos + c.off))
+    if (d < min) { min = d; best = c }
+  }
+  return best ? { pos: pos + (best.target - (pos + best.off)), guide: best.guide, hint: best.hint } : null
+}
+
+/** Gap sizes (>= 4) between neighbouring rects along one axis. */
+function gapsBetween(rects: Rect[], axis: 'x' | 'y'): number[] {
+  const lo = (r: Rect) => (axis === 'x' ? r.left : r.top)
+  const hi = (r: Rect) => (axis === 'x' ? r.right : r.bottom)
+  const sorted = [...rects].sort((p, q) => lo(p) - lo(q))
+  const gaps = new Set<number>()
+  for (let i = 1; i < sorted.length; i++) {
+    const g = Math.round(lo(sorted[i]) - hi(sorted[i - 1]))
+    if (g >= 4) gaps.add(g)
+  }
+  return [...gaps]
+}
+
+/**
+ * Snaps a dragged element's position. Alignment (edges and centres against other elements and the
+ * screen centre) wins; when nothing aligns, it falls back to matching an existing gap between
+ * elements. `threshold` is in scene units, so callers pass a fixed number of screen pixels / scale.
+ */
 export function snapMove(
-  el: DisplayElement, nx: number, ny: number, others: DisplayElement[], resolve: Resolve,
-): { x: number; y: number; guideX: number | null; guideY: number | null } {
+  el: DisplayElement, nx: number, ny: number, others: DisplayElement[], resolve: Resolve, threshold = SNAP,
+): { x: number; y: number; guideX: number | null; guideY: number | null; hints: SnapHint[] } {
   const r = elementRect(el, resolve)
+  const w = r.right - r.left
+  const h = r.bottom - r.top
+  const rects = others.map(o => elementRect(o, resolve))
   const offX = [r.left - el.x, (r.left + r.right) / 2 - el.x, r.right - el.x]
   const offY = [r.top - el.y, (r.top + r.bottom) / 2 - el.y, r.bottom - el.y]
-  const tx = [CENTER], ty = [CENTER]
-  for (const o of others) {
-    const q = elementRect(o, resolve)
-    tx.push(q.left, (q.left + q.right) / 2, q.right)
-    ty.push(q.top, (q.top + q.bottom) / 2, q.bottom)
+
+  const align = (offs: number[], targets: number[]): Candidate[] =>
+    offs.flatMap(off => targets.map(t => ({ off, target: t, guide: t })))
+  const tx = [CENTER, ...rects.flatMap(q => [q.left, (q.left + q.right) / 2, q.right])]
+  const ty = [CENTER, ...rects.flatMap(q => [q.top, (q.top + q.bottom) / 2, q.bottom])]
+
+  const hints: SnapHint[] = []
+
+  // Equal spacing: put this element's near edge one existing gap away from a neighbour's far edge.
+  const spacing = (axis: 'x' | 'y', pos: number, otherPos: number): Candidate[] => {
+    const gaps = gapsBetween([...rects, r], axis)
+    const [offLo, offHi] = axis === 'x' ? [offX[0], offX[2]] : [offY[0], offY[2]]
+    const size = axis === 'x' ? w : h
+    return rects.flatMap(q => gaps.flatMap(g => {
+      const qLo = axis === 'x' ? q.left : q.top
+      const qHi = axis === 'x' ? q.right : q.bottom
+      // Only neighbours this element overlaps on the other axis count as neighbours.
+      const crossLo = axis === 'x' ? q.top : q.left
+      const crossHi = axis === 'x' ? q.bottom : q.right
+      const mine = axis === 'x' ? [otherPos + offY[0], otherPos + offY[2]] : [otherPos + offX[0], otherPos + offX[2]]
+      if (mine[1] < crossLo || mine[0] > crossHi) return []
+      const mid = (Math.max(mine[0], crossLo) + Math.min(mine[1], crossHi)) / 2
+      const bar = (a: number, b: number): SnapHint => axis === 'x'
+        ? { x1: a, y1: mid, x2: b, y2: mid, label: String(g) }
+        : { x1: mid, y1: a, x2: mid, y2: b, label: String(g) }
+      void pos; void size
+      return [
+        { off: offLo, target: qHi + g, guide: qHi, hint: bar(qHi, qHi + g) },
+        { off: offHi, target: qLo - g, guide: qLo, hint: bar(qLo - g, qLo) },
+      ]
+    }))
   }
-  const best = (pos: number, offs: number[], targets: number[]) => {
-    let d = 0, guide: number | null = null, min = SNAP + 0.001
-    for (const off of offs) for (const t of targets) {
-      const diff = t - (pos + off)
-      if (Math.abs(diff) < min) { min = Math.abs(diff); d = diff; guide = t }
+
+  let x = nearest(nx, align(offX, tx), threshold)
+  let y = nearest(ny, align(offY, ty), threshold)
+  const px = x?.pos ?? nx
+  const py = y?.pos ?? ny
+  if (!x) x = nearest(nx, spacing('x', nx, py), threshold)
+  if (!y) y = nearest(ny, spacing('y', ny, px), threshold)
+  for (const s of [x, y]) if (s?.hint) hints.push(s.hint)
+
+  return {
+    x: Math.round(x?.pos ?? nx), y: Math.round(y?.pos ?? ny),
+    guideX: x?.guide ?? null, guideY: y?.guide ?? null, hints,
+  }
+}
+
+/**
+ * Resize with snapping: the dragged edge snaps to other elements' edges/centres and the screen centre,
+ * and widths/heights snap to the same size as another element. Gauges snap their radius to other rings
+ * (same radius, touching, or one ring-gap inside). Text isn't snapped.
+ */
+export function snapResize(
+  el: DisplayElement, handleId: string, px: number, py: number, others: DisplayElement[], resolve: Resolve, threshold = SNAP,
+): { patch: Partial<DisplayElement>; guideX: number | null; guideY: number | null } {
+  px = clamp(px, 0, LCD_SIZE)
+  py = clamp(py, 0, LCD_SIZE)
+  let guideX: number | null = null
+  let guideY: number | null = null
+
+  if (el.type === 'gauge') {
+    const dist = Math.hypot(px - el.x, py - el.y)
+    const rings = others.filter((o): o is Extract<DisplayElement, { type: 'gauge' }> => o.type === 'gauge')
+    const radii = [LCD_SIZE / 2, ...rings.flatMap(o => [o.radius, o.radius - o.thickness, o.radius - o.thickness - 10])]
+    const hit = radii.filter(rad => rad > 0).sort((a, b) => Math.abs(a - dist) - Math.abs(b - dist))[0]
+    if (hit !== undefined && Math.abs(hit - dist) <= threshold && dist > 0) {
+      const k = hit / dist
+      px = el.x + (px - el.x) * k
+      py = el.y + (py - el.y) * k
     }
-    return { pos: Math.round(pos + d), guide }
+    return { patch: resizePatch(el, handleId, px, py, resolve), guideX, guideY }
   }
-  const bx = best(nx, offX, tx)
-  const by = best(ny, offY, ty)
-  return { x: bx.pos, y: by.pos, guideX: bx.guide, guideY: by.guide }
+
+  const handle = RECT_HANDLES.find(h => h.id === handleId)
+  if (el.type === 'text' || !handle) return { patch: resizePatch(el, handleId, px, py, resolve), guideX, guideY }
+
+  const r = elementRect(el, resolve)
+  const rects = others.map(o => elementRect(o, resolve))
+  const pick = (v: number, targets: number[]) => {
+    let best: number | null = null
+    let min = threshold + 0.001
+    for (const t of targets) if (Math.abs(t - v) < min) { min = Math.abs(t - v); best = t }
+    return best
+  }
+
+  if (handle.hx !== 0) {
+    const aligned = pick(px, [CENTER, ...rects.flatMap(q => [q.left, (q.left + q.right) / 2, q.right])])
+    if (aligned !== null) { px = aligned; guideX = aligned }
+    else {
+      const fixed = handle.hx > 0 ? r.left : r.right
+      const same = pick(px, rects.map(q => fixed + handle.hx * (q.right - q.left)))
+      if (same !== null) px = same
+    }
+  }
+  if (handle.hy !== 0) {
+    const aligned = pick(py, [CENTER, ...rects.flatMap(q => [q.top, (q.top + q.bottom) / 2, q.bottom])])
+    if (aligned !== null) { py = aligned; guideY = aligned }
+    else {
+      const fixed = handle.hy > 0 ? r.top : r.bottom
+      const same = pick(py, rects.map(q => fixed + handle.hy * (q.bottom - q.top)))
+      if (same !== null) py = same
+    }
+  }
+  return { patch: resizePatch(el, handleId, px, py, resolve), guideX, guideY }
 }
 
 export type AlignMode = 'left' | 'hcenter' | 'right' | 'top' | 'vcenter' | 'bottom' | 'hdist' | 'vdist'
