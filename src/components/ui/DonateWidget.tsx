@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import QRCode from 'qrcode'
 import { useApp } from '../../context/AppContext'
+import { useLanguage } from '../../i18n/LangContext'
 import { Heart, Copy, Check, QrCode, X } from '@phosphor-icons/react'
 
 const IHeart = () => <Heart size={14} weight="fill" />
@@ -9,6 +10,7 @@ const ICheck = () => <Check size={13} weight="regular" />
 const IQR = () => <QrCode size={13} weight="regular" />
 
 function QRModal({ name, symbol, color, address, onClose }: { name: string, symbol: string, color: string, address: string, onClose: () => void }) {
+  const { t } = useLanguage()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     if (canvasRef.current) {
@@ -35,7 +37,7 @@ function QRModal({ name, symbol, color, address, onClose }: { name: string, symb
           <canvas ref={canvasRef} style={{ display: 'block', borderRadius: 8 }}/>
         </div>
         <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#7f7f7f', textAlign: 'center', maxWidth: 200, wordBreak: 'break-all', lineHeight: 1.6 }}>{address}</div>
-        <div style={{ fontSize: 10, color: '#7f7f7f' }}>Scan with your crypto wallet app</div>
+        <div style={{ fontSize: 10, color: '#7f7f7f' }}>{t('donate.scan')}</div>
       </div>
     </div>
   )
@@ -48,6 +50,7 @@ const CRYPTO = [
 ]
 
 function DonatePanel({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage()
   const [copied, setCopied] = useState<string | null>(null)
   const [qrTarget, setQrTarget] = useState<typeof CRYPTO[number] | null>(null)
   const copyAddress = (id: string, addr: string) => {
@@ -63,15 +66,15 @@ function DonatePanel({ onClose }: { onClose: () => void }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ color: '#ff4757', display: 'flex' }}><IHeart/></div>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', letterSpacing: '-0.2px' }}>Contribute to the Project</div>
-            <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 2 }}>NZXTCAM Linux · Open Source</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', letterSpacing: '-0.2px' }}>{t('donate.title')}</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 2 }}>{t('donate.subtitle')}</div>
           </div>
         </div>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#7f7f7f', fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: '0 4px', display: 'flex' }}><X size={16} weight="regular" /></button>
       </div>
       <div style={{ padding: '12px 18px', background: '#0d0d0d', borderBottom: '1px solid #1a1a1a' }}>
         <p style={{ fontSize: 11, color: '#9a9a9a', lineHeight: 1.6 }}>
-          This project is open source and developed for free. If you appreciate it and want to support its development, any contribution is welcome.
+          {t('donate.blurb')}
         </p>
       </div>
       <div style={{ padding: '12px 14px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -89,9 +92,9 @@ function DonatePanel({ onClose }: { onClose: () => void }) {
               {address !== '-' && (
                 <div style={{ display: 'flex', gap: 5 }}>
                   <button onClick={() => copyAddress(id, address)} style={{ background: copied === id ? color + '22' : 'transparent', border: `1px solid ${copied === id ? color + '55' : '#2a2a2a'}`, borderRadius: 8, color: copied === id ? color : '#7f7f7f', cursor: 'pointer', padding: '4px 7px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, transition: 'all 160ms' }}>
-                    {copied === id ? <><ICheck/> Copied</> : <><ICopy/> Copy</>}
+                    {copied === id ? <><ICheck/> {t('common.copied')}</> : <><ICopy/> {t('common.copy')}</>}
                   </button>
-                  <button onClick={() => setQrTarget(CRYPTO.find(c => c.id === id)!)} style={{ background: 'transparent', border: '1px solid #2a2a2a', borderRadius: 8, color: '#7f7f7f', cursor: 'pointer', padding: '4px 7px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, transition: 'all 160ms' }} title="QR Code">
+                  <button onClick={() => setQrTarget(CRYPTO.find(c => c.id === id)!)} style={{ background: 'transparent', border: '1px solid #2a2a2a', borderRadius: 8, color: '#7f7f7f', cursor: 'pointer', padding: '4px 7px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, transition: 'all 160ms' }} title={t('donate.qr')}>
                     <IQR/> QR
                   </button>
                 </div>
@@ -101,7 +104,7 @@ function DonatePanel({ onClose }: { onClose: () => void }) {
         ))}
       </div>
       <div style={{ padding: '8px 18px 14px', textAlign: 'center' }}>
-        <div style={{ fontSize: 9, color: '#7f7f7f' }}>Thank you for supporting NZXTCAM Linux</div>
+        <div style={{ fontSize: 9, color: '#7f7f7f' }}>{t('donate.thanks')}</div>
       </div>
     </div>
     </>
@@ -110,6 +113,7 @@ function DonatePanel({ onClose }: { onClose: () => void }) {
 
 export function DonateWidget() {
   const { state } = useApp()
+  const { t } = useLanguage()
   const accent = state.accent
   const [open, setOpen] = useState(false)
   const [dismissed, setDismissed] = useState(false)
@@ -129,9 +133,9 @@ export function DonateWidget() {
           transition: 'all 180ms', letterSpacing: '0.3px',
         }}>
           <span style={{ color: '#ff4757', display: 'flex', animation: 'logoPulse 2s ease-in-out infinite' }}><IHeart/></span>
-          Contribute to the project
+          {t('donate.button')}
         </button>
-        <button onClick={() => { setOpen(false); setDismissed(true) }} title="Hide" style={{
+        <button onClick={() => { setOpen(false); setDismissed(true) }} title={t('common.hide')} style={{
           background: '#131313', border: '1px solid #252525', borderRadius: '50%',
           width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#7f7f7f', cursor: 'pointer', fontSize: 14, lineHeight: 1,

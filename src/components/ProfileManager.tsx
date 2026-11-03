@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback } from 'react'
 import { useApp } from '../context/AppContext'
 import { api, Profile, ProfileLcd, ProfileSummary } from '../lib/api'
 import { Plus, Play, Trash, Copy, Check } from '@phosphor-icons/react'
+import type { TranslationKey } from '../i18n/languages'
+import { useLanguage } from '../i18n/LangContext'
 
-const LCD_TYPE_LABEL: Record<string, string> = {
-  image:        'Image',
-  gif:          'GIF',
-  temperatures: 'Temperatures',
-  none:         'LCD unchanged',
+const LCD_TYPE_LABEL: Record<string, TranslationKey> = {
+  image:        'profiles.lcd_type.image',
+  gif:          'profiles.lcd_type.gif',
+  temperatures: 'profiles.lcd_type.temperatures',
+  none:         'profiles.lcd_type.none',
 }
 
 const IPlus = () => <Plus size={12} weight="regular" />
@@ -20,6 +22,7 @@ function SaveDialog({ onSave, onCancel }: {
   onCancel: () => void
 }) {
   const { state } = useApp()
+  const { t } = useLanguage()
   const accent = state.accent
   const [name, setName] = useState('')
   const [includeLcd, setIncludeLcd] = useState(true)
@@ -28,11 +31,11 @@ function SaveDialog({ onSave, onCancel }: {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(4px)' }}>
       <div style={{ background: '#111', border: '1px solid #222', borderRadius: 12, padding: 24, width: 340, display: 'flex', flexDirection: 'column', gap: 18, boxShadow: '0 32px 80px rgba(0,0,0,0.8)' }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', letterSpacing: '-0.2px' }}>New profile</div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', letterSpacing: '-0.2px' }}>{t('profiles.new')}</div>
 
         <input
           autoFocus
-          placeholder="Profile name (e.g. gaming, idle…)"
+          placeholder={t('profiles.name_placeholder')}
           value={name}
           onChange={e => setName(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && name.trim() && onSave(name.trim(), includeLcd, includeRing)}
@@ -44,11 +47,11 @@ function SaveDialog({ onSave, onCancel }: {
         />
 
         <div>
-          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700, marginBottom: 10 }}>Include in profile</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700, marginBottom: 10 }}>{t('profiles.include')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[
-              { key: 'lcd', label: 'Current LCD mode', val: includeLcd, set: setIncludeLcd },
-              { key: 'ring', label: 'Current LED ring', val: includeRing, set: setIncludeRing },
+              { key: 'lcd', label: t('profiles.include_lcd'), val: includeLcd, set: setIncludeLcd },
+              { key: 'ring', label: t('profiles.include_ring'), val: includeRing, set: setIncludeRing },
             ].map(({ key, label, val, set }) => (
               <div key={key} onClick={() => set(!val)} style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, cursor: 'pointer',
@@ -75,13 +78,13 @@ function SaveDialog({ onSave, onCancel }: {
           <button onClick={onCancel} style={{
             flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid #222',
             background: 'transparent', color: '#9a9a9a', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 140ms',
-          }}>Cancel</button>
+          }}>{t('common.cancel')}</button>
           <button onClick={() => name.trim() && onSave(name.trim(), includeLcd, includeRing)} disabled={!name.trim()} style={{
             flex: 1, padding: '9px 0', borderRadius: 8, border: 'none',
             background: name.trim() ? accent : '#252525', color: name.trim() ? '#fff' : '#444',
             fontSize: 12, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'not-allowed',
             boxShadow: name.trim() ? `0 0 14px ${accent}44` : 'none', transition: 'all 140ms',
-          }}>Save</button>
+          }}>{t('common.save')}</button>
         </div>
       </div>
     </div>
@@ -90,6 +93,7 @@ function SaveDialog({ onSave, onCancel }: {
 
 export function ProfileManager() {
   const { state } = useApp()
+  const { t } = useLanguage()
   const { accent, deviceStatus } = state
   const connected = deviceStatus.connected
 
@@ -123,8 +127,8 @@ export function ProfileManager() {
       displayConfig: includeLcd ? state.displayConfig ?? undefined : undefined,
     }
     const result = await api.saveProfile(profile)
-    if (!result.success) setError(result.error ?? 'Unknown error')
-    else { flash(`"${name}" saved`); refresh() }
+    if (!result.success) setError(result.error ?? t('error.unknown'))
+    else { flash(t('profiles.flash_saved', { name })); refresh() }
   }
 
   const handleApply = async (name: string) => {
@@ -132,16 +136,16 @@ export function ProfileManager() {
     setApplying(name); setError(null)
     try {
       const result = await api.applyProfile(name)
-      if (!result.success) setError(result.error ?? 'Error')
-      else flash(`"${name}" applied`)
+      if (!result.success) setError(result.error ?? t('error.generic'))
+      else flash(t('profiles.flash_applied', { name }))
     } finally { setApplying(null) }
   }
 
   const handleDelete = async (name: string) => {
     setError(null)
     const result = await api.deleteProfile(name)
-    if (!result.success) setError(result.error ?? 'Error')
-    else { flash(`"${name}" deleted`); refresh() }
+    if (!result.success) setError(result.error ?? t('error.generic'))
+    else { flash(t('profiles.flash_deleted', { name })); refresh() }
   }
 
   const autoStartCmd = (name: string) => `exec-once = ~/.local/bin/nzxtcam --profile ${name}`
@@ -158,8 +162,8 @@ export function ProfileManager() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700 }}>Saved profiles</div>
-          <div style={{ fontSize: 11, color: '#7f7f7f', marginTop: 4 }}>Save your LCD + Ring setup in one click</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700 }}>{t('profiles.saved_title')}</div>
+          <div style={{ fontSize: 11, color: '#7f7f7f', marginTop: 4 }}>{t('profiles.saved_desc')}</div>
         </div>
         <button onClick={() => setShowSaveDialog(true)} style={{
           display: 'flex', alignItems: 'center', gap: 7,
@@ -174,8 +178,8 @@ export function ProfileManager() {
       {/* Profile list */}
       {profiles.length === 0 ? (
         <div style={{ padding: '28px 20px', borderRadius: 12, border: '1px dashed #1e1e1e', textAlign: 'center' }}>
-          <div style={{ fontSize: 12, color: '#7f7f7f', fontWeight: 500 }}>No profiles</div>
-          <div style={{ fontSize: 11, color: '#7f7f7f', marginTop: 5 }}>Create a profile to save your setup</div>
+          <div style={{ fontSize: 12, color: '#7f7f7f', fontWeight: 500 }}>{t('profiles.empty_title')}</div>
+          <div style={{ fontSize: 11, color: '#7f7f7f', marginTop: 5 }}>{t('profiles.empty_desc')}</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -187,7 +191,7 @@ export function ProfileManager() {
             }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#d0d0d0', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
-                <div style={{ fontSize: 10, color: '#7f7f7f' }}>{LCD_TYPE_LABEL[p.lcdType] ?? p.lcdType}</div>
+                <div style={{ fontSize: 10, color: '#7f7f7f' }}>{LCD_TYPE_LABEL[p.lcdType] ? t(LCD_TYPE_LABEL[p.lcdType]) : p.lcdType}</div>
               </div>
               <button onClick={() => handleApply(p.name)} disabled={!connected || applying === p.name} style={{
                 display: 'flex', alignItems: 'center', gap: 6,
@@ -196,7 +200,7 @@ export function ProfileManager() {
                 fontSize: 11, fontWeight: 700, cursor: connected ? 'pointer' : 'not-allowed',
                 opacity: !connected ? 0.4 : 1, transition: 'all 130ms',
               }}>
-                <IPlay/>{applying === p.name ? 'Sending…' : 'Apply'}
+                <IPlay/>{applying === p.name ? t('common.sending') : t('common.apply')}
               </button>
               <button onClick={() => handleDelete(p.name)} style={{
                 width: 30, height: 30, borderRadius: 8, border: '1px solid #1e1e1e',
@@ -214,13 +218,13 @@ export function ProfileManager() {
       {/* Autostart */}
       {profiles.length > 0 && (
         <div>
-          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700, marginBottom: 8 }}>Autostart - Hyprland</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700, marginBottom: 8 }}>{t('profiles.autostart_title')}</div>
           <div style={{ fontSize: 11, color: '#7f7f7f', marginBottom: 10, lineHeight: 1.6 }}>
             Add to <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#7f7f7f' }}>~/.config/hypr/hyprland.conf</span> to launch a profile at startup:
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {profiles.map(p => (
-              <div key={p.name} onClick={() => copyCmd(p.name)} title="Click to copy" style={{
+              <div key={p.name} onClick={() => copyCmd(p.name)} title={t('common.click_to_copy')} style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '8px 12px', borderRadius: 8,
                 background: '#0a0a0a', border: `1px solid ${copied === p.name ? `${accent}44` : '#181818'}`,
@@ -233,7 +237,7 @@ export function ProfileManager() {
                 <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#7f7f7f', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {autoStartCmd(p.name)}
                 </span>
-                {copied === p.name && <span style={{ fontSize: 10, color: accent, fontWeight: 700, flexShrink: 0 }}>Copied</span>}
+                {copied === p.name && <span style={{ fontSize: 10, color: accent, fontWeight: 700, flexShrink: 0 }}>{t('common.copied')}</span>}
               </div>
             ))}
           </div>

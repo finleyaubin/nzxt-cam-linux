@@ -40,7 +40,7 @@ export function CloseDialog() {
       }}>
         <div>
           <div style={{ fontSize: 15, fontWeight: 800, color: '#f0f0f0', marginBottom: 6, letterSpacing: '-0.2px' }}>
-            Close window?
+            {t('dialog.close.title')}
           </div>
           <div style={{ fontSize: 12, color: '#9a9a9a', lineHeight: 1.6 }}>
             {t('dialog.close.sub')}

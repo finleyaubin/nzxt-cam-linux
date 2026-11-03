@@ -4,6 +4,8 @@ import { MAX_SENSORS, MetricId } from '@shared/display'
 import { Sensor } from '../../lib/api'
 import { bindSensor, useBoundSources, useSensorCatalog } from '../../hooks/useSensorSlots'
 import { Modal } from '../ui/Modal'
+import { useLanguage } from '../../i18n/LangContext'
+import type { TranslationKey } from '../../i18n/languages'
 import { Field, Pill } from './fields'
 import { MetricOption } from './metrics'
 
@@ -11,6 +13,15 @@ const BUILTIN = 'Built-in'
 const IN_USE = 'In use'
 const SOURCES = [BUILTIN, 'System', 'NVIDIA GPU', 'Hardware', 'Home Assistant']
 const MAX_ROWS = 150
+
+const SOURCE_LABELS: Record<string, TranslationKey> = {
+  [BUILTIN]: 'sensor_picker.source.builtin',
+  [IN_USE]: 'sensor_picker.source.in_use',
+  System: 'sensor_picker.source.system',
+  'NVIDIA GPU': 'sensor_picker.source.nvidia',
+  Hardware: 'sensor_picker.source.hardware',
+  'Home Assistant': 'sensor_picker.source.home_assistant',
+}
 
 const sourceOf = (id: string) =>
   id.startsWith('ha:') ? 'Home Assistant' : id.startsWith('sys:') ? 'System' : id.startsWith('nvidia-smi:') ? 'NVIDIA GPU' : 'Hardware'
@@ -52,6 +63,7 @@ interface DialogProps {
 
 /** Popup with search, source/unit filters and a keyboard-navigable list of every sensor. */
 export function SensorDialog({ title, only, builtins, activeId, accent, onBuiltin, onSensor, onClose }: DialogProps) {
+  const { t } = useLanguage()
   const everything = useSensorCatalog()
   const catalog = only ? everything.filter(only) : everything
   const boundSources = useBoundSources()
@@ -132,7 +144,7 @@ export function SensorDialog({ title, only, builtins, activeId, accent, onBuilti
           <div style={{ fontSize: 12, color: r.active ? accent : '#d0d0d0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{highlight(r.label, tokens)}</div>
           {r.sub && <div style={{ fontSize: 10, color: '#6f6f6f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{highlight(r.sub, tokens)}</div>}
         </div>
-        {showBadge && r.bound && <span style={{ fontSize: 10, color: accent }}>in use</span>}
+        {showBadge && r.bound && <span style={{ fontSize: 10, color: accent }}>{t('sensor_picker.in_use_badge')}</span>}
         {r.unit && <span style={{ fontSize: 11, color: '#7f7f7f', minWidth: 28, textAlign: 'right' }}>{r.unit}</span>}
       </div>
     )
@@ -144,37 +156,37 @@ export function SensorDialog({ title, only, builtins, activeId, accent, onBuilti
       headerExtra={(
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: '#0d0d0d', border: '1px solid #252525', borderRadius: 8, padding: '0 10px' }}>
           <MagnifyingGlass size={13} color="#7f7f7f"/>
-          <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by name or entity id…" aria-label="Search sensors"
+          <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={t('sensor_picker.search')} aria-label={t('sensor_picker.search_label')}
             style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', color: '#e0e0e0', fontSize: 12, padding: '7px 0' }}/>
         </div>
       )}
       footer={(
         <>
-          <span style={{ flex: 1, color: error ? '#ff4757' : undefined }}>{error || '↑↓ to move · Enter to choose · Esc to close'}</span>
-          <span>{boundSources.filter(Boolean).length} of {MAX_SENSORS} sensor slots in use</span>
+          <span style={{ flex: 1, color: error ? '#ff4757' : undefined }}>{error || t('sensor_picker.keys_hint')}</span>
+          <span>{t('sensor_picker.slots_in_use', { used: boundSources.filter(Boolean).length, total: MAX_SENSORS })}</span>
         </>
       )}
     >
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
         <div style={{ width: 190, flexShrink: 0, overflowY: 'auto', padding: '2px 8px 10px', borderRight: '1px solid #222' }}>
-          {filterHead('Source')}
-          {filterItem('all', 'All', rows.length, !source, () => { setSource(null); setUnit(null) })}
-          {inUseCount > 0 && filterItem(IN_USE, 'In use on the LCD', inUseCount, source === IN_USE, () => { setSource(source === IN_USE ? null : IN_USE); setUnit(null) })}
-          {sourceCounts.map(([name, n]) => filterItem(name, name, n, source === name, () => { setSource(source === name ? null : name); setUnit(null) }))}
-          {unitCounts.length > 1 && filterHead('Unit')}
-          {unitCounts.length > 1 && filterItem('any-unit', 'Any unit', inSource.length, !unit, () => setUnit(null))}
+          {filterHead(t('sensor_picker.filter_source'))}
+          {filterItem('all', t('sensor_picker.all'), rows.length, !source, () => { setSource(null); setUnit(null) })}
+          {inUseCount > 0 && filterItem(IN_USE, t('sensor_picker.in_use_on_lcd'), inUseCount, source === IN_USE, () => { setSource(source === IN_USE ? null : IN_USE); setUnit(null) })}
+          {sourceCounts.map(([name, n]) => filterItem(name, t(SOURCE_LABELS[name]), n, source === name, () => { setSource(source === name ? null : name); setUnit(null) }))}
+          {unitCounts.length > 1 && filterHead(t('sensor_picker.filter_unit'))}
+          {unitCounts.length > 1 && filterItem('any-unit', t('sensor_picker.any_unit'), inSource.length, !unit, () => setUnit(null))}
           {unitCounts.length > 1 && unitCounts.map(([u, n]) => filterItem(u, u, n, unit === u, () => setUnit(unit === u ? null : u)))}
         </div>
 
         <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '4px 8px 10px' }}>
           {groups.map(([name, list]) => (
             <div key={name}>
-              <div style={{ padding: '10px 10px 4px', fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700 }}>{name} · {list.length}</div>
+              <div style={{ padding: '10px 10px 4px', fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700 }}>{t(SOURCE_LABELS[name])} · {list.length}</div>
               {list.map(r => renderRow(r, name !== IN_USE))}
             </div>
           ))}
-          {flat.length === 0 && <div style={{ padding: 16, fontSize: 12, color: '#7f7f7f' }}>{everything.length === 0 ? 'Loading sensors…' : 'No sensors match.'}</div>}
-          {found.length > MAX_ROWS && <div style={{ padding: '10px', fontSize: 11, color: '#7f7f7f' }}>Showing {MAX_ROWS} of {found.length}. Type or filter to narrow.</div>}
+          {flat.length === 0 && <div style={{ padding: 16, fontSize: 12, color: '#7f7f7f' }}>{everything.length === 0 ? t('sensor_picker.loading') : t('sensor_picker.no_match')}</div>}
+          {found.length > MAX_ROWS && <div style={{ padding: '10px', fontSize: 11, color: '#7f7f7f' }}>{t('sensor_picker.showing', { shown: MAX_ROWS, total: found.length })}</div>}
         </div>
       </div>
     </Modal>
@@ -193,11 +205,12 @@ interface Props {
 
 /** Select-style button that opens the sensor popup; picking an unbound sensor binds it to a free slot automatically. */
 export function SensorPicker({ value, currentLabel, builtins, accent, onPick }: Props) {
+  const { t } = useLanguage()
   const [open, setOpen] = useState(false)
 
   return (
     <>
-      <Field label="Shows">
+      <Field label={t('sensor_picker.shows')}>
         <div onClick={() => setOpen(true)} style={{
           flex: 1, background: '#1c1c1c', border: `1px solid ${open ? accent : '#2c2c2c'}`, borderRadius: 8, height: 28, padding: '0 28px 0 10px',
           cursor: 'pointer', fontSize: 12, color: '#ddd', display: 'flex', alignItems: 'center', position: 'relative', userSelect: 'none', minWidth: 0,
@@ -207,11 +220,11 @@ export function SensorPicker({ value, currentLabel, builtins, accent, onPick }: 
         </div>
       </Field>
       {open && (
-        <SensorDialog title="Choose what this shows" builtins={builtins} activeId={value} accent={accent} onClose={() => setOpen(false)}
+        <SensorDialog title={t('sensor_picker.choose_shows')} builtins={builtins} activeId={value} accent={accent} onClose={() => setOpen(false)}
           onBuiltin={b => onPick({ id: b.id, label: b.label, max: b.max })}
           onSensor={async s => {
             const res = await bindSensor(s)
-            if (!res.ok) return res.error
+            if (!res.ok) return t(res.error, { max: MAX_SENSORS })
             onPick({ id: res.metric, label: s.label.replace(/\s*\(.*\)$/, ''), max: res.max })
           }}/>
       )}
@@ -221,17 +234,18 @@ export function SensorPicker({ value, currentLabel, builtins, accent, onPick }: 
 
 /** "+ Sensor" button for text elements: pick any reading in the popup and hand back its `{variable}` token. */
 export function InsertSensor({ builtins, accent, onInsert }: { builtins: MetricOption[]; accent: string; onInsert: (token: string) => void }) {
+  const { t } = useLanguage()
   const [open, setOpen] = useState(false)
 
   return (
     <div style={{ paddingLeft: 102 }}>
-      <Pill active={open} accent={accent} onClick={() => setOpen(true)} title="Insert any sensor into the text"><Plus size={10}/> Sensor</Pill>
+      <Pill active={open} accent={accent} onClick={() => setOpen(true)} title={t('sensor_picker.insert_tip')}><Plus size={10}/> {t('sensor_picker.insert_button')}</Pill>
       {open && (
-        <SensorDialog title="Insert a sensor" builtins={builtins} accent={accent} onClose={() => setOpen(false)}
+        <SensorDialog title={t('sensor_picker.insert_title')} builtins={builtins} accent={accent} onClose={() => setOpen(false)}
           onBuiltin={b => onInsert(`{${b.id}}`)}
           onSensor={async s => {
             const res = await bindSensor(s)
-            if (!res.ok) return res.error
+            if (!res.ok) return t(res.error, { max: MAX_SENSORS })
             onInsert(`{${res.metric}}`)
           }}/>
       )}

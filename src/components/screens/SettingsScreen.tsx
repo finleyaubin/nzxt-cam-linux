@@ -6,16 +6,16 @@ import { ToggleSwitch } from '../ui/ToggleSwitch'
 import { Settings } from '../Settings'
 import { ProfileManager } from '../ProfileManager'
 import { api } from '../../lib/api'
-import { languages, Lang } from '../../i18n/languages'
+import { languages, Lang, TranslationKey } from '../../i18n/languages'
 import { GithubLogo, Bug, ChatCircle, Copy, Check, CaretRight } from '@phosphor-icons/react'
 
-const ACCENT_COLORS = [
-  { name: 'Violet', c: '#9d4edd' },
-  { name: 'Cyan',   c: '#00bcd4' },
-  { name: 'Green',  c: '#00e87a' },
-  { name: 'Gold',   c: '#ffb347' },
-  { name: 'Rose',   c: '#ff6b9d' },
-  { name: 'Ember',  c: '#ff4757' },
+const ACCENT_COLORS: { name: TranslationKey; c: string }[] = [
+  { name: 'accent.violet', c: '#9d4edd' },
+  { name: 'accent.cyan',   c: '#00bcd4' },
+  { name: 'accent.green',  c: '#00e87a' },
+  { name: 'accent.gold',   c: '#ffb347' },
+  { name: 'accent.rose',   c: '#ff6b9d' },
+  { name: 'accent.ember',  c: '#ff4757' },
 ]
 
 const WALLETS = [
@@ -130,7 +130,7 @@ export function SettingsScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>Settings</div>
+      <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>{t('nav.settings')}</div>
 
       <div style={{ display: 'flex', gap: 2, background: '#0f0f0f', padding: 4, borderRadius: 8, alignSelf: 'flex-start' }}>
         {TABS.map(tb => (
@@ -150,7 +150,7 @@ export function SettingsScreen() {
             <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>{t('settings.accent_color')}</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               {ACCENT_COLORS.map(({ name, c }) => (
-                <div key={c} onClick={() => dispatch({ type: 'SET_ACCENT', payload: c })} title={name}
+                <div key={c} onClick={() => dispatch({ type: 'SET_ACCENT', payload: c })} title={t(name)}
                   style={{ width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer', border: `2px solid ${accent === c ? '#fff' : 'transparent'}`, boxShadow: accent === c ? `0 0 10px ${c}` : 'none', transition: 'all 140ms' }}/>
               ))}
             </div>

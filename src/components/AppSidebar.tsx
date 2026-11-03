@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../context/AppContext'
+import { useLanguage } from '../i18n/LangContext'
+import type { TranslationKey } from '../i18n/languages'
 import { LogoMark } from './ui/LogoMark'
 import { Pulse, Snowflake, Lightbulb, Monitor, Gear, CaretLeft, CaretRight } from '@phosphor-icons/react'
 
@@ -15,11 +17,11 @@ const IChevronRight = () => <CaretRight size={13} weight="regular" />
 
 const SIDEBAR_W = 200
 
-const NAV: { id: Section; label: string; Icon: () => JSX.Element }[] = [
-  { id: 'monitoring', label: 'Monitoring',  Icon: IActivity  },
-  { id: 'cooling',    label: 'Cooling',     Icon: ISnowflake },
-  { id: 'lighting',   label: 'Lighting',    Icon: IBulb      },
-  { id: 'lcd',        label: 'LCD Display', Icon: IScreen    },
+const NAV: { id: Section; label: TranslationKey; Icon: () => JSX.Element }[] = [
+  { id: 'monitoring', label: 'nav.monitoring', Icon: IActivity  },
+  { id: 'cooling',    label: 'nav.cooling',    Icon: ISnowflake },
+  { id: 'lighting',   label: 'nav.lighting',   Icon: IBulb      },
+  { id: 'lcd',        label: 'nav.lcd',        Icon: IScreen    },
 ]
 
 function NavItem({ id, label, Icon, isActive, accent }: {
@@ -50,6 +52,7 @@ function NavItem({ id, label, Icon, isActive, accent }: {
 }
 
 export function AppSidebar() {
+  const { t } = useLanguage()
   const { state, dispatch } = useApp()
   const { section, accent } = state
   const [open, setOpen] = useState(true)
@@ -84,7 +87,7 @@ export function AppSidebar() {
           {/* Nav */}
           <div style={{ flex: 1, padding: '0 7px' }}>
             {NAV.map(({ id, label, Icon }) => (
-              <NavItem key={id} id={id} label={label} Icon={Icon} isActive={section === id} accent={accent}/>
+              <NavItem key={id} id={id} label={t(label)} Icon={Icon} isActive={section === id} accent={accent}/>
             ))}
           </div>
 
@@ -107,13 +110,13 @@ export function AppSidebar() {
               onMouseLeave={e => { if (section !== 'settings') { (e.currentTarget as HTMLDivElement).style.color = '#7f7f7f'; (e.currentTarget as HTMLDivElement).style.background = 'transparent' } }}
             >
               <span style={{ flexShrink: 0, opacity: section === 'settings' ? 1 : 0.55 }}><IGear/></span>
-              <span>Settings</span>
+              <span>{t('nav.settings')}</span>
             </div>
 
             {/* Collapse button */}
             <div
               onClick={() => setOpen(false)}
-              title="Collapse menu"
+              title={t('nav.collapse_menu')}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '7px 11px', borderRadius: 8, cursor: 'pointer',
@@ -124,7 +127,7 @@ export function AppSidebar() {
               onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.color = '#7f7f7f'; (e.currentTarget as HTMLDivElement).style.background = 'transparent' }}
             >
               <IChevronLeft/>
-              <span>Collapse</span>
+              <span>{t('nav.collapse')}</span>
             </div>
           </div>
         </div>
@@ -133,7 +136,7 @@ export function AppSidebar() {
       {/* Floating re-open tab — visible only when sidebar is closed */}
       <div
         onClick={() => setOpen(true)}
-        title="Expand menu"
+        title={t('nav.expand_menu')}
         style={{
           position: 'absolute', left: 0, top: '50%',
           transform: `translateY(-50%) translateX(${open ? '-100%' : '0%'})`,

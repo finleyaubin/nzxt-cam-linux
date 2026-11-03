@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, SavedLayout } from '../../lib/api'
 import { PRESETS, DisplayConfig } from '@shared/display'
+import { useLanguage } from '../../i18n/LangContext'
 
 /** Preview image of a config, rendered by the backend only once the card scrolls into view. */
 export function TemplateThumb({ config }: { config: DisplayConfig }) {
@@ -39,6 +40,7 @@ export function TemplateGallery({ current, accent, onPick, onSaveCurrent }: {
   onPick: (config: DisplayConfig) => void
   onSaveCurrent?: (name: string) => void
 }) {
+  const { t } = useLanguage()
   const [saved, setSaved] = useState<SavedLayout[]>([])
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -68,7 +70,7 @@ export function TemplateGallery({ current, accent, onPick, onSaveCurrent }: {
         {sub && <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 2 }}>{sub}</div>}
       </button>
       {onDelete && (
-        <button onClick={onDelete} aria-label={`Delete ${title}`} style={{
+        <button onClick={onDelete} aria-label={t('templates.delete', { name: title })} style={{
           position: 'absolute', top: 6, right: 6, width: 22, height: 22, borderRadius: 11, border: 'none',
           background: '#000a', color: '#ccc', cursor: 'pointer', fontSize: 12, lineHeight: '22px', padding: 0,
         }}>×</button>
@@ -83,20 +85,20 @@ export function TemplateGallery({ current, accent, onPick, onSaveCurrent }: {
       {onSaveCurrent && (
         <div style={{ display: 'flex', gap: 8 }}>
           <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()}
-            placeholder="Name this look" style={{ flex: 1, padding: '7px 10px', background: '#0d0d0d', border: '1px solid #222', borderRadius: 8, color: '#ddd', fontSize: 12 }}/>
+            placeholder={t('templates.name_placeholder')} style={{ flex: 1, padding: '7px 10px', background: '#0d0d0d', border: '1px solid #222', borderRadius: 8, color: '#ddd', fontSize: 12 }}/>
           <button onClick={save} disabled={!name.trim()} style={{
             padding: '7px 14px', borderRadius: 8, border: `1px solid ${accent}55`, background: `${accent}18`,
             color: accent, fontSize: 12, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'default', opacity: name.trim() ? 1 : 0.5,
-          }}>Save current look</button>
+          }}>{t('templates.save_current')}</button>
         </div>
       )}
       {error && <div style={{ fontSize: 11, color: '#e5484d', marginTop: 6 }}>{error}</div>}
       {saved.length > 0 && <>
-        {heading('Your layouts')}
+        {heading(t('templates.your_layouts'))}
         <div style={grid}>{saved.map(l => card(`s:${l.name}`, l.name, undefined, l.config, () => remove(l.name)))}</div>
       </>}
-      {heading('Templates')}
-      <div style={grid}>{PRESETS.map(p => card(p.id, p.name, p.description, p.build()))}</div>
+      {heading(t('templates.templates'))}
+      <div style={grid}>{PRESETS.map(p => card(p.id, t(p.nameKey), t(p.descriptionKey), p.build()))}</div>
     </div>
   )
 }

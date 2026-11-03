@@ -23,7 +23,7 @@ function detectDefault(): Lang {
 interface LangCtx {
   lang: Lang
   setLang: (l: Lang) => void
-  t: (key: TranslationKey) => string
+  t: (key: TranslationKey, params?: Record<string, string | number>) => string
 }
 
 const LangContext = createContext<LangCtx | null>(null)
@@ -42,10 +42,14 @@ export function LangProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Other languages may omit keys; those show the English text.
-  const t = useCallback((key: TranslationKey): string => {
+  const t = useCallback((key: TranslationKey, params?: Record<string, string | number>): string => {
     const text = (languages[lang] as Record<string, string>)[key] ?? languages[SOURCE_LANG][key]
     if (text === undefined) throw new Error(`Missing translation key: ${key}`)
-    return text
+    if (!params) return text
+    return text.replace(/\{(\w+)\}/g, (_, name) => {
+      if (!(name in params)) throw new Error(`Missing parameter {${name}} for ${key}`)
+      return String(params[name])
+    })
   }, [lang])
 
   return <LangContext.Provider value={{ lang, setLang, t }}>{children}</LangContext.Provider>

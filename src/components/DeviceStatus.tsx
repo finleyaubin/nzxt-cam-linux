@@ -1,9 +1,11 @@
 import { useApp } from '../context/AppContext'
 import { Warning } from '@phosphor-icons/react'
+import { useLanguage } from '../i18n/LangContext'
 
 export function DeviceStatus() {
   const { state } = useApp()
   const { deviceStatus } = state
+  const { t } = useLanguage()
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 bg-[#111111] border border-[#1e1e1e] rounded-xl text-sm">
@@ -12,7 +14,7 @@ export function DeviceStatus() {
       />
       <span className={deviceStatus.connected ? 'text-[#00d4ff]' : 'text-red-400'}>
         {deviceStatus.productName}
-        {deviceStatus.connected && !deviceStatus.lcdControllable && ' (LCD unavailable)'}
+        {deviceStatus.connected && !deviceStatus.lcdControllable && ` ${t('device.lcd_unavailable')}`}
       </span>
       {deviceStatus.error && (
         <span className="text-yellow-500 text-xs ml-2 truncate max-w-[200px]" title={deviceStatus.error}>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Sensor, SensorSlot, api } from '../lib/api'
 import { MAX_SENSORS, MetricId, defaultMaxForUnit, sensorMetric } from '@shared/display'
+import type { TranslationKey } from '../i18n/languages'
 
 export interface BoundSensor {
   metric: MetricId
@@ -52,7 +53,7 @@ export function useBoundSources(): (string | null)[] {
   return sources
 }
 
-export type BindResult = { ok: true; metric: MetricId; max: number } | { ok: false; error: string }
+export type BindResult = { ok: true; metric: MetricId; max: number } | { ok: false; error: TranslationKey }
 
 /** Reuse the slot already bound to `sensor`, else bind it to the first free slot (holes stay put). */
 export async function bindSensor(sensor: Sensor): Promise<BindResult> {
@@ -63,11 +64,11 @@ export async function bindSensor(sensor: Sensor): Promise<BindResult> {
   if (existing >= 0) return { ok: true, metric: sensorMetric(existing), max: slots[existing].max ?? max }
   let free = slots.findIndex(s => !s.source)
   if (free < 0) free = slots.length
-  if (free >= MAX_SENSORS) return { ok: false, error: `All ${MAX_SENSORS} sensor slots are in use. Remove one in Settings > Sensors first.` }
+  if (free >= MAX_SENSORS) return { ok: false, error: 'sensor_picker.err_slots_full' }
   slots[free] = { source: sensor.id, max: null }
   for (let i = 0; i < slots.length; i++) slots[i] ??= { source: null, max: null }
   const res = await api.saveSettings({ sensors: slots })
-  if (!res.success) return { ok: false, error: 'Could not save the sensor binding.' }
+  if (!res.success) return { ok: false, error: 'sensor_picker.err_save' }
   window.dispatchEvent(new Event(SLOTS_CHANGED))
   return { ok: true, metric: sensorMetric(free), max }
 }
