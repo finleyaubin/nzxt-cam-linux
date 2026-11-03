@@ -673,6 +673,8 @@ fn visual_key(cfg: &DisplayConfig, t: Temperatures, decimals: u8, config_version
                 key.push_str(&crate::sensors::history::version().to_string());
             }
             DisplayElement::Text(x) => key.push_str(&resolve_text(&x.text, t, decimals)),
+            // Pictures only change with the config itself, which `config_version` already covers.
+            DisplayElement::Image(_) => {}
         }
     }
     key
@@ -685,7 +687,7 @@ mod tests {
 
     #[test]
     fn visual_key_ignores_offscreen_readings() {
-        let text = TextElement { id: "t".into(), x: 0.0, y: 0.0, text: "{liquid}°".into(), color: "#fff".into(), size: 10.0, align: TextAlign::Center };
+        let text = TextElement { id: "t".into(), x: 0.0, y: 0.0, text: "{liquid}°".into(), color: "#fff".into(), size: 10.0, align: TextAlign::Center, font: None };
         let cfg = DisplayConfig { elements: vec![crate::types::DisplayElement::Text(text)], ..DisplayConfig::default() };
         let base = Temperatures { liquid: 31.2, pump_rpm: 1500.0, ..Temperatures::default() };
         let key = |t| visual_key(&cfg, t, 0, 1);

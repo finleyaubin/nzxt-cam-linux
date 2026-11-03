@@ -4,17 +4,19 @@
 //! the same per-pixel angle test the JS code does (simple and accurate; no
 //! bezier approximation needed at 640×640).
 
-use crate::render::fonts::{draw_text, draw_text_centered, font, measure};
+use crate::render::fonts::{draw_text, draw_text_centered, lookup, measure, resolve};
+use ab_glyph::FontVec;
 use crate::types::{
-    hex_to_rgb, resolve_text, BarElement, DisplayConfig, DisplayElement, GaugeElement, GraphElement,
+    hex_to_rgb, resolve_text, BarElement, DisplayConfig, DisplayElement, GaugeElement, GraphElement, ImageElement,
     MetricId, TextElement, TextPosition, Temperatures, LCD_SIZE,
 };
 use anyhow::Result;
 use crate::image_io;
 use parking_lot::Mutex;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::f32::consts::PI;
-use tiny_skia::{Pixmap, PremultipliedColorU8};
+use tiny_skia::{IntSize, Pixmap, PixmapPaint, PremultipliedColorU8, Transform};
 
 // ============================================================================
 // Public API
@@ -127,33 +129,37 @@ fn render_scene(config: &DisplayConfig, temps: Temperatures, base: Base) -> Resu
         Base::Transparent => {}
     }
 
-    // Ensure font is loaded once (lazy init in fonts.rs). Errors are surfaced
-    // only when text elements try to draw — we don't abort on missing font.
-    let _ = font();
+    let scene_font = resolve(config.font.as_deref())?;
 
     let decimals = config.decimals.min(2);
     for el in &config.elements {
         match el {
             DisplayElement::Gauge(g) => {
-                if let Err(e) = draw_gauge(&mut pixmap, g, temps, decimals) {
+                if let Err(e) = draw_gauge(&mut pixmap, &scene_font, g, temps, decimals) {
                     log::warn!("gauge draw error: {e}");
                 }
             }
             DisplayElement::Bar(b) => {
-                if let Err(e) = draw_bar(&mut pixmap, b, temps, decimals) {
+                if let Err(e) = draw_bar(&mut pixmap, &scene_font, b, temps, decimals) {
                     log::warn!("bar draw error: {e}");
                 }
             }
             DisplayElement::Graph(g) => {
                 let mut series = crate::sensors::history::series(g.metric, g.window_secs as usize);
                 series.push(g.metric.value_from(temps)); // the live reading is always the right-most point
-                if let Err(e) = draw_graph(&mut pixmap, g, &series, decimals) {
+                if let Err(e) = draw_graph(&mut pixmap, &scene_font, g, &series, decimals) {
                     log::warn!("graph draw error: {e}");
                 }
             }
             DisplayElement::Text(t) => {
-                if let Err(e) = draw_text_element(&mut pixmap, t, temps, decimals) {
+                let own = t.font.as_deref().and_then(lookup).unwrap_or_else(|| scene_font.clone());
+                if let Err(e) = draw_text_element(&mut pixmap, &own, t, temps, decimals) {
                     log::warn!("text draw error: {e}");
+                }
+            }
+            DisplayElement::Image(i) => {
+                if let Err(e) = draw_image(&mut pixmap, i) {
+                    log::warn!("image draw error: {e}");
                 }
             }
         }
@@ -254,6 +260,66 @@ fn fill_round_rect(pm: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, radius: Opti
 }
 
 // ============================================================================
+// Image — a picture scaled to fit its box
+// ============================================================================
+
+type ImageKey = (String, u32, u32, u64);
+static IMAGE_CACHE: Mutex<Option<HashMap<ImageKey, Arc<Pixmap>>>> = Mutex::new(None);
+const IMAGE_CACHE_LIMIT: usize = 32;
+
+fn raster_scaled(path: &str, w: u32, h: u32) -> Result<Pixmap> {
+    let img = image::open(path).map_err(|e| anyhow::anyhow!("Decode image {path}: {e}"))?.to_rgba8();
+    let (iw, ih) = img.dimensions();
+    let scale = (w as f32 / iw as f32).min(h as f32 / ih as f32);
+    let (tw, th) = (((iw as f32 * scale).round() as u32).max(1), ((ih as f32 * scale).round() as u32).max(1));
+    let mut data = image::imageops::resize(&img, tw, th, image::imageops::FilterType::Lanczos3).into_raw();
+    for px in data.chunks_exact_mut(4) {
+        let alpha = px[3] as u16;
+        for c in &mut px[..3] {
+            *c = ((*c as u16 * alpha + 127) / 255) as u8;
+        }
+    }
+    IntSize::from_wh(tw, th)
+        .and_then(|size| Pixmap::from_vec(data, size))
+        .ok_or_else(|| anyhow::anyhow!("Image {path} has unusable dimensions"))
+}
+
+/// The picture at `path` (PNG, JPEG, WebP, BMP, GIF or SVG) scaled to fit w×h (aspect kept), premultiplied, decoded once per file version and size.
+fn scaled_image(path: &str, w: u32, h: u32) -> Result<Arc<Pixmap>> {
+    let modified = std::fs::metadata(path)
+        .map_err(|e| anyhow::anyhow!("Read image {path}: {e}"))?
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_secs());
+    let key = (path.to_string(), w, h, modified);
+    if let Some(hit) = IMAGE_CACHE.lock().as_ref().and_then(|c| c.get(&key)) {
+        return Ok(hit.clone());
+    }
+    let pixmap = if super::svg::is_svg(path) { super::svg::render_svg(std::path::Path::new(path), w, h)? } else { raster_scaled(path, w, h)? };
+    let pixmap = Arc::new(pixmap);
+    let mut cache = IMAGE_CACHE.lock();
+    let cache = cache.get_or_insert_with(HashMap::new);
+    if cache.len() >= IMAGE_CACHE_LIMIT {
+        cache.clear();
+    }
+    cache.insert(key, pixmap.clone());
+    Ok(pixmap)
+}
+
+fn draw_image(pm: &mut Pixmap, el: &ImageElement) -> Result<()> {
+    if el.path.is_empty() || el.width < 1.0 || el.height < 1.0 {
+        return Ok(());
+    }
+    let scaled = scaled_image(&el.path, el.width.round() as u32, el.height.round() as u32)?;
+    let paint = PixmapPaint { opacity: el.opacity.min(100) as f32 / 100.0, ..PixmapPaint::default() };
+    let left = (el.x - scaled.width() as f32 / 2.0).round() as i32;
+    let top = (el.y - scaled.height() as f32 / 2.0).round() as i32;
+    pm.draw_pixmap(left, top, Pixmap::as_ref(&scaled), &paint, Transform::identity(), None);
+    Ok(())
+}
+
+// ============================================================================
 // Gauge — annular sector with pixel test
 // ============================================================================
 
@@ -267,6 +333,7 @@ fn clamp01(v: f64) -> f64 {
 
 fn draw_gauge(
     pm: &mut Pixmap,
+    font: &FontVec,
     el: &GaugeElement,
     temps: Temperatures,
     decimals: u8,
@@ -331,34 +398,96 @@ fn draw_gauge(
         let size = (el.value_size * 0.42).max(12.0);
         lines.push((el.label.clone(), size, (0x9a, 0xa0, 0xb4)));
     }
-    if el.show_value {
-        let txt = format!("{}{}", crate::types::format_metric(v, decimals), el.metric.unit());
+    let value_text = format!("{}{}", crate::types::format_metric(v, decimals), el.metric.unit());
+    if el.show_value && !el.value_pill {
         let color = if warn { hex_to_rgb(&el.warn_color) } else { hex_to_rgb(&el.color) };
-        lines.push((txt, el.value_size, color));
+        lines.push((value_text.clone(), el.value_size, color));
     }
     if !lines.is_empty() {
         let cy = match el.text_position {
             TextPosition::Center => el.y,
             // Sit in the opening at the bottom of a split ring, just inside the outer edge.
-            TextPosition::Bottom => el.y + r_out - 4.0 - stack_height(&lines)? / 2.0,
+            TextPosition::Bottom => el.y + r_out - 4.0 - stack_height(font, &lines)? / 2.0,
         };
-        draw_centered_stack(pm, el.x, cy, &lines)?;
+        draw_centered_stack(pm, font, el.x, cy, &lines)?;
+    }
+    if el.show_value && el.value_pill {
+        draw_value_pill(pm, font, el, r_in, r_out, &value_text, track_rgb)?;
+    }
+    if el.show_range && !full_circle {
+        draw_range_ends(pm, font, el, r_mid, start, sweep, decimals)?;
+    }
+    Ok(())
+}
+
+/// The value in a slice of the ring itself at 12 o'clock: rounded ends, top and bottom cut by the ring's edges, filled
+/// with the track colour, text in its inverse.
+fn draw_value_pill(pm: &mut Pixmap, font: &FontVec, el: &GaugeElement, r_in: f32, r_out: f32, text: &str, fill: (u8, u8, u8)) -> Result<()> {
+    let band = r_out - r_in;
+    let r_mid = (r_in + r_out) / 2.0;
+    let size = (el.value_size * 0.5).min(band * 0.75).max(8.0);
+    let m = measure(font, text, size)?;
+    let len = m.width + band;
+    let reach = (len / 2.0 / r_mid).min(PI);
+    let x0 = (el.x - len / 2.0 - band).floor() as i32;
+    let x1 = (el.x + len / 2.0 + band).ceil() as i32;
+    let y0 = (el.y - r_out - 1.0).floor() as i32;
+    let y1 = (el.y - r_in * reach.cos() + 1.0).ceil() as i32;
+    for y in y0..=y1 {
+        for x in x0..=x1 {
+            let (dx, dy) = (x as f32 - el.x, y as f32 - el.y);
+            let d = (dx * dx + dy * dy).sqrt();
+            if d < r_in || d > r_out {
+                continue;
+            }
+            let s = dx.atan2(-dy) * r_mid;
+            if in_round_rect(s + len / 2.0, d - r_in, len, band, band / 2.0) {
+                put_pixel(pm, x, y, fill.0, fill.1, fill.2);
+            }
+        }
+    }
+    let inverse = (255 - fill.0, 255 - fill.1, 255 - fill.2);
+    draw_text(font, pm, el.x - m.width / 2.0, el.y - r_mid - m.height / 2.0, text, size, inverse)?;
+    Ok(())
+}
+
+/// 0 and max placed on a circle (radius = offset) around the centre of each arc end; the angle picks the spot on it,
+/// from 0° = toward the gauge centre, 90° = along the arc into the gauge, mirrored on the two ends.
+fn draw_range_ends(pm: &mut Pixmap, font: &FontVec, el: &GaugeElement, r_mid: f32, start: f32, sweep: f32, decimals: u8) -> Result<()> {
+    let size = (el.value_size * 0.4).max(12.0);
+    let max_decimals = if el.max.fract() == 0.0 { 0 } else { decimals };
+    let (turn_sin, turn_cos) = el.range_angle.to_radians().sin_cos();
+    let unit = el.metric.unit();
+    let ends = [
+        (start, 1.0, format!("{}{unit}", crate::types::format_metric(0.0, 0))),
+        (start + sweep, -1.0, format!("{}{unit}", crate::types::format_metric(el.max, max_decimals))),
+    ];
+    for (angle, into_arc, text) in ends {
+        let m = measure(font, &text, size)?;
+        let (sin, cos) = angle.sin_cos();
+        let inward = (-sin, cos);
+        let along = (into_arc * cos, into_arc * sin);
+        let (dx, dy) = (turn_cos * inward.0 + turn_sin * along.0, turn_cos * inward.1 + turn_sin * along.1);
+        let cx = el.x + r_mid * sin + el.range_offset * dx;
+        let cy = el.y - r_mid * cos + el.range_offset * dy;
+        draw_text(font, pm, cx - m.width / 2.0, cy - m.height / 2.0, &text, size, (0x9a, 0xa0, 0xb4))?;
     }
     Ok(())
 }
 
 const STACK_GAP: f32 = 4.0;
 
-fn stack_height(lines: &[(String, f32, (u8, u8, u8))]) -> Result<f32> {
+fn stack_height(font: &FontVec, lines: &[(String, f32, (u8, u8, u8))]) -> Result<f32> {
     let mut total = STACK_GAP * (lines.len().saturating_sub(1) as f32);
     for (s, sz, _) in lines {
-        total += measure(s, *sz)?.height;
+        total += measure(font, s, *sz)?.height;
     }
     Ok(total)
 }
 
 fn draw_centered_stack(
     pm: &mut Pixmap,
+    font: &FontVec,
     cx: f32,
     cy: f32,
     lines: &[(String, f32, (u8, u8, u8))],
@@ -366,7 +495,7 @@ fn draw_centered_stack(
     let gap = 4.0;
     let measured: Vec<_> = lines
         .iter()
-        .map(|(s, sz, _)| measure(s, *sz).map(|m| (m, *sz)))
+        .map(|(s, sz, _)| measure(font, s, *sz).map(|m| (m, *sz)))
         .collect::<Result<Vec<_>>>()?;
     let total: f32 = measured.iter().map(|(m, _)| m.height).sum::<f32>()
         + gap * (lines.len().saturating_sub(1) as f32);
@@ -374,7 +503,7 @@ fn draw_centered_stack(
     for ((text, _, color), (m, sz)) in lines.iter().zip(measured.iter()) {
         let x = cx - m.width / 2.0;
         let y = cur;
-        draw_text(pm, x, y, text, *sz, *color)?;
+        draw_text(font, pm, x, y, text, *sz, *color)?;
         cur += m.height + gap;
     }
     Ok(())
@@ -384,7 +513,7 @@ fn draw_centered_stack(
 // Bar — rounded rect track + filled portion + label/value row above
 // ============================================================================
 
-fn draw_bar(pm: &mut Pixmap, el: &BarElement, temps: Temperatures, decimals: u8) -> Result<()> {
+fn draw_bar(pm: &mut Pixmap, font: &FontVec, el: &BarElement, temps: Temperatures, decimals: u8) -> Result<()> {
     let v = metric_value(el.metric, temps);
     let frac = clamp01(v / el.max.max(0.0001)) as f32;
     let warn = v >= el.warn_at;
@@ -421,13 +550,13 @@ fn draw_bar(pm: &mut Pixmap, el: &BarElement, temps: Temperatures, decimals: u8)
     // Label (left) + value (right) on a row above the bar.
     let row_y = top - el.value_size * 1.05;
     if el.show_label && !el.label.is_empty() {
-        draw_text(pm, left, row_y, &el.label, el.value_size, (0x9a, 0xa0, 0xb4))?;
+        draw_text(font, pm, left, row_y, &el.label, el.value_size, (0x9a, 0xa0, 0xb4))?;
     }
     if el.show_value {
         let s = format!("{}{}", crate::types::format_metric(v, decimals), el.metric.unit());
-        let m = measure(&s, el.value_size)?;
+        let m = measure(font, &s, el.value_size)?;
         let x = left + el.width - m.width;
-        draw_text(pm, x, row_y, &s, el.value_size, (0xff, 0xff, 0xff))?;
+        draw_text(font, pm, x, row_y, &s, el.value_size, (0xff, 0xff, 0xff))?;
     }
     Ok(())
 }
@@ -436,7 +565,7 @@ fn draw_bar(pm: &mut Pixmap, el: &BarElement, temps: Temperatures, decimals: u8)
 // Graph — panel, header row, and a line chart of `series` (oldest → newest)
 // ============================================================================
 
-fn draw_graph(pm: &mut Pixmap, el: &GraphElement, series: &[f64], decimals: u8) -> Result<()> {
+fn draw_graph(pm: &mut Pixmap, font: &FontVec, el: &GraphElement, series: &[f64], decimals: u8) -> Result<()> {
     let latest = series.last().copied().unwrap_or(0.0);
     let warn = latest >= el.warn_at;
     let line_rgb = hex_to_rgb(if warn { &el.warn_color } else { &el.color });
@@ -450,14 +579,14 @@ fn draw_graph(pm: &mut Pixmap, el: &GraphElement, series: &[f64], decimals: u8) 
     if el.show_label || el.show_value {
         let row_y = top + PAD;
         if el.show_label && !el.label.is_empty() {
-            draw_text(pm, left + PAD, row_y, &el.label, el.value_size, (0x9a, 0xa0, 0xb4))?;
+            draw_text(font, pm, left + PAD, row_y, &el.label, el.value_size, (0x9a, 0xa0, 0xb4))?;
         }
         if el.show_value {
             let s = format!("{}{}", crate::types::format_metric(latest, decimals), el.metric.unit());
-            let m = measure(&s, el.value_size)?;
-            draw_text(pm, left + el.width - PAD - m.width, row_y, &s, el.value_size, line_rgb)?;
+            let m = measure(font, &s, el.value_size)?;
+            draw_text(font, pm, left + el.width - PAD - m.width, row_y, &s, el.value_size, line_rgb)?;
         }
-        plot_top = row_y + measure("0", el.value_size)?.height + 6.0;
+        plot_top = row_y + measure(font, "0", el.value_size)?.height + 6.0;
     }
     let (plot_left, plot_right, plot_bottom) = (left + PAD, left + el.width - PAD, top + el.height - PAD);
     let plot_h = plot_bottom - plot_top;
@@ -516,6 +645,7 @@ fn draw_graph(pm: &mut Pixmap, el: &GraphElement, series: &[f64], decimals: u8) 
 
 fn draw_text_element(
     pm: &mut Pixmap,
+    font: &FontVec,
     el: &TextElement,
     temps: Temperatures,
     decimals: u8,
@@ -524,7 +654,7 @@ fn draw_text_element(
     if text.is_empty() {
         return Ok(());
     }
-    let m = measure(&text, el.size)?;
+    let m = measure(font, &text, el.size)?;
     use crate::types::TextAlign;
     let x = match el.align {
         TextAlign::Left => el.x,
@@ -533,7 +663,7 @@ fn draw_text_element(
     };
     let y = el.y - m.height / 2.0;
     let color = hex_to_rgb(&el.color);
-    draw_text(pm, x, y, &text, el.size, color)?;
+    draw_text(font, pm, x, y, &text, el.size, color)?;
     Ok(())
 }
 
@@ -550,6 +680,7 @@ pub fn pixmap_to_data_url(pm: &Pixmap) -> Result<String> {
 
 #[allow(dead_code)]
 fn draw_centered(
+    font: &FontVec,
     pm: &mut Pixmap,
     cx: f32,
     cy: f32,
@@ -557,7 +688,7 @@ fn draw_centered(
     size: f32,
     color: (u8, u8, u8),
 ) -> Result<()> {
-    draw_text_centered(pm, cx, cy, text, size, color)
+    draw_text_centered(font, pm, cx, cy, text, size, color)
 }
 
 #[cfg(test)]
@@ -607,7 +738,7 @@ mod tests {
             id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
             color: "#000000".into(), track_color: "#0000ff".into(), start_angle: 0.0, sweep: 180.0,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
-            value_size: 20.0, corner_radius: 20.0, gradient_to: Some("#ffffff".into()), text_position: Default::default(),
+            value_size: 20.0, corner_radius: 20.0, gradient_to: Some("#ffffff".into()), text_position: Default::default(), show_range: false, range_angle: 0.0, range_offset: 0.0, value_pill: false,
         };
         let cfg = DisplayConfig { background: "#101010".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let temps = Temperatures { cpu: 100.0, ..Temperatures::default() };
@@ -617,6 +748,138 @@ mod tests {
         assert_eq!(px(320, 21), [0x10, 0x10, 0x10], "outer corner at the start is rounded off");
         assert!(px(340, 40)[0] < 40, "fill starts near the first colour");
         assert!(px(600, 320)[0] > 100, "fill is mid-gradient at 3 o'clock");
+    }
+
+    fn range_frame(show_range: bool, sweep: f32, range_angle: f32, range_offset: f32) -> Vec<u8> {
+        let gauge = GaugeElement {
+            id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
+            color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep,
+            warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
+            value_size: 40.0, corner_radius: 0.0, gradient_to: None, show_range, range_angle, range_offset, value_pill: false,
+        };
+        let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
+        let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures::default()).unwrap() else { panic!() };
+        rgba
+    }
+
+    fn changed_pixels(a: &[u8], b: &[u8]) -> Vec<(f32, f32)> {
+        let n = LCD_SIZE as usize;
+        (0..a.len() / 4).filter(|&i| a[i * 4..i * 4 + 3] != b[i * 4..i * 4 + 3]).map(|i| ((i % n) as f32 - 320.0, (i / n) as f32 - 320.0)).collect()
+    }
+
+    fn distance(p: (f32, f32)) -> f32 {
+        (p.0 * p.0 + p.1 * p.1).sqrt()
+    }
+
+    fn label_centroid(off: &[u8], on: &[u8], left: bool) -> (f32, f32) {
+        let pts: Vec<_> = changed_pixels(off, on).into_iter().filter(|p| (p.0 < 0.0) == left).collect();
+        let n = pts.len() as f32;
+        assert!(n > 20.0, "a label was drawn");
+        (pts.iter().map(|p| p.0).sum::<f32>() / n, pts.iter().map(|p| p.1).sum::<f32>() / n)
+    }
+
+    #[test]
+    fn range_labels_start_at_the_centre_of_each_arc_end() {
+        let off = range_frame(false, 270.0, 0.0, 0.0);
+        let on = range_frame(true, 270.0, 0.0, 0.0);
+        let (min, max) = (label_centroid(&off, &on, true), label_centroid(&off, &on, false));
+        let clock_deg = |p: (f32, f32)| p.0.atan2(-p.1).to_degrees();
+        assert!((distance(min) - 280.0).abs() < 8.0 && (distance(max) - 280.0).abs() < 8.0, "on the ring's mid-line");
+        assert!((clock_deg(min) + 135.0).abs() < 6.0, "min at the arc start");
+        assert!((clock_deg(max) - 135.0).abs() < 6.0, "max at the arc end");
+        let xs: Vec<f32> = changed_pixels(&off, &on).into_iter().filter(|p| p.0 < 0.0).map(|p| p.0).collect();
+        let drawn_width = xs.iter().cloned().fold(f32::MIN, f32::max) - xs.iter().cloned().fold(f32::MAX, f32::min);
+        assert!(drawn_width > measure(&resolve(None).unwrap(), "0", 16.0).unwrap().width + 3.0, "the unit is drawn after the number");
+        assert_eq!(range_frame(false, 360.0, 0.0, 0.0), range_frame(true, 360.0, 0.0, 0.0), "full rings have no ends to label");
+    }
+
+    #[test]
+    fn range_angle_and_offset_place_labels_on_a_circle_around_each_arc_end() {
+        let off = range_frame(false, 270.0, 0.0, 0.0);
+        let near = |angle: f32, offset: f32, min: (f32, f32), max: (f32, f32)| {
+            let on = range_frame(true, 270.0, angle, offset);
+            for (got, want, side) in [(label_centroid(&off, &on, true), min, "min"), (label_centroid(&off, &on, false), max, "max")] {
+                let miss = ((got.0 - want.0).powi(2) + (got.1 - want.1).powi(2)).sqrt();
+                assert!(miss < 10.0, "{side} at angle {angle}: got {got:?}, want {want:?}");
+            }
+        };
+        near(0.0, 40.0, (-169.7, 169.7), (169.7, 169.7));
+        near(90.0, 40.0, (-226.3, 169.7), (226.3, 169.7));
+        near(180.0, 40.0, (-226.3, 226.3), (226.3, 226.3));
+    }
+
+    #[test]
+    fn value_pill_is_cut_from_the_ring_with_inverse_text_and_leaves_the_centre_empty() {
+        let render = |value_pill: bool| {
+            let gauge = GaugeElement {
+                id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
+                color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep: 270.0,
+                warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: true, show_label: false, label: String::new(),
+                value_size: 40.0, corner_radius: 0.0, gradient_to: None, show_range: false, range_angle: 0.0, range_offset: 0.0, value_pill,
+            };
+            let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
+            let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures { cpu: 100.0, ..Temperatures::default() }).unwrap() else { panic!() };
+            rgba
+        };
+        let (plain, pill) = (render(false), render(true));
+        let px = |f: &[u8], x: usize, y: usize| { let i = (y * LCD_SIZE as usize + x) * 4; [f[i], f[i + 1], f[i + 2]] };
+        let blue_in_row = |f: &[u8]| (250..390).filter(|&x| px(f, x, 40) == [0, 0, 255]).count();
+        assert_eq!(blue_in_row(&plain), 0, "the full ring is solid fill at the top");
+        assert!(blue_in_row(&pill) > 20, "the pill shows the track colour across the ring");
+        assert_eq!(px(&pill, 320, 15), [0, 0, 0], "nothing is drawn outside the ring's outer edge");
+        assert_eq!(px(&pill, 320, 70), [0, 0, 0], "nothing is drawn inside the ring's inner edge");
+        let inverse_text = (25..55).flat_map(|y| (250..390).map(move |x| (x, y))).filter(|&(x, y)| { let p = px(&pill, x, y); p[0] > 200 && p[1] > 200 && p[2] < 80 }).count();
+        assert!(inverse_text > 10, "the text is the inverse of the track colour");
+        let lit_near_centre = |f: &[u8]| (220..420).flat_map(|y| (220..420).map(move |x| (x, y))).filter(|&(x, y)| px(f, x, y) != [0, 0, 0]).count();
+        assert!(lit_near_centre(&plain) > 50, "the value is normally drawn in the centre");
+        assert_eq!(lit_near_centre(&pill), 0, "with the pill the centre is empty");
+    }
+
+    fn image_frame(file: &str, size: (u32, u32), opacity: u8) -> Vec<u8> {
+        let path = std::env::temp_dir().join(file);
+        RgbaImage::from_pixel(size.0, size.1, Rgba([255, 0, 0, 255])).save(&path).unwrap();
+        let img = ImageElement { id: "i".into(), x: 320.0, y: 320.0, width: 100.0, height: 100.0, path: path.to_string_lossy().into_owned(), opacity };
+        let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Image(img)], ..DisplayConfig::default() };
+        let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures::default()).unwrap() else { panic!("expected rgba") };
+        rgba
+    }
+
+    #[test]
+    fn image_is_scaled_to_fit_the_box_keeping_its_aspect() {
+        let frame = image_frame("nzxt-img-wide.png", (40, 20), 100);
+        let px = |x: usize, y: usize| { let i = (y * LCD_SIZE as usize + x) * 4; [frame[i], frame[i + 1], frame[i + 2]] };
+        assert_eq!(px(320, 320), [255, 0, 0], "centre is covered");
+        assert_eq!(px(275, 320), [255, 0, 0], "fills the box width");
+        assert_eq!(px(320, 340), [255, 0, 0], "a 2:1 picture is 50px tall");
+        assert_eq!(px(320, 355), [0, 0, 0], "the box's spare height stays background");
+        assert_eq!(px(260, 320), [0, 0, 0], "nothing outside the box");
+    }
+
+    #[test]
+    fn svg_logos_are_rasterised_to_fit_the_box() {
+        let path = std::env::temp_dir().join("nzxt-img-logo.svg");
+        std::fs::write(&path, r##"<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20" viewBox="0 0 40 20"><rect width="40" height="20" fill="#ff0000"/></svg>"##).unwrap();
+        let img = ImageElement { id: "i".into(), x: 320.0, y: 320.0, width: 100.0, height: 100.0, path: path.to_string_lossy().into_owned(), opacity: 100 };
+        let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Image(img)], ..DisplayConfig::default() };
+        let LcdFrame::Rgba(frame) = render_for_device(&cfg, Temperatures::default()).unwrap() else { panic!("expected rgba") };
+        let px = |x: usize, y: usize| { let i = (y * LCD_SIZE as usize + x) * 4; [frame[i], frame[i + 1], frame[i + 2]] };
+        assert_eq!(px(320, 320), [255, 0, 0], "centre is covered");
+        assert_eq!(px(275, 320), [255, 0, 0], "a 2:1 svg fills the box width");
+        assert_eq!(px(320, 355), [0, 0, 0], "and leaves the spare height as background");
+    }
+
+    #[test]
+    fn image_opacity_blends_with_the_background() {
+        let frame = image_frame("nzxt-img-half.png", (20, 20), 50);
+        let i = (320 * LCD_SIZE as usize + 320) * 4;
+        assert!((frame[i] as i32 - 128).abs() <= 2 && frame[i + 1] == 0, "half-transparent red over black, got {:?}", &frame[i..i + 3]);
+    }
+
+    #[test]
+    fn missing_image_draws_nothing_and_does_not_fail_the_frame() {
+        let img = ImageElement { id: "i".into(), x: 320.0, y: 320.0, width: 100.0, height: 100.0, path: "/nonexistent/logo.png".into(), opacity: 100 };
+        let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Image(img)], ..DisplayConfig::default() };
+        assert!(render_for_device(&cfg, Temperatures::default()).is_ok());
     }
 
     #[test]
@@ -644,7 +907,7 @@ mod tests {
             id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
             color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep: 270.0,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
-            value_size: 20.0, corner_radius: 0.0, gradient_to: None, text_position: Default::default(),
+            value_size: 20.0, corner_radius: 0.0, gradient_to: None, text_position: Default::default(), show_range: false, range_angle: 0.0, range_offset: 0.0, value_pill: false,
         };
         let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures { cpu: 100.0, ..Temperatures::default() }).unwrap() else { panic!() };
@@ -672,7 +935,7 @@ mod tests {
     fn graph_draws_panel_and_line_against_the_right_edge() {
         let mut pm = Pixmap::new(LCD_SIZE, LCD_SIZE).unwrap();
         // Two samples: 0 then 100. The line ends at the top-right of the plot area.
-        draw_graph(&mut pm, &graph(false), &[0.0, 100.0], 0).unwrap();
+        draw_graph(&mut pm, &crate::render::fonts::font().unwrap(), &graph(false), &[0.0, 100.0], 0).unwrap();
         assert_eq!(pixel(&pm, 130, 230), [0, 0, 0x40], "panel corner (square) is track coloured");
         // Panel spans x 120..520, y 220..420; with 10px padding the plot's top-right corner is (510, 230).
         let end = pixel(&pm, 509, 231);
@@ -684,7 +947,7 @@ mod tests {
     #[test]
     fn graph_fill_tints_under_the_line_only() {
         let mut pm = Pixmap::new(LCD_SIZE, LCD_SIZE).unwrap();
-        draw_graph(&mut pm, &graph(true), &[100.0, 100.0, 100.0], 0).unwrap();
+        draw_graph(&mut pm, &crate::render::fonts::font().unwrap(), &graph(true), &[100.0, 100.0, 100.0], 0).unwrap();
         // Flat line at the top; the area below it is tinted, the panel margin is not.
         let under = pixel(&pm, 500, 400);
         assert!(under[1] > 0x10, "area under the line is tinted: {under:?}");
@@ -694,8 +957,35 @@ mod tests {
     #[test]
     fn graph_with_one_sample_draws_only_the_panel() {
         let mut pm = Pixmap::new(LCD_SIZE, LCD_SIZE).unwrap();
-        draw_graph(&mut pm, &graph(true), &[50.0], 0).unwrap();
+        draw_graph(&mut pm, &crate::render::fonts::font().unwrap(), &graph(true), &[50.0], 0).unwrap();
         assert_eq!(pixel(&pm, 320, 320), [0, 0, 0x40]);
+    }
+
+    #[test]
+    fn chosen_font_changes_the_rendered_text() {
+        let text = |font: Option<String>| TextElement {
+            id: "t".into(), x: 320.0, y: 320.0, text: "Hamburgefonstiv 0123".into(), color: "#ffffff".into(),
+            size: 48.0, align: crate::types::TextAlign::Center, font,
+        };
+        let render = |font: Option<&str>, element_font: Option<&str>| {
+            let cfg = DisplayConfig {
+                background: "#000000".into(),
+                font: font.map(String::from),
+                elements: vec![DisplayElement::Text(text(element_font.map(String::from)))],
+                ..DisplayConfig::default()
+            };
+            let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures::default()).unwrap() else { panic!("expected rgba") };
+            rgba
+        };
+        let default = render(None, None);
+        let Some(other) = crate::render::fonts::families().into_iter().find(|f| {
+            let r = render(Some(f), None);
+            r != default
+        }) else {
+            return;
+        };
+        assert_eq!(render(Some(&other), None), render(None, Some(&other)), "scene font and element font agree");
+        assert_eq!(render(Some(&other), Some("No Such Font Family 123")), render(Some(&other), None), "an unknown element font falls back to the scene font");
     }
 
     #[test]

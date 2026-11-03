@@ -491,7 +491,7 @@ export function CoolingScreen() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>
-              {deviceStatus.connected ? deviceStatus.productName : 'Kraken Elite V2'} - Pump
+              {deviceStatus.connected ? deviceStatus.productName : 'Kraken Elite'} - Pump
             </div>
             <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 3 }}>Watercooling · CPU &amp; liquid control</div>
           </div>

@@ -8,6 +8,10 @@
   padding: 0;
 }
 
+html {
+  color-scheme: dark;
+}
+
 body {
   font-family: 'Manrope', system-ui, sans-serif;
   background-color: #0d0d0d;

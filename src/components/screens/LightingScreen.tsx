@@ -232,7 +232,7 @@ export function LightingScreen() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 800, color: '#f0f0f0', letterSpacing: '-0.2px' }}>
-              {state.deviceStatus.connected ? state.deviceStatus.productName : 'Kraken Elite V2'}
+              {state.deviceStatus.connected ? state.deviceStatus.productName : 'Kraken Elite'}
             </div>
             <div style={{ fontSize: 10, color: state.deviceStatus.connected ? '#00e87a' : '#484848', marginTop: 2 }}>
               {state.deviceStatus.connected ? 'Connected' : 'Not connected'}

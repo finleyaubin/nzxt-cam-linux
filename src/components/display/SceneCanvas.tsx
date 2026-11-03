@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { DisplayConfig, DisplayElement, LCD_SIZE } from '@shared/display'
-import { elementRect, handlesFor, hitTest, resizePatch, snapMove, snapResize, clampToScreen, SnapHint } from './geometry'
+import { elementRect, handlesFor, hitTest, resizePatch, snapMove, snapResize, clampToScreen, withSceneFont, SnapHint } from './geometry'
 
 const GUTTER = 14
 
@@ -42,6 +42,7 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
   const [editing, setEditing] = useState<string | null>(null)
   const editDone = useRef(false)
   const scale = size / LCD_SIZE
+  const elements = withSceneFont(config)
   const selectedId = selectedIds[0] ?? null
   useEffect(() => { if (editing && !config.elements.some(x => x.id === editing)) setEditing(null) }, [config, editing])
 
@@ -51,13 +52,13 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
   }
 
   const pick = (x: number, y: number) =>
-    [...config.elements].reverse().find(el => hitTest(el, x, y, resolve, 5 / scale))
+    [...elements].reverse().find(el => hitTest(el, x, y, resolve, 5 / scale))
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return
     const p = toScene(e)
     const handle = (e.target as HTMLElement).dataset.handle
-    const selected = selectedIds.length === 1 ? config.elements.find(el => el.id === selectedId) : undefined
+    const selected = selectedIds.length === 1 ? elements.find(el => el.id === selectedId) : undefined
     if (handle && selected) {
       onGestureStart()
       drag.current = { kind: 'resize', id: selected.id, handle }
@@ -70,7 +71,7 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
       onGestureStart()
       drag.current = {
         kind: 'move', id: el.id, start: p,
-        origin: config.elements.filter(x => ids.includes(x.id)).map(x => ({ id: x.id, x: x.x, y: x.y })),
+        origin: elements.filter(x => ids.includes(x.id)).map(x => ({ id: x.id, x: x.x, y: x.y })),
       }
     }
     rootRef.current!.setPointerCapture(e.pointerId)
@@ -83,7 +84,7 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
       setHoverId(pick(p.x, p.y)?.id ?? null)
       return
     }
-    const el = config.elements.find(x => x.id === d.id)
+    const el = elements.find(x => x.id === d.id)
     if (!el) return
     // About 6 screen pixels of pull, whatever the canvas size. Hold Alt to drag freely.
     const threshold = e.altKey ? 0 : 6 / scale
@@ -97,7 +98,7 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
       const tx = clampToScreen(o.x + rawX)
       const ty = clampToScreen(o.y + rawY)
       const s = threshold > 0
-        ? snapMove(el, tx, ty, config.elements.filter(x => !moving.has(x.id)), resolve, threshold)
+        ? snapMove(el, tx, ty, elements.filter(x => !moving.has(x.id)), resolve, threshold)
         : { x: tx, y: ty, guideX: null, guideY: null, hints: [] as SnapHint[] }
       // A locked axis stays locked even if something snaps along it.
       const nx = e.shiftKey && rawX === 0 ? o.x : s.x
@@ -108,7 +109,7 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
       onPatchMany(d.origin.map(x => ({ id: x.id, patch: { x: clampToScreen(x.x + dx), y: clampToScreen(x.y + dy) } })))
     } else {
       const s = threshold > 0
-        ? snapResize(el, d.handle, p.x, p.y, config.elements.filter(x => x.id !== el.id), resolve, threshold)
+        ? snapResize(el, d.handle, p.x, p.y, elements.filter(x => x.id !== el.id), resolve, threshold)
         : { patch: resizePatch(el, d.handle, p.x, p.y, resolve), guideX: null, guideY: null }
       setGuides({ x: s.guideX, y: s.guideY })
       setHints([])
@@ -127,7 +128,7 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
     editDone.current = true
     const id = editing
     setEditing(null)
-    const el = config.elements.find(x => x.id === id)
+    const el = elements.find(x => x.id === id)
     if (commit && id && el?.type === 'text' && value !== el.text) onTextEdit(id, value)
   }
 
@@ -140,11 +141,11 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
     setEditing(el.id)
   }
 
-  const editEl = editing ? config.elements.find(x => x.id === editing) : null
+  const editEl = editing ? elements.find(x => x.id === editing) : null
 
-  const selectedEls = config.elements.filter(el => selectedIds.includes(el.id))
+  const selectedEls = elements.filter(el => selectedIds.includes(el.id))
   const selected = selectedIds.length === 1 ? selectedEls[0] ?? null : null
-  const hover = hoverId && !selectedIds.includes(hoverId) ? config.elements.find(el => el.id === hoverId) ?? null : null
+  const hover = hoverId && !selectedIds.includes(hoverId) ? elements.find(el => el.id === hoverId) ?? null : null
   const box = (el: DisplayElement) => {
     const r = elementRect(el, resolve)
     return {
@@ -194,7 +195,7 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
           {/* The cooler's screen is round: dim what falls outside it. */}
           <div style={{
             position: 'absolute', inset: 0, pointerEvents: 'none',
-            background: 'radial-gradient(circle at center, transparent calc(50% - 1px), rgba(0,0,0,0.62) 50%)',
+            background: 'radial-gradient(circle closest-side at center, transparent calc(100% - 1px), rgba(0,0,0,0.62) 100%)',
           }}/>
           <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.12)', pointerEvents: 'none' }}/>
           {guides.x !== null && <div style={{ position: 'absolute', left: guides.x * scale, top: 0, bottom: 0, width: 1, background: accent, opacity: 0.8, pointerEvents: 'none' }}/>}

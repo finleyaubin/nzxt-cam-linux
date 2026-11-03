@@ -12,7 +12,9 @@ export const LCD_SIZE = 640
 export type BaseMetric = 'cpu' | 'gpu' | 'liquid' | 'pump'
 /** `sensorN` is the user's N-th sensor slot (Settings > Sensors), N = 1..MAX_SENSORS. */
 export type MetricId = BaseMetric | `sensor${number}`
-export type ElementType = 'gauge' | 'bar' | 'graph' | 'text'
+export type ElementType = 'gauge' | 'bar' | 'graph' | 'text' | 'image'
+
+export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'svg']
 
 export const MAX_SENSORS = 8
 
@@ -69,6 +71,10 @@ export interface GaugeElement extends ElementBase {
   gradientTo?: string | null
   /** Where the label and value go; 'bottom' suits split rings (a sweep under 360 with the opening at the bottom). */
   textPosition?: 'center' | 'bottom'
+  showRange?: boolean
+  rangeAngle?: number
+  rangeOffset?: number
+  valuePill?: boolean
 }
 
 export interface BarElement extends ElementBase {
@@ -119,9 +125,21 @@ export interface TextElement extends ElementBase {
   color: string
   size: number
   align: 'left' | 'center' | 'right'
+  /** Installed font family; the scene's font when unset. */
+  font?: string | null
 }
 
-export type DisplayElement = GaugeElement | BarElement | GraphElement | TextElement
+/** A picture (logo, icon, photo) scaled to fit its box. */
+export interface ImageElement extends ElementBase {
+  type: 'image'
+  width: number
+  height: number
+  path: string
+  /** 0-100 */
+  opacity: number
+}
+
+export type DisplayElement = GaugeElement | BarElement | GraphElement | TextElement | ImageElement
 
 export interface DisplayConfig {
   background: string
@@ -130,6 +148,8 @@ export interface DisplayConfig {
   decimals?: number
   backgroundImage?: string | null
   backgroundDim?: number
+  /** Installed font family for all text; the built-in font when unset. */
+  font?: string | null
 }
 
 export function formatMetric(v: number, decimals = 0): string {
@@ -218,6 +238,20 @@ export function makeGraph(metric: MetricId, overrides: Partial<GraphElement> = {
     fill: true,
     lineWidth: 3,
     cornerRadius: 16,
+    ...overrides
+  }
+}
+
+export function makeImage(path: string, overrides: Partial<ImageElement> = {}): ImageElement {
+  return {
+    id: genId('image'),
+    type: 'image',
+    x: LCD_SIZE / 2,
+    y: LCD_SIZE / 2,
+    width: 160,
+    height: 160,
+    path,
+    opacity: 100,
     ...overrides
   }
 }

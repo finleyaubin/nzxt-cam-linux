@@ -79,6 +79,8 @@ pub struct AppSettings {
     sensor_sources: Vec<Option<String>>,
     /// Third-party API keys by service name, e.g. "giphy".
     pub api_keys: std::collections::BTreeMap<String, String>,
+    /// Base URL of a Home Assistant server; its access token is `api_keys["homeassistant"]`.
+    pub home_assistant_url: String,
     pub selected_device: String,
     pub poll_interval_ms: u64,
     pub lcd_poll_ms: u64,
@@ -94,6 +96,7 @@ impl Default for AppSettings {
             sensors: Vec::new(),
             sensor_sources: Vec::new(),
             api_keys: Default::default(),
+            home_assistant_url: String::new(),
             selected_device: "nzxt-kraken-elite-v2".into(),
             poll_interval_ms: 1000,
             lcd_poll_ms: 500,
@@ -117,6 +120,10 @@ impl AppSettings {
         while self.sensors.last().is_some_and(|s| s.source.is_none()) {
             self.sensors.pop();
         }
+    }
+
+    pub fn apply_home_assistant(&self) {
+        crate::sensors::ha::configure(&self.home_assistant_url, self.api_keys.get("homeassistant").map_or("", String::as_str));
     }
 
     pub fn sensor_sources(&self) -> Vec<Option<String>> {
@@ -242,6 +249,18 @@ pub struct GaugeElement {
     pub gradient_to: Option<String>,
     #[serde(default)]
     pub text_position: TextPosition,
+    /// Print 0 and `max` at the two ends of a partial arc.
+    #[serde(default)]
+    pub show_range: bool,
+    /// Direction of the min/max labels around their arc end: 0° toward the gauge centre, 90° along the arc into the gauge.
+    #[serde(default)]
+    pub range_angle: f32,
+    /// Distance in px of the min/max labels from the centre of their arc end.
+    #[serde(default)]
+    pub range_offset: f32,
+    /// Show the value in a pill at the top of the ring, filled with the track colour, instead of in the centre.
+    #[serde(default)]
+    pub value_pill: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -324,6 +343,28 @@ pub struct TextElement {
     pub color: String,
     pub size: f32,
     pub align: TextAlign,
+    /// Font family for this text; the scene's font when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font: Option<String>,
+}
+
+fn full_opacity() -> u8 {
+    100
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageElement {
+    pub id: String,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+    /// Picture file (PNG, JPEG, WebP, BMP or the first frame of a GIF), scaled to fit the box.
+    pub path: String,
+    /// 0-100
+    #[serde(default = "full_opacity")]
+    pub opacity: u8,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -341,6 +382,7 @@ pub enum DisplayElement {
     Bar(BarElement),
     Graph(GraphElement),
     Text(TextElement),
+    Image(ImageElement),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -358,6 +400,9 @@ pub struct DisplayConfig {
     /// Darken the background image by this percentage (0-90) so stats stay legible.
     #[serde(default)]
     pub background_dim: u8,
+    /// Installed font family used for all text; the built-in font when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font: Option<String>,
 }
 
 impl DisplayConfig {
@@ -369,8 +414,22 @@ impl DisplayConfig {
         if self.background_dim > 90 {
             return Err(format!("backgroundDim must be 0-90, got {}", self.background_dim));
         }
+        let fonts = self.font.iter().chain(self.elements.iter().filter_map(|el| match el {
+            DisplayElement::Text(t) => t.font.as_ref(),
+            _ => None,
+        }));
+        if let Some(name) = fonts.into_iter().find(|name| name.len() > 200) {
+            return Err(format!("font name is too long ({} bytes)", name.len()));
+        }
         if self.elements.len() > 64 {
             return Err(format!("elements has {} entries, the maximum is 64", self.elements.len()));
+        }
+        for (i, el) in self.elements.iter().enumerate() {
+            if let DisplayElement::Image(img) = el {
+                if img.opacity > 100 {
+                    return Err(format!("elements[{i}].opacity must be 0-100, got {}", img.opacity));
+                }
+            }
         }
         Ok(())
     }
@@ -389,6 +448,7 @@ impl Default for DisplayConfig {
             decimals: 0,
             background_image: None,
             background_dim: 0,
+            font: None,
         }
     }
 }
@@ -599,5 +659,19 @@ mod tests {
         let el: DisplayElement = serde_json::from_str(json).unwrap();
         let DisplayElement::Graph(g) = el else { panic!("expected graph") };
         assert_eq!((g.window_secs, g.fill, g.line_width), (60, false, 3.0));
+    }
+
+    #[test]
+    fn fonts_are_optional_and_survive_a_round_trip() {
+        let old: DisplayConfig = serde_json::from_str(r##"{"background":"#000","elements":[]}"##).unwrap();
+        assert_eq!(old.font, None);
+        let json = r##"{"background":"#000","font":"Fira Sans","elements":[
+            {"type":"text","id":"t","x":1,"y":2,"text":"hi","color":"#fff","size":20,"align":"left","font":"Lato"}]}"##;
+        let cfg: DisplayConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.font.as_deref(), Some("Fira Sans"));
+        let DisplayElement::Text(t) = &cfg.elements[0] else { panic!("expected text") };
+        assert_eq!(t.font.as_deref(), Some("Lato"));
+        let back = serde_json::to_string(&DisplayConfig { font: None, ..cfg }).unwrap();
+        assert!(!back.contains("Fira Sans") && back.contains("Lato"));
     }
 }

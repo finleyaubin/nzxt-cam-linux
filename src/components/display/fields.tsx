@@ -18,12 +18,12 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   )
 }
 
-export function NumField({ label, value, min, max, step = 1, unit = '', accent, onChange }: {
-  label: string; value: number; min: number; max: number; step?: number; unit?: string; accent: string; onChange: (v: number) => void
+export function NumField({ label, value, min, max, sliderMax = max, step = 1, unit = '', accent, onChange }: {
+  label: string; value: number; min: number; max: number; sliderMax?: number; step?: number; unit?: string; accent: string; onChange: (v: number) => void
 }) {
   return (
     <Field label={label}>
-      <div style={{ flex: 1, minWidth: 0 }}><Slider value={Math.min(max, Math.max(min, value))} min={min} max={max} onChange={onChange} color={accent}/></div>
+      <div style={{ flex: 1, minWidth: 0 }}><Slider value={Math.min(sliderMax, Math.max(min, value))} min={min} max={sliderMax} onChange={onChange} color={accent}/></div>
       <input
         type="number" value={Math.round(value * 100) / 100} min={min} max={max} step={step}
         onChange={e => { const v = e.target.valueAsNumber; if (Number.isFinite(v)) onChange(v) }}
@@ -35,12 +35,12 @@ export function NumField({ label, value, min, max, step = 1, unit = '', accent, 
   )
 }
 
-export function TextField({ label, value, placeholder, onChange, maxLength }: {
-  label: string; value: string; placeholder?: string; maxLength?: number; onChange: (v: string) => void
+export function TextField({ label, value, placeholder, onChange, maxLength, inputRef }: {
+  label: string; value: string; placeholder?: string; maxLength?: number; onChange: (v: string) => void; inputRef?: React.Ref<HTMLInputElement>
 }) {
   return (
     <Field label={label}>
-      <input value={value} placeholder={placeholder} maxLength={maxLength} onChange={e => onChange(e.target.value)}
+      <input ref={inputRef} value={value} placeholder={placeholder} maxLength={maxLength} onChange={e => onChange(e.target.value)}
         aria-label={label} style={{ ...INPUT, flex: 1 }}/>
     </Field>
   )

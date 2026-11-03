@@ -1,11 +1,14 @@
 # nzxt-cam-linux
 
-LCD & RGB controller for the **NZXT Kraken Elite V2** on Linux.
+LCD & RGB controller for the **NZXT Kraken Elite** (V2 and 2023) on Linux.
 Native alternative to NZXT CAM (Windows only) — built with Tauri 2 + Rust.
 
 ## Features
 
 - LCD display: one screen you lay out freely. Add rings, gauges, bars, history graphs and text (with `{cpu}`, `{gpu}`, `{liquid}`, `{pump}`, `{sensorN}`, `{time}`, `{date}` variables), drag and resize them on a live preview, and use a photo or GIF as the background
+- Home Assistant: in Settings, enter your server URL and a long-lived access token, then pick any numeric entity (room temperature, power draw, …) as an LCD sensor
+- Images and logos: add PNG, JPEG, WebP or SVG pictures as widgets, or pick the logos found on your system (distro, desktop, Tux, GPU/CPU vendor); drop your own into `~/.config/nzxtcam-archlinux-rust/logos`
+- Gauges can show min/max labels at the ends of the arc and put the value in a pill cut into the ring
 - RGB Ring AIO + fan control
 - CPU / GPU / liquid / pump monitoring
 - Saveable profiles with Hyprland autostart support
@@ -39,6 +42,25 @@ Then launch from your app launcher by searching **nzxt-cam-linux**, or via:
 ```bash
 nzxtcam-v1
 ```
+
+### Prebuilt packages
+
+Each [GitHub release](https://github.com/finleyaubin/nzxt-cam-linux/releases) ships a `.deb`, an `.rpm` and an AppImage. Install the udev rule for USB access without sudo:
+
+```bash
+sudo cp src-tauri/resources/99-nzxt-kraken.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
+### Arch (makepkg)
+
+```bash
+git clone https://github.com/finleyaubin/nzxt-cam-linux.git
+cd nzxt-cam-linux/packaging/aur
+makepkg -si
+```
+
+This installs the binary, desktop entry, icon and udev rule system-wide. An AUR package will follow.
 
 ### Uninstall
 
@@ -186,7 +208,7 @@ Every star and share counts as much as a donation.
 
 ## License
 
-MIT — free to use, modify and redistribute.
+MIT — free to use, modify and redistribute. See [LICENSE](LICENSE).
 
 ## Credits
 
