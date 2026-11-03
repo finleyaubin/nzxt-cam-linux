@@ -186,7 +186,7 @@ Every star and share counts as much as a donation.
 
 ## License
 
-MIT — free to use, modify and redistribute.
+MIT — free to use, modify and redistribute. See [LICENSE](LICENSE).
 
 ## Credits
 
