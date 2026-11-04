@@ -27,6 +27,7 @@ pub struct FanChannel {
 #[serde(rename_all = "camelCase")]
 pub struct GpuFanStatus {
     pub hwmon_path: String,
+    pub name: Option<String>,
     pub rpm: u32,
     pub duty: u8,
     pub gpu_temp: f32,
@@ -114,7 +115,7 @@ impl GpuFanController {
         let controllable = fs::metadata(base.join("pwm1"))
             .map(|m| !m.permissions().readonly())
             .unwrap_or(false);
-        Some(GpuFanStatus { hwmon_path: hwmon, rpm, duty, gpu_temp, controllable })
+        Some(GpuFanStatus { name: gpu_product_name(&base), hwmon_path: hwmon, rpm, duty, gpu_temp, controllable })
     }
 }
 
@@ -193,6 +194,29 @@ fn find_amdgpu_hwmon() -> Option<(String, String)> {
         let name = read_sysfs(&path.join("name")).unwrap_or_default();
         if name == "amdgpu" && path.join("pwm1").exists() {
             return Some((path.to_string_lossy().into(), name));
+        }
+    }
+    None
+}
+
+const PCI_IDS_PATHS: &[&str] = &["/usr/share/hwdata/pci.ids", "/usr/share/misc/pci.ids"];
+
+/// Marketing name from the PCI id database, e.g. "Radeon RX 6700/6700 XT / 6800M".
+fn gpu_product_name(hwmon: &PathBuf) -> Option<String> {
+    let device_dir = hwmon.join("device");
+    let hex = |file: &str| read_sysfs(&device_dir.join(file)).map(|s| s.trim_start_matches("0x").to_ascii_lowercase());
+    let (vendor, device) = (hex("vendor")?, hex("device")?);
+    let db = PCI_IDS_PATHS.iter().find_map(|p| fs::read_to_string(p).ok())?;
+    let mut in_vendor = false;
+    for line in db.lines() {
+        if !line.starts_with('\t') {
+            in_vendor = line.starts_with(&format!("{vendor}  "));
+        } else if in_vendor && !line.starts_with("\t\t") {
+            let entry = line.trim_start_matches('\t');
+            if let Some(name) = entry.strip_prefix(&format!("{device}  ")) {
+                let bracketed = name.rfind('[').and_then(|i| name[i + 1..].strip_suffix(']'));
+                return Some(bracketed.unwrap_or(name).to_string());
+            }
         }
     }
     None

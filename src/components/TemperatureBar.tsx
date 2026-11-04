@@ -1,4 +1,5 @@
 import { useApp } from '../context/AppContext'
+import { useLanguage } from '../i18n/LangContext'
 
 function TempItem({ label, value, color, max = 100 }: { label: string; value: number; color: string; max?: number }) {
   const pct = Math.min(100, (value / max) * 100)
@@ -26,15 +27,16 @@ function TempItem({ label, value, color, max = 100 }: { label: string; value: nu
 export function TemperatureBar() {
   const { state } = useApp()
   const { temperatures } = state
+  const { t } = useLanguage()
 
   return (
     <div className="bg-[#111111] border border-[#1e1e1e] rounded-xl p-4 space-y-3">
-      <TempItem label="CPU" value={temperatures.cpu} color="#00ff88" />
-      <TempItem label="GPU" value={temperatures.gpu} color="#00ff88" />
-      <TempItem label="Liquid" value={temperatures.liquid} color="#00d4ff" max={50} />
+      <TempItem label={t('metric.cpu')} value={temperatures.cpu} color="#00ff88" />
+      <TempItem label={t('metric.gpu')} value={temperatures.gpu} color="#00ff88" />
+      <TempItem label={t('metric.liquid')} value={temperatures.liquid} color="#00d4ff" max={50} />
       {temperatures.pumpRpm > 0 && (
         <div className="flex items-center gap-3 pt-1 border-t border-[#1e1e1e]">
-          <span className="text-gray-400 text-sm w-12">Pump</span>
+          <span className="text-gray-400 text-sm w-12">{t('metric.pump')}</span>
           <span className="text-gray-300 text-sm font-mono">{temperatures.pumpRpm} RPM</span>
         </div>
       )}

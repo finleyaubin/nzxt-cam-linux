@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { DisplayConfig, DisplayElement, LCD_SIZE } from '@shared/display'
 import { elementRect, handlesFor, hitTest, resizePatch, snapMove, snapResize, clampToScreen, withSceneFont, SnapHint } from './geometry'
+import { useLanguage } from '../../i18n/LangContext'
 
 const GUTTER = 14
 
@@ -38,6 +39,7 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
   const drag = useRef<Drag | null>(null)
   const [guides, setGuides] = useState<{ x: number | null; y: number | null }>({ x: null, y: null })
   const [hints, setHints] = useState<SnapHint[]>([])
+  const { t } = useLanguage()
   const [hoverId, setHoverId] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const editDone = useRef(false)
@@ -190,8 +192,8 @@ export function SceneCanvas({ config, previewUrl, selectedIds, size, accent, res
       <div style={{ position: 'absolute', left: GUTTER, top: GUTTER, width: size, height: size }}>
         <div style={{ position: 'absolute', inset: 0, borderRadius: 10, overflow: 'hidden', background: config.background }}>
           {previewUrl
-            ? <img src={previewUrl} alt="LCD preview" draggable={false} style={{ width: '100%', height: '100%', display: 'block', pointerEvents: 'none' }}/>
-            : <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', fontSize: 12, color: '#7f7f7f' }}>Rendering…</div>}
+            ? <img src={previewUrl} alt={t('scene.preview_alt')} draggable={false} style={{ width: '100%', height: '100%', display: 'block', pointerEvents: 'none' }}/>
+            : <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', fontSize: 12, color: '#7f7f7f' }}>{t('scene.rendering')}</div>}
           {/* The cooler's screen is round: dim what falls outside it. */}
           <div style={{
             position: 'absolute', inset: 0, pointerEvents: 'none',

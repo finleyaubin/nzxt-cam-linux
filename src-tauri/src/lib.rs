@@ -10,6 +10,7 @@ pub mod logos;
 pub mod profile;
 pub mod render;
 pub mod sensors;
+pub mod storage;
 pub mod types;
 pub mod usb;
 
@@ -184,6 +185,7 @@ pub fn run() {
             commands::set_gpu_fan_curve,
             commands::set_gpu_fan_auto,
             commands::list_fan_channels,
+            commands::list_drives,
             commands::read_fan_channels,
             commands::set_fan_duty_cmd,
             commands::set_fan_auto_cmd,

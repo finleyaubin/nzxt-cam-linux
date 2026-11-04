@@ -511,6 +511,11 @@ pub fn set_gpu_fan_auto(state: State<'_, AppState>) -> CommandResult {
 // ============================================================================
 
 #[tauri::command]
+pub fn list_drives() -> Result<Vec<crate::storage::Drive>, String> {
+    crate::storage::list_drives()
+}
+
+#[tauri::command]
 pub fn list_fan_channels() -> Vec<crate::fans::FanChannel> {
     crate::fans::list_fan_channels()
 }

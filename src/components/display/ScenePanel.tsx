@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { DisplayConfig, DisplayElement } from '@shared/display'
 import { api } from '../../lib/api'
+import { useLanguage } from '../../i18n/LangContext'
 import { ColorField, Field, NumField, Pill, SectionTitle } from './fields'
 import { FontPicker } from './FontPicker'
 import { GiphyDialog } from './GiphyPicker'
@@ -22,6 +23,7 @@ interface Props {
 
 /** Settings for the screen as a whole, shown when no element is selected. */
 export function ScenePanel({ config, accent, onChange, onLayout, onRestyle }: Props) {
+  const { t } = useLanguage()
   const [rotation, setRotation] = useState(0)
   const [showGiphy, setShowGiphy] = useState(false)
   const image = config.backgroundImage ?? null
@@ -34,33 +36,33 @@ export function ScenePanel({ config, accent, onChange, onLayout, onRestyle }: Pr
   }
 
   const pickImage = async () => {
-    const path = await api.openFileDialog([{ name: 'Photo or GIF', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'] }])
+    const path = await api.openFileDialog([{ name: t('scene.photo_gif_filter'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif'] }])
     if (path) onChange({ backgroundImage: path })
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-      <div style={{ fontSize: 13, fontWeight: 700 }}>Screen</div>
+      <div style={{ fontSize: 13, fontWeight: 700 }}>{t('scene.title')}</div>
       <div style={{ fontSize: 11, color: '#7f7f7f', lineHeight: 1.5 }}>
-        Add elements with the buttons above, drag them on the preview and pull the handles to resize. Pick an element to edit it.
+        {t('scene.help')}
       </div>
 
-      <SectionTitle>Theme</SectionTitle>
+      <SectionTitle>{t('scene.theme')}</SectionTitle>
       <ThemePicker config={config} accent={accent} onRestyle={onRestyle}/>
 
-      <SectionTitle>Text</SectionTitle>
-      <FontPicker value={config.font} defaultLabel="Default" accent={accent} onChange={font => onChange({ font })}/>
+      <SectionTitle>{t('scene.text')}</SectionTitle>
+      <FontPicker value={config.font} defaultLabel={t('scene.font_default')} accent={accent} onChange={font => onChange({ font })}/>
 
-      <SectionTitle>Background</SectionTitle>
-      <ColorField label="Colour" value={config.background} onChange={background => onChange({ background })}/>
-      <Field label="Photo / GIF">
+      <SectionTitle>{t('scene.background')}</SectionTitle>
+      <ColorField label={t('scene.colour')} value={config.background} onChange={background => onChange({ background })}/>
+      <Field label={t('scene.photo_gif')}>
         <Pill accent={accent} active={!!image} onClick={pickImage}>
           <ImageSquare size={13}/>
-          <span style={{ maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{image ? fileName(image) : 'Choose…'}</span>
+          <span style={{ maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{image ? fileName(image) : t('scene.choose')}</span>
         </Pill>
         <Pill accent={accent} active={showGiphy} onClick={() => setShowGiphy(true)}><Gif size={13}/>GIPHY</Pill>
         {image && (
-          <button onClick={() => onChange({ backgroundImage: null })} aria-label="Remove background image" style={{
+          <button onClick={() => onChange({ backgroundImage: null })} aria-label={t('scene.remove_background')} style={{
             display: 'flex', padding: 5, borderRadius: 8, border: '1px solid #252525', background: 'transparent', color: '#9a9a9a', cursor: 'pointer',
           }}><X size={12}/></button>
         )}
@@ -68,21 +70,21 @@ export function ScenePanel({ config, accent, onChange, onLayout, onRestyle }: Pr
       {showGiphy && <GiphyDialog accent={accent} onClose={() => setShowGiphy(false)} onPick={path => { onChange({ backgroundImage: path }); setShowGiphy(false) }}/>}
       {image && (
         <>
-          <NumField label="Dim image" value={config.backgroundDim ?? 0} min={0} max={90} unit="%" accent={accent} onChange={backgroundDim => onChange({ backgroundDim: Math.round(backgroundDim) })}/>
+          <NumField label={t('scene.dim')} value={config.backgroundDim ?? 0} min={0} max={90} unit="%" accent={accent} onChange={backgroundDim => onChange({ backgroundDim: Math.round(backgroundDim) })}/>
           {image.toLowerCase().endsWith('.gif') && (
             <div style={{ fontSize: 10, color: '#7f7f7f', lineHeight: 1.5 }}>
-              GIFs animate on the cooler. Readings refresh every 1-5s depending on GIF length; the preview shows the first frame.
+              {t('scene.gif_note')}
             </div>
           )}
         </>
       )}
 
-      <SectionTitle>Cooler mounting</SectionTitle>
-      <Field label="Rotation">
+      <SectionTitle>{t('scene.mounting')}</SectionTitle>
+      <Field label={t('scene.rotation')}>
         {[0, 90, 180, 270].map(deg => <Pill key={deg} active={rotation === deg} accent={accent} onClick={() => rotate(deg)}>{deg}°</Pill>)}
       </Field>
 
-      <SectionTitle>Templates and saved layouts</SectionTitle>
+      <SectionTitle>{t('scene.templates_section')}</SectionTitle>
       <TemplateGallery current={config} accent={accent} onPick={onLayout} onSaveCurrent={name => { api.saveLayout(name, config) }}/>
     </div>
   )

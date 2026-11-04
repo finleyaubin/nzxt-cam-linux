@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import { useApp } from '../../context/AppContext'
+import { useLanguage } from '../../i18n/LangContext'
 import { CircularGauge } from '../ui/CircularGauge'
 import { SparkChart } from '../ui/SparkChart'
 import { Card } from '../ui/Card'
@@ -22,6 +24,7 @@ function Stat({ label, val }: { label: string; val: string }) {
 function TempCard({ id, title, sub, value, max, tempUnit, hist }: {
   id: string; title: string; sub: string; value: number; max: number; tempUnit: string; hist: number[]
 }) {
+  const { t } = useLanguage()
   const gc = gaugeColor(value, true)
   const disp = tempUnit === '°F' ? Math.round(value * 9 / 5 + 32) : Math.round(value)
   const unit = tempUnit === '°F' ? '°F' : '°C'
@@ -34,15 +37,15 @@ function TempCard({ id, title, sub, value, max, tempUnit, hist }: {
             <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 30, fontWeight: 700, color: '#f2f2f2', lineHeight: 1 }}>
               {disp}<span style={{ fontSize: 14, color: '#7f7f7f', fontWeight: 400 }}>{unit}</span>
             </div>
-            <div style={{ fontSize: 9, color: '#7f7f7f', marginTop: 5, letterSpacing: '1.2px', textTransform: 'uppercase' }}>Temp</div>
+            <div style={{ fontSize: 9, color: '#7f7f7f', marginTop: 5, letterSpacing: '1.2px', textTransform: 'uppercase' }}>{t('monitoring.temp')}</div>
           </div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: '#f0f0f0', marginBottom: 2, letterSpacing: '-0.3px' }}>{title}</div>
           <div style={{ fontSize: 10, color: '#7f7f7f', marginBottom: 16, fontWeight: 500 }}>{sub}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
-            <Stat label="Value" val={`${disp}${unit}`}/>
-            <Stat label="Max" val={`${max}${unit}`}/>
+            <Stat label={t('monitoring.value')} val={`${disp}${unit}`}/>
+            <Stat label={t('monitoring.max')} val={`${max}${unit}`}/>
           </div>
         </div>
       </div>
@@ -54,11 +57,12 @@ function TempCard({ id, title, sub, value, max, tempUnit, hist }: {
 }
 
 function PumpCard({ rpm, hist }: { rpm: number; hist: number[] }) {
+  const { t } = useLanguage()
   const rpmPct = Math.min(100, (rpm / 3000) * 100)
   const gc = '#9d4edd'
   return (
     <Card style={{ padding: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', marginBottom: 16, letterSpacing: '-0.2px' }}>Pump RPM</div>
+      <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', marginBottom: 16, letterSpacing: '-0.2px' }}>{t('monitoring.pump_rpm')}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <div style={{ position: 'relative', width: 90, height: 90, flexShrink: 0 }}>
           <CircularGauge value={rpmPct} size={90} stroke={8} color={gc}/>
@@ -68,8 +72,8 @@ function PumpCard({ rpm, hist }: { rpm: number; hist: number[] }) {
           </div>
         </div>
         <div>
-          <Stat label="Speed" val={`${Math.round(rpm)} RPM`}/>
-          <Stat label="Source" val="Liquid Cooling"/>
+          <Stat label={t('monitoring.speed')} val={`${Math.round(rpm)} RPM`}/>
+          <Stat label={t('monitoring.source')} val={t('monitoring.source_liquid')}/>
         </div>
       </div>
       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #1c1c1c' }}>
@@ -79,29 +83,41 @@ function PumpCard({ rpm, hist }: { rpm: number; hist: number[] }) {
   )
 }
 
+interface Drive { device: string; mount: string; usedBytes: number; totalBytes: number }
+
+const STORAGE_REFRESH_MS = 30_000
+
 function StorageCard() {
-  const drives = [
-    { label: '/dev/nvme0', used: 674, total: 954 },
-    { label: '/dev/sda1',  used: 1600, total: 1800 },
-  ]
-  const fmt = (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)} TB` : `${v} GB`
+  const { t } = useLanguage()
+  const [drives, setDrives] = useState<Drive[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const load = () => invoke<Drive[]>('list_drives').then(d => { setDrives(d); setError(null) }).catch(e => setError(String(e)))
+    load()
+    const timer = setInterval(load, STORAGE_REFRESH_MS)
+    return () => clearInterval(timer)
+  }, [])
+
+  const fmt = (bytes: number) => bytes >= 1e12 ? `${(bytes / 1e12).toFixed(1)} TB` : `${Math.round(bytes / 1e9)} GB`
   return (
     <Card style={{ padding: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', marginBottom: 18, letterSpacing: '-0.2px' }}>Storage</div>
-      {drives.map(({ label, used, total }) => {
-        const pct = used / total * 100
+      <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', marginBottom: 18, letterSpacing: '-0.2px' }}>{t('monitoring.storage')}</div>
+      {error && <div style={{ fontSize: 10, color: '#ff4757' }}>{error}</div>}
+      {drives?.length === 0 && <div style={{ fontSize: 10, color: '#7f7f7f' }}>{t('monitoring.no_drives')}</div>}
+      {drives?.map(({ device, mount, usedBytes, totalBytes }) => {
+        const pct = usedBytes / totalBytes * 100
         const c = pct > 90 ? '#ff4757' : pct > 74 ? '#ffb347' : '#9d4edd'
         return (
-          <div key={label} style={{ marginBottom: 16 }}>
+          <div key={device} style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center' }}>
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: c, fontWeight: 600 }}>{label}</span>
-              <span style={{ fontSize: 9, color: '#7f7f7f' }}>{fmt(used)} / {fmt(total)}</span>
+              <span title={device} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: c, fontWeight: 600 }}>{mount}</span>
+              <span style={{ fontSize: 9, color: '#7f7f7f' }}>{fmt(usedBytes)} / {fmt(totalBytes)}</span>
             </div>
             <ProgressBar value={pct} max={100} color={c} height={3}/>
           </div>
         )
       })}
-      <div style={{ fontSize: 9, color: '#7f7f7f', marginTop: 8 }}>* Approximate data</div>
     </Card>
   )
 }
@@ -114,6 +130,7 @@ const genHist = (base = 20, len = 52): number[] => {
 
 export function MonitoringScreen() {
   const { state } = useApp()
+  const { t } = useLanguage()
   const { temperatures, tempUnit, deviceStatus } = state
   const [cpuH, setCpuH] = useState(() => genHist(temperatures.cpu))
   const [gpuH, setGpuH] = useState(() => genHist(temperatures.gpu))
@@ -130,7 +147,7 @@ export function MonitoringScreen() {
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>Monitoring</div>
+        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>{t('nav.monitoring')}</div>
         {deviceStatus.connected && (
           <div style={{ fontSize: 11, color: '#7f7f7f', background: '#111', border: '1px solid #1e1e1e', padding: '4px 12px', borderRadius: 20 }}>
             {deviceStatus.productName}
@@ -139,22 +156,22 @@ export function MonitoringScreen() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <TempCard id="cpu" title="CPU" sub="CPU temperature" value={temperatures.cpu} max={100} tempUnit={tempUnit} hist={cpuH}/>
-        <TempCard id="gpu" title="GPU" sub="GPU temperature" value={temperatures.gpu} max={100} tempUnit={tempUnit} hist={gpuH}/>
+        <TempCard id="cpu" title={t('metric.cpu')} sub={t('monitoring.cpu_temperature')} value={temperatures.cpu} max={100} tempUnit={tempUnit} hist={cpuH}/>
+        <TempCard id="gpu" title={t('metric.gpu')} sub={t('monitoring.gpu_temperature')} value={temperatures.gpu} max={100} tempUnit={tempUnit} hist={gpuH}/>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
-        <TempCard id="liq" title="Liquid" sub="Liquid coolant temperature" value={temperatures.liquid} max={60} tempUnit={tempUnit} hist={liqH}/>
+        <TempCard id="liq" title={t('metric.liquid')} sub={t('monitoring.liquid_temperature')} value={temperatures.liquid} max={60} tempUnit={tempUnit} hist={liqH}/>
         <PumpCard rpm={temperatures.pumpRpm} hist={pumpH}/>
         <StorageCard/>
       </div>
 
       <div style={{ padding: '10px 18px', background: '#0d0d0d', border: '1px solid #181818', borderRadius: 8, display: 'flex', gap: 20 }}>
         {[
-          { label: 'CPU',    val: `${Math.round(temperatures.cpu)}°C`    },
-          { label: 'GPU',    val: `${Math.round(temperatures.gpu)}°C`    },
-          { label: 'Liquid', val: `${Math.round(temperatures.liquid)}°C` },
-          { label: 'Pump',   val: `${Math.round(temperatures.pumpRpm)} RPM` },
+          { label: t('metric.cpu'),    val: `${Math.round(temperatures.cpu)}°C`    },
+          { label: t('metric.gpu'),    val: `${Math.round(temperatures.gpu)}°C`    },
+          { label: t('metric.liquid'), val: `${Math.round(temperatures.liquid)}°C` },
+          { label: t('metric.pump'),   val: `${Math.round(temperatures.pumpRpm)} RPM` },
         ].map(({ label, val }) => (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 9, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700 }}>{label}</span>

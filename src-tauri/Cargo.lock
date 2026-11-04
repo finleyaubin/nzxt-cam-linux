@@ -2435,6 +2435,7 @@ dependencies = [
  "futures-lite",
  "gif",
  "image",
+ "libc",
  "log",
  "nusb",
  "once_cell",

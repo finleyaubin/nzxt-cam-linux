@@ -12,6 +12,8 @@ import { FirstRunPicker } from './FirstRunPicker'
 import { LogoDialog } from './LogoDialog'
 import { Pill, SectionTitle } from './fields'
 import { MetricOption, optionFor, useMetricOptions } from './metrics'
+import { useLanguage } from '../../i18n/LangContext'
+import type { TranslationKey } from '../../i18n/languages'
 import { AlignMode, CenterAxis, alignPatches, centerPatches, clampToScreen, withSceneFont } from './geometry'
 import {
   ArrowCounterClockwise, ArrowClockwise, ArrowUUpLeft, ChartLine, Circle, CircleHalf, Gauge as GaugeIcon, Hash, Hexagon, ImageSquare, Play, Rectangle, TextT, X,
@@ -19,22 +21,22 @@ import {
 
 type AddKind = 'ring' | 'split' | 'gauge' | 'bar' | 'graph' | 'value' | 'label' | 'image' | 'logo'
 
-const ADD_BUTTONS: { kind: AddKind; label: string; Icon: typeof Circle }[] = [
-  { kind: 'ring',  label: 'Ring',  Icon: Circle },
-  { kind: 'split', label: 'Split ring', Icon: CircleHalf },
-  { kind: 'gauge', label: 'Gauge', Icon: GaugeIcon },
-  { kind: 'bar',   label: 'Bar',   Icon: Rectangle },
-  { kind: 'graph', label: 'Graph', Icon: ChartLine },
-  { kind: 'value', label: 'Value', Icon: Hash },
-  { kind: 'label', label: 'Label', Icon: TextT },
-  { kind: 'image', label: 'Image', Icon: ImageSquare },
-  { kind: 'logo',  label: 'Logo',  Icon: Hexagon },
+const ADD_BUTTONS: { kind: AddKind; label: TranslationKey; Icon: typeof Circle }[] = [
+  { kind: 'ring',  label: 'editor.add.ring',  Icon: Circle },
+  { kind: 'split', label: 'editor.add.split', Icon: CircleHalf },
+  { kind: 'gauge', label: 'editor.add.gauge', Icon: GaugeIcon },
+  { kind: 'bar',   label: 'editor.add.bar',   Icon: Rectangle },
+  { kind: 'graph', label: 'editor.add.graph', Icon: ChartLine },
+  { kind: 'value', label: 'editor.add.value', Icon: Hash },
+  { kind: 'label', label: 'editor.add.label', Icon: TextT },
+  { kind: 'image', label: 'editor.add.image', Icon: ImageSquare },
+  { kind: 'logo',  label: 'editor.add.logo',  Icon: Hexagon },
 ]
 
-const ALIGN_BUTTONS: { mode: AlignMode; label: string }[] = [
-  { mode: 'left', label: 'Align left' }, { mode: 'hcenter', label: 'Align centre' }, { mode: 'right', label: 'Align right' },
-  { mode: 'top', label: 'Align top' }, { mode: 'vcenter', label: 'Align middle' }, { mode: 'bottom', label: 'Align bottom' },
-  { mode: 'hdist', label: 'Distribute horizontally' }, { mode: 'vdist', label: 'Distribute vertically' },
+const ALIGN_BUTTONS: { mode: AlignMode; label: TranslationKey }[] = [
+  { mode: 'left', label: 'editor.align.left' }, { mode: 'hcenter', label: 'editor.align.hcenter' }, { mode: 'right', label: 'editor.align.right' },
+  { mode: 'top', label: 'editor.align.top' }, { mode: 'vcenter', label: 'editor.align.vcenter' }, { mode: 'bottom', label: 'editor.align.bottom' },
+  { mode: 'hdist', label: 'editor.align.hdist' }, { mode: 'vdist', label: 'editor.align.vdist' },
 ]
 const ALIGN_SHORT: Record<AlignMode, string> = {
   left: 'L', hcenter: 'C', right: 'R', top: 'T', vcenter: 'M', bottom: 'B', hdist: 'H↔', vdist: 'V↕',
@@ -91,6 +93,7 @@ function useScenePreview(config: DisplayConfig | null): string | null {
 
 export function DisplayEditor() {
   const { state, dispatch } = useApp()
+  const { t } = useLanguage()
   const { accent, deviceStatus, temperatures, displayConfig: config, selectedElementId: selectedId, displayApplied } = state
   const metrics = useMetricOptions()
   const [status, setStatus] = useState<'idle' | 'applying' | 'done' | 'error'>('idle')
@@ -236,7 +239,7 @@ export function DisplayEditor() {
   }, [snapshot, setConfig, select])
 
   const addImage = useCallback(async (where?: { x: number; y: number }) => {
-    const path = await api.openFileDialog([{ name: 'Image', extensions: IMAGE_EXTENSIONS }])
+    const path = await api.openFileDialog([{ name: t('inspector.image_filter'), extensions: IMAGE_EXTENSIONS }])
     if (path) placeImage(path, where)
   }, [placeImage])
 
@@ -345,7 +348,7 @@ export function DisplayEditor() {
       dispatch({ type: 'SET_DISPLAY_APPLIED', payload: JSON.stringify(cfg) })
       if (deviceStatus.connected) {
         const res = await api.startTempMode()
-        if (res?.success === false) throw new Error(res.error ?? 'The LCD did not accept the image')
+        if (res?.success === false) throw new Error(res.error ?? t('editor.lcd_rejected'))
       }
       setStatus('done')
       setTimeout(() => setStatus(s => (s === 'done' ? 'idle' : s)), 3000)
@@ -436,13 +439,13 @@ export function DisplayEditor() {
     const names = new Map<string, string>()
     config?.elements.forEach(el => {
       if (el.type === 'text') names.set(el.id, `“${resolve(el.text) || '…'}”`)
-      else if (el.type === 'image') names.set(el.id, `Image · ${el.path.split(/[\\/]/).pop() || 'none'}`)
-      else names.set(el.id, `${el.type === 'gauge' ? (el.sweep >= 360 ? 'Ring' : el.textPosition === 'bottom' ? 'Split ring' : 'Gauge') : el.type === 'bar' ? 'Bar' : 'Graph'} · ${el.label || optionFor(metrics, el.metric).label}`)
+      else if (el.type === 'image') names.set(el.id, t('editor.layer_image', { name: el.path.split(/[\\/]/).pop() || t('editor.layer_none') }))
+      else names.set(el.id, `${t(el.type === 'gauge' ? (el.sweep >= 360 ? 'inspector.type.ring' : el.textPosition === 'bottom' ? 'inspector.type.split_ring' : 'inspector.type.gauge') : el.type === 'bar' ? 'inspector.type.bar' : 'inspector.type.graph')} · ${el.label || optionFor(metrics, el.metric, t).label}`)
     })
     return names
-  }, [config, metrics, resolve])
+  }, [config, metrics, resolve, t])
 
-  if (!config) return <div style={{ color: '#7f7f7f', fontSize: 13, padding: 24 }}>Loading editor…</div>
+  if (!config) return <div style={{ color: '#7f7f7f', fontSize: 13, padding: 24 }}>{t('editor.loading')}</div>
 
 
   const selected = config.elements.find(el => el.id === selectedId) ?? null
@@ -469,11 +472,11 @@ export function DisplayEditor() {
         </div>
         {selectedIds.length >= 1 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, color: '#7f7f7f' }}>{selectedIds.length} selected</span>
-            <Pill accent={accent} onClick={() => centerElements(selectedIds, 'x')} title="Centre horizontally on the screen">Centre ↔</Pill>
-            <Pill accent={accent} onClick={() => centerElements(selectedIds, 'y')} title="Centre vertically on the screen">Centre ↕</Pill>
+            <span style={{ fontSize: 11, color: '#7f7f7f' }}>{t('editor.selected', { count: selectedIds.length })}</span>
+            <Pill accent={accent} onClick={() => centerElements(selectedIds, 'x')} title={t('inspector.centre_h_tip')}>{t('inspector.centre_h')}</Pill>
+            <Pill accent={accent} onClick={() => centerElements(selectedIds, 'y')} title={t('inspector.centre_v_tip')}>{t('inspector.centre_v')}</Pill>
             {selectedIds.length >= 2 && ALIGN_BUTTONS.map(({ mode, label }) => (
-              <Pill key={mode} accent={accent} onClick={() => alignSelection(mode)} title={label}>{ALIGN_SHORT[mode]}</Pill>
+              <Pill key={mode} accent={accent} onClick={() => alignSelection(mode)} title={t(label)}>{ALIGN_SHORT[mode]}</Pill>
             ))}
           </div>
         )}
@@ -484,34 +487,34 @@ export function DisplayEditor() {
             boxShadow: dirty ? `0 0 16px ${accent}55` : 'none', transition: 'all 140ms',
           }}>
             <Play size={12} weight="fill"/>
-            {status === 'applying' ? 'Sending…' : status === 'done' ? (connected ? 'Applied' : 'Saved') : connected ? 'Apply to LCD' : 'Save layout'}
+            {status === 'applying' ? t('common.sending') : status === 'done' ? (connected ? t('common.applied') : t('editor.saved')) : connected ? t('editor.apply_lcd') : t('editor.save_layout')}
           </button>
-          <Pill accent={accent} onClick={undo} title="Undo (Ctrl+Z)"><ArrowCounterClockwise size={13}/>Undo</Pill>
-          <Pill accent={accent} onClick={redo} title="Redo (Ctrl+Shift+Z)"><ArrowClockwise size={13}/>Redo</Pill>
-          <Pill accent={accent} onClick={revert} title="Back to the last applied scene"><ArrowUUpLeft size={13}/>Revert</Pill>
-          <Pill accent={accent} active={live} onClick={toggleLive} title="Save and apply automatically shortly after you stop editing">Apply as I edit</Pill>
+          <Pill accent={accent} onClick={undo} title={t('editor.undo_tip')}><ArrowCounterClockwise size={13}/>{t('editor.undo')}</Pill>
+          <Pill accent={accent} onClick={redo} title={t('editor.redo_tip')}><ArrowClockwise size={13}/>{t('editor.redo')}</Pill>
+          <Pill accent={accent} onClick={revert} title={t('editor.revert_tip')}><ArrowUUpLeft size={13}/>{t('editor.revert')}</Pill>
+          <Pill accent={accent} active={live} onClick={toggleLive} title={t('editor.live_tip')}>{t('editor.live')}</Pill>
           {status === 'error' && <span style={{ fontSize: 11, color: '#ff4757' }}>{error}</span>}
-          {status !== 'error' && dirty && <span style={{ fontSize: 11, color: '#ffb347' }}>Not applied yet</span>}
-          {!connected && <span style={{ fontSize: 11, color: '#7f7f7f' }}>Cooler not connected, layout is saved for when it is</span>}
+          {status !== 'error' && dirty && <span style={{ fontSize: 11, color: '#ffb347' }}>{t('editor.not_applied')}</span>}
+          {!connected && <span style={{ fontSize: 11, color: '#7f7f7f' }}>{t('editor.not_connected_note')}</span>}
         </div>
       </div>
 
       <Card style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }} accent={accent} glow={false}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <SectionTitle>Add to screen</SectionTitle>
+          <SectionTitle>{t('editor.add_section')}</SectionTitle>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {ADD_BUTTONS.map(({ kind, label, Icon }) => (
-              <div key={kind} draggable title="Click to add, or drag onto the screen"
+              <div key={kind} draggable title={t('editor.add_tip')}
                 onDragStart={e => { e.dataTransfer.setData('text/plain', `kraken-add:${kind}`); e.dataTransfer.effectAllowed = 'copy' }}>
-                <Pill accent={accent} onClick={() => addKind(kind)}><Icon size={13}/>{label}</Pill>
+                <Pill accent={accent} onClick={() => addKind(kind)}><Icon size={13}/>{t(label)}</Pill>
               </div>
             ))}
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          <SectionTitle>Layers (top first)</SectionTitle>
-          {config.elements.length === 0 && <div style={{ fontSize: 11, color: '#7f7f7f' }}>Nothing on the screen yet. Add something above.</div>}
+          <SectionTitle>{t('editor.layers')}</SectionTitle>
+          {config.elements.length === 0 && <div style={{ fontSize: 11, color: '#7f7f7f' }}>{t('editor.layers_empty')}</div>}
           {[...config.elements].reverse().map(el => {
             const Icon = iconFor(el)
             const active = selectedIds.includes(el.id)
@@ -523,7 +526,7 @@ export function DisplayEditor() {
               }}>
                 <Icon size={13} style={{ flexShrink: 0 }}/>
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titles.get(el.id)}</span>
-                <button onClick={e => { e.stopPropagation(); removeElement(el.id) }} aria-label="Remove" title="Remove" style={{
+                <button onClick={e => { e.stopPropagation(); removeElement(el.id) }} aria-label={t('editor.remove')} title={t('editor.remove')} style={{
                   display: 'flex', padding: 4, border: 'none', background: 'transparent', color: '#7f7f7f', cursor: 'pointer',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.color = '#ff4757' }}
@@ -556,21 +559,21 @@ export function DisplayEditor() {
           background: '#141414', border: '1px solid #2a2a2a', boxShadow: '0 8px 24px #000a', display: 'flex', flexDirection: 'column',
         }}>
           {([
-            ['Copy', () => copyElements(selectedIds.includes(menu.id) ? selectedIds : [menu.id])],
-            ['Paste', pasteElements],
-            ['Duplicate', () => duplicateElement(menu.id)],
-            ['Centre horizontally', () => centerElements(selectedIds.includes(menu.id) ? selectedIds : [menu.id], 'x')],
-            ['Centre vertically', () => centerElements(selectedIds.includes(menu.id) ? selectedIds : [menu.id], 'y')],
-            ['Bring forward', () => reorderElement(menu.id, 1)],
-            ['Send backward', () => reorderElement(menu.id, -1)],
-            ['Delete', () => removeElement(menu.id)],
-          ] as [string, () => void][]).map(([label, run]) => (
+            ['editor.menu.copy', () => copyElements(selectedIds.includes(menu.id) ? selectedIds : [menu.id])],
+            ['editor.menu.paste', pasteElements],
+            ['editor.menu.duplicate', () => duplicateElement(menu.id)],
+            ['editor.menu.centre_h', () => centerElements(selectedIds.includes(menu.id) ? selectedIds : [menu.id], 'x')],
+            ['editor.menu.centre_v', () => centerElements(selectedIds.includes(menu.id) ? selectedIds : [menu.id], 'y')],
+            ['editor.menu.bring_forward', () => reorderElement(menu.id, 1)],
+            ['editor.menu.send_backward', () => reorderElement(menu.id, -1)],
+            ['editor.menu.delete', () => removeElement(menu.id)],
+          ] as [TranslationKey, () => void][]).map(([label, run]) => (
             <button key={label} onClick={() => { setMenu(null); run() }} style={{
               textAlign: 'left', padding: '6px 10px', border: 'none', borderRadius: 5, background: 'transparent',
-              color: label === 'Delete' ? '#ff4757' : '#d0d0d0', fontSize: 12, cursor: 'pointer',
+              color: label === 'editor.menu.delete' ? '#ff4757' : '#d0d0d0', fontSize: 12, cursor: 'pointer',
             }}
             onMouseEnter={e => { e.currentTarget.style.background = '#222' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>{label}</button>
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>{t(label)}</button>
           ))}
         </div>
       )}
