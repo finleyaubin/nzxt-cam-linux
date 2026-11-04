@@ -210,6 +210,17 @@ impl MetricId {
     }
 }
 
+/// Where a gauge draws its label and value.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TextPosition {
+    /// Centred in the ring.
+    #[default]
+    Center,
+    /// At the bottom of the ring, for split rings with an opening there.
+    Bottom,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GaugeElement {
@@ -236,6 +247,8 @@ pub struct GaugeElement {
     /// Fill blends from `color` to this along the arc.
     #[serde(default)]
     pub gradient_to: Option<String>,
+    #[serde(default)]
+    pub text_position: TextPosition,
     /// Print 0 and `max` at the two ends of a partial arc.
     #[serde(default)]
     pub show_range: bool,

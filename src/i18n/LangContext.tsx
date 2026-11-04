@@ -1,8 +1,10 @@
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, Fragment, ReactNode } from 'react'
 import { languages, Lang, TranslationKey, SOURCE_LANG } from './languages'
 
 const STORAGE_KEY = 'nzxtcam-lang'
 const LEGACY_LANGS: Record<string, Lang> = { en: 'en_us', fr: 'fr_fr' }
+
+const PLACEHOLDER = /\{(\w+)\}/g
 
 const isLang = (value: string): value is Lang => value in languages
 
@@ -24,6 +26,7 @@ interface LangCtx {
   lang: Lang
   setLang: (l: Lang) => void
   t: (key: TranslationKey, params?: Record<string, string | number>) => string
+  tRich: (key: TranslationKey, parts: Record<string, ReactNode>) => ReactNode
 }
 
 const LangContext = createContext<LangCtx | null>(null)
@@ -42,17 +45,30 @@ export function LangProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Other languages may omit keys; those show the English text.
-  const t = useCallback((key: TranslationKey, params?: Record<string, string | number>): string => {
+  const template = useCallback((key: TranslationKey): string => {
     const text = (languages[lang] as Record<string, string>)[key] ?? languages[SOURCE_LANG][key]
     if (text === undefined) throw new Error(`Missing translation key: ${key}`)
+    return text
+  }, [lang])
+
+  const t = useCallback((key: TranslationKey, params?: Record<string, string | number>): string => {
+    const text = template(key)
     if (!params) return text
-    return text.replace(/\{(\w+)\}/g, (_, name) => {
+    return text.replace(PLACEHOLDER, (_, name) => {
       if (!(name in params)) throw new Error(`Missing parameter {${name}} for ${key}`)
       return String(params[name])
     })
-  }, [lang])
+  }, [template])
 
-  return <LangContext.Provider value={{ lang, setLang, t }}>{children}</LangContext.Provider>
+  // Like t(), but placeholders are filled with elements (e.g. <code>) instead of strings.
+  const tRich = useCallback((key: TranslationKey, parts: Record<string, ReactNode>): ReactNode =>
+    template(key).split(PLACEHOLDER).map((piece, i) => {
+      if (i % 2 === 0) return piece
+      if (!(piece in parts)) throw new Error(`Missing parameter {${piece}} for ${key}`)
+      return <Fragment key={i}>{parts[piece]}</Fragment>
+    }), [template])
+
+  return <LangContext.Provider value={{ lang, setLang, t, tRich }}>{children}</LangContext.Provider>
 }
 
 export function useLanguage() {

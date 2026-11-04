@@ -190,22 +190,6 @@ sudo pacman -S ttf-dejavu     # or
 | **Single device** | No simultaneous multi-AIO support |
 | **File drag-drop** | Replaced by a native dialog (Tauri webview blocks `file://` drag-drop) |
 
-## Support the project
-
-nzxt-cam-linux is free and open-source, and will always remain so.
-
-If you like the project, the best way to support it is to **share it** and **star the repo**.
-
-Crypto donations are also welcome:
-
-| Network | Address |
-|---------|---------|
-| **Bitcoin** | `bc1qxz8ctth9h296dz95v43kerhrlajfqgnt4j9umc` |
-| **ERC-20** (ETH, USDT, USDC…) | `0xdB6B57BE02dbb5Baa7f1013207ACEdB2E70b879c` |
-| **Solana** | `7nA4q7dDXujLe6SbBX6hx91dMkwTMKcttCX1SNP1bc2v` |
-
-Every star and share counts as much as a donation.
-
 ## License
 
 MIT — free to use, modify and redistribute. See [LICENSE](LICENSE).

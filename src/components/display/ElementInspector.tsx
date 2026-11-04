@@ -52,6 +52,11 @@ function ReadingFields({ el, metrics, accent, set }: { el: Reading; metrics: Met
       <TextField label={t('inspector.label')} value={el.label} onChange={label => set({ label })} maxLength={24}/>
       <CheckField label={t('inspector.show_label')} checked={el.showLabel} accent={accent} onChange={showLabel => set({ showLabel })}/>
       <CheckField label={t('inspector.show_value')} checked={el.showValue} accent={accent} onChange={showValue => set({ showValue })}/>
+      {el.type === 'gauge' && (
+        <SelectField label={t('inspector.text_position')} value={el.textPosition ?? 'center'} accent={accent}
+          onChange={v => set({ textPosition: v as 'center' | 'bottom' })}
+          options={[{ value: 'center', label: t('inspector.text_position_center') }, { value: 'bottom', label: t('inspector.text_position_bottom') }]}/>
+      )}
     </>
   )
 }
@@ -177,7 +182,7 @@ export function ElementInspector({ element, metrics, accent, onChange, onRemove,
     <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <div style={{ flex: 1, fontSize: 13, fontWeight: 700 }}>
-          {t(element.type === 'gauge' ? (element.sweep >= 360 ? 'inspector.type.ring' : 'inspector.type.gauge') : TYPE_NAME[element.type])}
+          {t(element.type === 'gauge' ? (element.sweep >= 360 ? 'inspector.type.ring' : element.textPosition === 'bottom' ? 'inspector.type.split_ring' : 'inspector.type.gauge') : TYPE_NAME[element.type])}
         </div>
         <IconButton title={t('inspector.bring_forward')} onClick={() => onReorder(1)}><ArrowUp size={13}/></IconButton>
         <IconButton title={t('inspector.send_backward')} onClick={() => onReorder(-1)}><ArrowDown size={13}/></IconButton>

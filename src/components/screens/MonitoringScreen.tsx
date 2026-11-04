@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import { useApp } from '../../context/AppContext'
 import { useLanguage } from '../../i18n/LangContext'
 import { CircularGauge } from '../ui/CircularGauge'
@@ -82,30 +83,41 @@ function PumpCard({ rpm, hist }: { rpm: number; hist: number[] }) {
   )
 }
 
+interface Drive { device: string; mount: string; usedBytes: number; totalBytes: number }
+
+const STORAGE_REFRESH_MS = 30_000
+
 function StorageCard() {
   const { t } = useLanguage()
-  const drives = [
-    { label: '/dev/nvme0', used: 674, total: 954 },
-    { label: '/dev/sda1',  used: 1600, total: 1800 },
-  ]
-  const fmt = (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1)} TB` : `${v} GB`
+  const [drives, setDrives] = useState<Drive[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const load = () => invoke<Drive[]>('list_drives').then(d => { setDrives(d); setError(null) }).catch(e => setError(String(e)))
+    load()
+    const timer = setInterval(load, STORAGE_REFRESH_MS)
+    return () => clearInterval(timer)
+  }, [])
+
+  const fmt = (bytes: number) => bytes >= 1e12 ? `${(bytes / 1e12).toFixed(1)} TB` : `${Math.round(bytes / 1e9)} GB`
   return (
     <Card style={{ padding: 18 }}>
       <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', marginBottom: 18, letterSpacing: '-0.2px' }}>{t('monitoring.storage')}</div>
-      {drives.map(({ label, used, total }) => {
-        const pct = used / total * 100
+      {error && <div style={{ fontSize: 10, color: '#ff4757' }}>{error}</div>}
+      {drives?.length === 0 && <div style={{ fontSize: 10, color: '#7f7f7f' }}>{t('monitoring.no_drives')}</div>}
+      {drives?.map(({ device, mount, usedBytes, totalBytes }) => {
+        const pct = usedBytes / totalBytes * 100
         const c = pct > 90 ? '#ff4757' : pct > 74 ? '#ffb347' : '#9d4edd'
         return (
-          <div key={label} style={{ marginBottom: 16 }}>
+          <div key={device} style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center' }}>
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: c, fontWeight: 600 }}>{label}</span>
-              <span style={{ fontSize: 9, color: '#7f7f7f' }}>{fmt(used)} / {fmt(total)}</span>
+              <span title={device} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: c, fontWeight: 600 }}>{mount}</span>
+              <span style={{ fontSize: 9, color: '#7f7f7f' }}>{fmt(usedBytes)} / {fmt(totalBytes)}</span>
             </div>
             <ProgressBar value={pct} max={100} color={c} height={3}/>
           </div>
         )
       })}
-      <div style={{ fontSize: 9, color: '#7f7f7f', marginTop: 8 }}>{t('monitoring.approximate')}</div>
     </Card>
   )
 }

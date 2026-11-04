@@ -164,6 +164,7 @@ const PROFILES: Record<Exclude<ProfileId, 'auto' | 'manual'>, { label: Translati
 
 interface GpuFanStatus {
   hwmonPath: string
+  name: string | null
   rpm: number
   duty: number
   gpuTemp: number
@@ -180,7 +181,7 @@ const GPU_PROFILES: Record<Exclude<GpuProfileId, 'auto' | 'manual'>, { label: Tr
 }
 
 function GpuFanSection({ accent }: { accent: string }) {
-  const { t } = useLanguage()
+  const { t, tRich } = useLanguage()
   const [status, setStatus] = useState<GpuFanStatus | null>(null)
   const [profile, setProfile] = useState<GpuProfileId>('auto')
   const [manualPts, setManualPts] = useState<FanPoint[]>([
@@ -222,12 +223,12 @@ function GpuFanSection({ accent }: { accent: string }) {
     <Card style={{ padding: '16px 20px', border: `1px solid #2a2020` }} glow={false} accent={accent}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>{t('cooling.gpu_fans_title', { name: 'RX 6700 XT' })}</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>{status.name ? t('cooling.gpu_fans_title', { name: status.name }) : t('cooling.gpu_fans')}</div>
           <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 3 }}>{t('cooling.gpu_control_note')}</div>
           {error && <div style={{ fontSize: 10, color: '#ff4757', marginTop: 4 }}>{error}</div>}
           {!status.controllable && !error && (
             <div style={{ fontSize: 10, color: '#ff9800', marginTop: 4 }}>
-              {t('cooling.missing_udev')}
+              {tRich('cooling.missing_udev', { script: <code>install.sh</code> })}
             </div>
           )}
         </div>
@@ -284,7 +285,7 @@ const CASE_PROFILES: Record<Exclude<CaseFanProfileId, 'auto' | 'manual'>, { labe
 
 function CaseFanSection({ accent }: { accent: string }) {
   const { state } = useApp()
-  const { t } = useLanguage()
+  const { t, tRich } = useLanguage()
   const [channels, setChannels] = useState<FanChannel[]>([])
   const [profile, setProfile] = useState<CaseFanProfileId>('balanced')
   const [manualPts, setManualPts] = useState<FanPoint[]>([
@@ -359,7 +360,7 @@ function CaseFanSection({ accent }: { accent: string }) {
           {error && <div style={{ fontSize: 10, color: '#ff4757', marginTop: 4 }}>{error}</div>}
           {channels.length > 0 && controllableCount === 0 && !error && (
             <div style={{ fontSize: 10, color: '#ff9800', marginTop: 4 }}>
-              {t('cooling.missing_udev')}
+              {tRich('cooling.missing_udev', { script: <code>install.sh</code> })}
             </div>
           )}
         </div>

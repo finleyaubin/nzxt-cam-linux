@@ -33,15 +33,3 @@ Les PIDs suivants sont dans le code mais non testés :
 | NZXT Kraken Elite RGB 360 | `0x300e` |
 
 Si tu as un de ces modèles, ouvre une issue pour dire si ça fonctionne ou non.
-
-## Soutenir le projet
-
-La meilleure façon de soutenir : **partager le projet** à tes amis et **suivre le compte GitHub**.
-
-Si tu veux faire un don crypto :
-
-| Réseau | Adresse |
-|--------|---------|
-| **Bitcoin** | `bc1qxz8ctth9h296dz95v43kerhrlajfqgnt4j9umc` |
-| **ERC-20** (ETH, USDT, USDC…) | `0xdB6B57BE02dbb5Baa7f1013207ACEdB2E70b879c` |
-| **Solana** | `7nA4q7dDXujLe6SbBX6hx91dMkwTMKcttCX1SNP1bc2v` |

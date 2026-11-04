@@ -16,13 +16,14 @@ import { useLanguage } from '../../i18n/LangContext'
 import type { TranslationKey } from '../../i18n/languages'
 import { AlignMode, CenterAxis, alignPatches, centerPatches, clampToScreen, withSceneFont } from './geometry'
 import {
-  ArrowCounterClockwise, ArrowClockwise, ArrowUUpLeft, ChartLine, Circle, Gauge as GaugeIcon, Hash, Hexagon, ImageSquare, Play, Rectangle, TextT, X,
+  ArrowCounterClockwise, ArrowClockwise, ArrowUUpLeft, ChartLine, Circle, CircleHalf, Gauge as GaugeIcon, Hash, Hexagon, ImageSquare, Play, Rectangle, TextT, X,
 } from '@phosphor-icons/react'
 
-type AddKind = 'ring' | 'gauge' | 'bar' | 'graph' | 'value' | 'label' | 'image' | 'logo'
+type AddKind = 'ring' | 'split' | 'gauge' | 'bar' | 'graph' | 'value' | 'label' | 'image' | 'logo'
 
 const ADD_BUTTONS: { kind: AddKind; label: TranslationKey; Icon: typeof Circle }[] = [
   { kind: 'ring',  label: 'editor.add.ring',  Icon: Circle },
+  { kind: 'split', label: 'editor.add.split', Icon: CircleHalf },
   { kind: 'gauge', label: 'editor.add.gauge', Icon: GaugeIcon },
   { kind: 'bar',   label: 'editor.add.bar',   Icon: Rectangle },
   { kind: 'graph', label: 'editor.add.graph', Icon: ChartLine },
@@ -216,6 +217,7 @@ export function DisplayEditor() {
     const reading = { max: m.max, label: m.label }
     const el: DisplayElement =
       kind === 'ring'  ? makeGauge(m.id, { ...at, ...reading, radius: 130, thickness: 26, valueSize: 44 })
+      : kind === 'split' ? makeGauge(m.id, { ...at, ...reading, radius: 150, thickness: 26, valueSize: 40, startAngle: -135, sweep: 270, cornerRadius: 13, textPosition: 'bottom' })
       : kind === 'gauge' ? makeGauge(m.id, { ...at, ...reading, radius: 130, thickness: 26, valueSize: 44, startAngle: -135, sweep: 270 })
       : kind === 'bar'   ? makeBar(m.id, { ...at, ...reading, width: 320, height: 26, valueSize: 24 })
       : kind === 'graph' ? makeGraph(m.id, { ...at, ...reading, width: 360, height: 170 })
@@ -438,7 +440,7 @@ export function DisplayEditor() {
     config?.elements.forEach(el => {
       if (el.type === 'text') names.set(el.id, `“${resolve(el.text) || '…'}”`)
       else if (el.type === 'image') names.set(el.id, t('editor.layer_image', { name: el.path.split(/[\\/]/).pop() || t('editor.layer_none') }))
-      else names.set(el.id, `${t(el.type === 'gauge' ? (el.sweep >= 360 ? 'inspector.type.ring' : 'inspector.type.gauge') : el.type === 'bar' ? 'inspector.type.bar' : 'inspector.type.graph')} · ${el.label || optionFor(metrics, el.metric, t).label}`)
+      else names.set(el.id, `${t(el.type === 'gauge' ? (el.sweep >= 360 ? 'inspector.type.ring' : el.textPosition === 'bottom' ? 'inspector.type.split_ring' : 'inspector.type.gauge') : el.type === 'bar' ? 'inspector.type.bar' : 'inspector.type.graph')} · ${el.label || optionFor(metrics, el.metric, t).label}`)
     })
     return names
   }, [config, metrics, resolve, t])

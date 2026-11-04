@@ -7,7 +7,7 @@ import { Settings } from '../Settings'
 import { ProfileManager } from '../ProfileManager'
 import { api } from '../../lib/api'
 import { languages, Lang, TranslationKey } from '../../i18n/languages'
-import { GithubLogo, Bug, ChatCircle, Copy, Check, CaretRight } from '@phosphor-icons/react'
+import { GithubLogo, Bug, ChatCircle, CaretRight } from '@phosphor-icons/react'
 
 const ACCENT_COLORS: { name: TranslationKey; c: string }[] = [
   { name: 'accent.violet', c: '#9d4edd' },
@@ -18,33 +18,18 @@ const ACCENT_COLORS: { name: TranslationKey; c: string }[] = [
   { name: 'accent.ember',  c: '#ff4757' },
 ]
 
-const WALLETS = [
-  { id: 'btc', name: 'Bitcoin',  symbol: 'BTC',      color: '#f7931a', icon: '₿', address: 'bc1qxz8ctth9h296dz95v43kerhrlajfqgnt4j9umc' },
-  { id: 'erc', name: 'ERC-20',   symbol: 'ETH/USDT', color: '#627eea', icon: 'Ξ', address: '0xdB6B57BE02dbb5Baa7f1013207ACEdB2E70b879c' },
-  { id: 'sol', name: 'Solana',   symbol: 'SOL',      color: '#9945ff', icon: '◎', address: '7nA4q7dDXujLe6SbBX6hx91dMkwTMKcttCX1SNP1bc2v' },
-]
-
 const IGithub = () => <GithubLogo size={16} weight="fill" />
 const IBug = () => <Bug size={16} weight="regular" />
 const IChat = () => <ChatCircle size={16} weight="regular" />
-const ICopy = () => <Copy size={13} weight="regular" />
-const ICheck = () => <Check size={13} weight="regular" />
 
 function SupportTab({ accent }: { accent: string }) {
   const { t } = useLanguage()
-  const [copied, setCopied] = useState<string | null>(null)
 
   const SUPPORT_LINKS = [
     { title: t('settings.support.github.title'), desc: t('settings.support.github.desc'), Icon: IGithub, url: 'https://github.com/cypherxdev77/nzxt-cam-linux' },
     { title: t('settings.support.bug.title'),    desc: t('settings.support.bug.desc'),    Icon: IBug,    url: 'https://github.com/cypherxdev77/nzxt-cam-linux/issues/new' },
     { title: t('settings.support.reddit.title'), desc: t('settings.support.reddit.desc'), Icon: IChat,   url: 'https://reddit.com/r/NZXT' },
   ]
-
-  const copyAddress = (id: string, addr: string) => {
-    navigator.clipboard?.writeText(addr).catch(() => {})
-    setCopied(id)
-    setTimeout(() => setCopied(null), 2000)
-  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -65,30 +50,6 @@ function SupportTab({ accent }: { accent: string }) {
           <CaretRight size={13} weight="regular" color="#7f7f7f" />
         </div>
       ))}
-
-      <div style={{ marginTop: 8, padding: '14px 16px', background: '#080808', borderRadius: 12, border: '1px solid #161616' }}>
-        <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700, marginBottom: 12 }}>{t('settings.support.donate.title')}</div>
-        <div style={{ fontSize: 11, color: '#7f7f7f', lineHeight: 1.6, marginBottom: 12 }}>
-          {t('settings.support.donate.desc')}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {WALLETS.map(({ id, name, symbol, color, icon, address }) => (
-            <div key={id} style={{ background: '#0d0d0d', border: `1px solid ${color}1a`, borderRadius: 8, padding: '10px 12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <div style={{ width: 22, height: 22, borderRadius: '50%', background: color + '18', border: `1px solid ${color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color, fontWeight: 700 }}>{icon}</div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#b0b0b0' }}>{name}</span>
-                <span style={{ fontSize: 9, color: '#7f7f7f', background: '#1a1a1a', padding: '1px 6px', borderRadius: 8, fontWeight: 700 }}>{symbol}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#111', borderRadius: 8, padding: '6px 10px', border: '1px solid #1e1e1e' }}>
-                <div style={{ flex: 1, fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#9a9a9a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{address}</div>
-                <button onClick={() => copyAddress(id, address)} style={{ background: copied === id ? color + '22' : 'transparent', border: `1px solid ${copied === id ? color + '55' : '#2a2a2a'}`, borderRadius: 8, color: copied === id ? color : '#7f7f7f', cursor: 'pointer', padding: '4px 7px', display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, transition: 'all 160ms', flexShrink: 0 }}>
-                  {copied === id ? <><ICheck/> {t('common.copied')}</> : <><ICopy/> {t('common.copy')}</>}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
 
       <div style={{ padding: '10px 16px', background: '#080808', borderRadius: 8, border: '1px solid #141414' }}>
         <div style={{ fontSize: 11, color: '#7f7f7f', fontFamily: 'JetBrains Mono, monospace' }}>NZXT CAM · Linux Edition · v1.0.0</div>

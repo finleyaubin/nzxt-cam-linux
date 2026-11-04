@@ -2,7 +2,6 @@ import { AppProvider, useApp } from './context/AppContext'
 import { LangProvider } from './i18n/LangContext'
 import { AppSidebar } from './components/AppSidebar'
 import { AppHeader } from './components/AppHeader'
-import { DonateWidget } from './components/ui/DonateWidget'
 import { CloseDialog } from './components/CloseDialog'
 import { MonitoringScreen } from './components/screens/MonitoringScreen'
 import { CoolingScreen } from './components/screens/CoolingScreen'
@@ -32,7 +31,6 @@ function MainApp() {
           {section === 'settings'   && <SettingsScreen />}
         </div>
       </div>
-      <DonateWidget />
       <CloseDialog />
     </div>
   )
