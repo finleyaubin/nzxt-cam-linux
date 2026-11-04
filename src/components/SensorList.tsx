@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { CaretDown, Plus, X } from '@phosphor-icons/react'
 import { Sensor, SensorSlot } from '../lib/api'
 import { useApp } from '../context/AppContext'
+import { useLanguage } from '../i18n/LangContext'
 import { MAX_SENSORS, defaultMaxForUnit, formatMetric } from '@shared/display'
 import { SensorDialog } from './display/SensorPicker'
 
@@ -20,6 +21,7 @@ export function PickerButton({ label, accent, onClick }: { label: string; accent
 }
 
 function MaxField({ slot, unit, onChange }: { slot: SensorSlot; unit: string; onChange: (max: number | null) => void }) {
+  const { t } = useLanguage()
   const [draft, setDraft] = useState(slot.max?.toString() ?? '')
   useEffect(() => setDraft(slot.max?.toString() ?? ''), [slot.max])
   const commit = () => {
@@ -31,8 +33,8 @@ function MaxField({ slot, unit, onChange }: { slot: SensorSlot; unit: string; on
     return <span style={{ fontSize: 11, color: '#7f7f7f', width: 132, textAlign: 'right' }}>0-100%</span>
   }
   return (
-    <label title="Reading shown as a full gauge or bar" style={{ display: 'flex', alignItems: 'center', gap: 6, width: 132 }}>
-      <span style={{ fontSize: 11, color: '#7f7f7f', whiteSpace: 'nowrap' }}>100% at</span>
+    <label title={t('sensors.max_hint')} style={{ display: 'flex', alignItems: 'center', gap: 6, width: 132 }}>
+      <span style={{ fontSize: 11, color: '#7f7f7f', whiteSpace: 'nowrap' }}>{t('sensors.max_at')}</span>
       <input
         type="number" min={0} value={draft} placeholder={String(defaultMaxForUnit(unit))}
         onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit() }}
@@ -47,6 +49,7 @@ export function SensorList({ slots, catalog, accent, onChange }: {
   slots: SensorSlot[]; catalog: Sensor[]; accent: string; onChange: (slots: SensorSlot[]) => void
 }) {
   const { state } = useApp()
+  const { t } = useLanguage()
   const [picking, setPicking] = useState<number | 'new' | null>(null)
 
   const bound = slots.map((slot, i) => ({ slot, i, sensor: catalog.find(s => s.id === slot.source) })).filter(b => b.slot.source)
@@ -67,7 +70,7 @@ export function SensorList({ slots, catalog, accent, onChange }: {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {bound.length === 0 && (
         <div style={{ fontSize: 12, color: '#7f7f7f', padding: '10px 12px', border: '1px dashed #2a2a2a', borderRadius: 8 }}>
-          No extra sensors yet. Add GPU load, fan speed, RAM use or any other reading to show it on the LCD.
+          {t('sensors.none_yet')}
         </div>
       )}
 
@@ -80,7 +83,7 @@ export function SensorList({ slots, catalog, accent, onChange }: {
               {sensor && live !== undefined ? `${formatMetric(live, 0)}${sensor.unit === '°' || sensor.unit === '%' ? sensor.unit : ` ${sensor.unit}`}` : ''}
             </span>
             <MaxField slot={slot} unit={sensor?.unit ?? ''} onChange={max => setSlot(i, { max })}/>
-            <button onClick={() => remove(i)} aria-label={`Remove ${sensor?.label ?? 'sensor'}`} style={{
+            <button onClick={() => remove(i)} aria-label={t('sensors.remove', { name: sensor?.label ?? t('sensors.fallback_name') })} style={{
               display: 'flex', padding: 7, borderRadius: 8, border: 'none', background: 'transparent', color: '#7f7f7f', cursor: 'pointer',
             }}
             onMouseEnter={e => { e.currentTarget.style.color = '#ff4757' }}
@@ -100,11 +103,11 @@ export function SensorList({ slots, catalog, accent, onChange }: {
       onMouseLeave={e => { e.currentTarget.style.borderColor = full ? '#1e1e1e' : '#2e2e2e'; e.currentTarget.style.color = full ? '#555' : '#9a9a9a' }}
       >
         <Plus size={13}/>
-        {full ? `Up to ${MAX_SENSORS} sensors` : 'Add sensor'}
+        {full ? t('sensors.limit', { max: MAX_SENSORS }) : t('sensors.add')}
       </button>
 
       {picking !== null && (
-        <SensorDialog title="Choose a sensor" builtins={[]} accent={accent} onClose={() => setPicking(null)}
+        <SensorDialog title={t('sensors.choose')} builtins={[]} accent={accent} onClose={() => setPicking(null)}
           only={s => !slots.some(slot => slot.source === s.id)} onBuiltin={() => {}}
           onSensor={async s => { if (picking === 'new') add(s.id); else setSlot(picking, { source: s.id, max: null }) }}/>
       )}

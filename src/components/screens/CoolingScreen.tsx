@@ -1,6 +1,8 @@
 import { useRef, useState, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useApp } from '../../context/AppContext'
+import { useLanguage } from '../../i18n/LangContext'
+import type { TranslationKey } from '../../i18n/languages'
 import { CircularGauge } from '../ui/CircularGauge'
 import { Card } from '../ui/Card'
 import { Dropdown } from '../ui/Dropdown'
@@ -26,7 +28,8 @@ function interpDuty(pts: FanPoint[], temp: number): number {
   return pts[pts.length - 1].s
 }
 
-function ProfileButton({ label, color, active, onClick }: { id: string; label: string; color: string; active: boolean; onClick: () => void }) {
+function ProfileButton({ label, color, active, onClick }: { id: string; label: TranslationKey; color: string; active: boolean; onClick: () => void }) {
+  const { t } = useLanguage()
   return (
     <button onClick={onClick} style={{
       padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700,
@@ -34,7 +37,7 @@ function ProfileButton({ label, color, active, onClick }: { id: string; label: s
       border: `1px solid ${active ? color + '66' : '#232323'}`,
       color: active ? color : '#7f7f7f',
       transition: 'all 160ms', letterSpacing: '0.2px',
-    }}>{label}</button>
+    }}>{t(label)}</button>
   )
 }
 
@@ -150,11 +153,11 @@ function FanCurveChart({ chartId, tempSource, currentTemp, accent, pts, onChange
 
 type ProfileId = 'auto' | 'silent' | 'balanced' | 'performance' | 'turbo' | 'manual'
 
-const PROFILES: Record<Exclude<ProfileId, 'auto' | 'manual'>, { label: string; color: string; pts: FanPoint[] }> = {
-  silent:      { label: 'Silent',       color: '#4fc3f7', pts: [{ t: 20, s: 20 }, { t: 30, s: 22 }, { t: 40, s: 25 }, { t: 50, s: 32 }, { t: 60, s: 42 }, { t: 70, s: 55 }, { t: 80, s: 65 }] },
-  balanced:    { label: 'Balanced',    color: '#00e87a', pts: [{ t: 20, s: 25 }, { t: 30, s: 26 }, { t: 40, s: 30 }, { t: 50, s: 47 }, { t: 60, s: 65 }, { t: 70, s: 80 }] },
-  performance: { label: 'Performance',  color: '#ffb347', pts: [{ t: 20, s: 35 }, { t: 30, s: 40 }, { t: 40, s: 50 }, { t: 50, s: 65 }, { t: 60, s: 80 }, { t: 70, s: 95 }, { t: 80, s: 100 }] },
-  turbo:       { label: 'Turbo',        color: '#ff4757', pts: [{ t: 20, s: 60 }, { t: 30, s: 70 }, { t: 40, s: 80 }, { t: 50, s: 90 }, { t: 60, s: 100 }] },
+const PROFILES: Record<Exclude<ProfileId, 'auto' | 'manual'>, { label: TranslationKey; color: string; pts: FanPoint[] }> = {
+  silent:      { label: 'cooling.profile.silent',       color: '#4fc3f7', pts: [{ t: 20, s: 20 }, { t: 30, s: 22 }, { t: 40, s: 25 }, { t: 50, s: 32 }, { t: 60, s: 42 }, { t: 70, s: 55 }, { t: 80, s: 65 }] },
+  balanced:    { label: 'cooling.profile.balanced',    color: '#00e87a', pts: [{ t: 20, s: 25 }, { t: 30, s: 26 }, { t: 40, s: 30 }, { t: 50, s: 47 }, { t: 60, s: 65 }, { t: 70, s: 80 }] },
+  performance: { label: 'cooling.profile.performance',  color: '#ffb347', pts: [{ t: 20, s: 35 }, { t: 30, s: 40 }, { t: 40, s: 50 }, { t: 50, s: 65 }, { t: 60, s: 80 }, { t: 70, s: 95 }, { t: 80, s: 100 }] },
+  turbo:       { label: 'cooling.profile.turbo',        color: '#ff4757', pts: [{ t: 20, s: 60 }, { t: 30, s: 70 }, { t: 40, s: 80 }, { t: 50, s: 90 }, { t: 60, s: 100 }] },
 }
 
 // ── GPU fan section ──────────────────────────────────────────────────────────
@@ -169,14 +172,15 @@ interface GpuFanStatus {
 
 type GpuProfileId = 'auto' | 'silent' | 'balanced' | 'performance' | 'turbo' | 'manual'
 
-const GPU_PROFILES: Record<Exclude<GpuProfileId, 'auto' | 'manual'>, { label: string; color: string; pts: FanPoint[] }> = {
-  silent:      { label: 'Silent',      color: '#4fc3f7', pts: [{ t: 30, s: 0 }, { t: 50, s: 20 }, { t: 60, s: 30 }, { t: 70, s: 45 }, { t: 80, s: 60 }, { t: 90, s: 80 }] },
-  balanced:    { label: 'Balanced',   color: '#00e87a', pts: [{ t: 30, s: 20 }, { t: 50, s: 30 }, { t: 60, s: 45 }, { t: 70, s: 60 }, { t: 80, s: 80 }, { t: 90, s: 100 }] },
-  performance: { label: 'Performance', color: '#ffb347', pts: [{ t: 30, s: 35 }, { t: 50, s: 50 }, { t: 60, s: 65 }, { t: 70, s: 80 }, { t: 80, s: 95 }, { t: 90, s: 100 }] },
-  turbo:       { label: 'Turbo',       color: '#ff4757', pts: [{ t: 30, s: 60 }, { t: 50, s: 75 }, { t: 60, s: 85 }, { t: 70, s: 95 }, { t: 80, s: 100 }] },
+const GPU_PROFILES: Record<Exclude<GpuProfileId, 'auto' | 'manual'>, { label: TranslationKey; color: string; pts: FanPoint[] }> = {
+  silent:      { label: 'cooling.profile.silent',      color: '#4fc3f7', pts: [{ t: 30, s: 0 }, { t: 50, s: 20 }, { t: 60, s: 30 }, { t: 70, s: 45 }, { t: 80, s: 60 }, { t: 90, s: 80 }] },
+  balanced:    { label: 'cooling.profile.balanced',   color: '#00e87a', pts: [{ t: 30, s: 20 }, { t: 50, s: 30 }, { t: 60, s: 45 }, { t: 70, s: 60 }, { t: 80, s: 80 }, { t: 90, s: 100 }] },
+  performance: { label: 'cooling.profile.performance', color: '#ffb347', pts: [{ t: 30, s: 35 }, { t: 50, s: 50 }, { t: 60, s: 65 }, { t: 70, s: 80 }, { t: 80, s: 95 }, { t: 90, s: 100 }] },
+  turbo:       { label: 'cooling.profile.turbo',       color: '#ff4757', pts: [{ t: 30, s: 60 }, { t: 50, s: 75 }, { t: 60, s: 85 }, { t: 70, s: 95 }, { t: 80, s: 100 }] },
 }
 
 function GpuFanSection({ accent }: { accent: string }) {
+  const { t } = useLanguage()
   const [status, setStatus] = useState<GpuFanStatus | null>(null)
   const [profile, setProfile] = useState<GpuProfileId>('auto')
   const [manualPts, setManualPts] = useState<FanPoint[]>([
@@ -218,12 +222,12 @@ function GpuFanSection({ accent }: { accent: string }) {
     <Card style={{ padding: '16px 20px', border: `1px solid #2a2020` }} glow={false} accent={accent}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>RX 6700 XT - GPU fans</div>
-          <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 3 }}>Control via hwmon · GPU temp source</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>{t('cooling.gpu_fans_title', { name: 'RX 6700 XT' })}</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 3 }}>{t('cooling.gpu_control_note')}</div>
           {error && <div style={{ fontSize: 10, color: '#ff4757', marginTop: 4 }}>{error}</div>}
           {!status.controllable && !error && (
             <div style={{ fontSize: 10, color: '#ff9800', marginTop: 4 }}>
-              Missing udev rule - re-run <code>install.sh</code> with sudo then reboot
+              {t('cooling.missing_udev')}
             </div>
           )}
         </div>
@@ -234,11 +238,11 @@ function GpuFanSection({ accent }: { accent: string }) {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-        <ProfileButton id="auto" label="Auto" color="#7f7f7f" active={profile === 'auto'} onClick={() => handleProfileClick('auto')}/>
+        <ProfileButton id="auto" label="cooling.auto" color="#7f7f7f" active={profile === 'auto'} onClick={() => handleProfileClick('auto')}/>
         {(Object.entries(GPU_PROFILES) as [Exclude<GpuProfileId, 'auto' | 'manual'>, typeof GPU_PROFILES[keyof typeof GPU_PROFILES]][]).map(([id, p]) => (
           <ProfileButton key={id} id={id} label={p.label} color={p.color} active={profile === id} onClick={() => handleProfileClick(id)}/>
         ))}
-        <ProfileButton id="manual" label="Manual" color={accent} active={profile === 'manual'} onClick={() => handleProfileClick('manual')}/>
+        <ProfileButton id="manual" label="cooling.manual" color={accent} active={profile === 'manual'} onClick={() => handleProfileClick('manual')}/>
       </div>
 
       {profile !== 'auto' && (
@@ -271,15 +275,16 @@ interface FanChannel {
 
 type CaseFanProfileId = 'auto' | 'silent' | 'balanced' | 'performance' | 'turbo' | 'manual'
 
-const CASE_PROFILES: Record<Exclude<CaseFanProfileId, 'auto' | 'manual'>, { label: string; color: string; pts: FanPoint[] }> = {
-  silent:      { label: 'Silent',      color: '#4fc3f7', pts: [{ t: 30, s: 0 }, { t: 40, s: 20 }, { t: 50, s: 30 }, { t: 60, s: 45 }, { t: 70, s: 65 }, { t: 80, s: 85 }] },
-  balanced:    { label: 'Balanced',   color: '#00e87a', pts: [{ t: 30, s: 20 }, { t: 40, s: 30 }, { t: 50, s: 45 }, { t: 60, s: 60 }, { t: 70, s: 80 }, { t: 80, s: 100 }] },
-  performance: { label: 'Performance', color: '#ffb347', pts: [{ t: 30, s: 35 }, { t: 40, s: 50 }, { t: 50, s: 65 }, { t: 60, s: 80 }, { t: 70, s: 95 }, { t: 80, s: 100 }] },
-  turbo:       { label: 'Turbo',       color: '#ff4757', pts: [{ t: 30, s: 60 }, { t: 40, s: 75 }, { t: 50, s: 85 }, { t: 60, s: 95 }, { t: 70, s: 100 }] },
+const CASE_PROFILES: Record<Exclude<CaseFanProfileId, 'auto' | 'manual'>, { label: TranslationKey; color: string; pts: FanPoint[] }> = {
+  silent:      { label: 'cooling.profile.silent',      color: '#4fc3f7', pts: [{ t: 30, s: 0 }, { t: 40, s: 20 }, { t: 50, s: 30 }, { t: 60, s: 45 }, { t: 70, s: 65 }, { t: 80, s: 85 }] },
+  balanced:    { label: 'cooling.profile.balanced',   color: '#00e87a', pts: [{ t: 30, s: 20 }, { t: 40, s: 30 }, { t: 50, s: 45 }, { t: 60, s: 60 }, { t: 70, s: 80 }, { t: 80, s: 100 }] },
+  performance: { label: 'cooling.profile.performance', color: '#ffb347', pts: [{ t: 30, s: 35 }, { t: 40, s: 50 }, { t: 50, s: 65 }, { t: 60, s: 80 }, { t: 70, s: 95 }, { t: 80, s: 100 }] },
+  turbo:       { label: 'cooling.profile.turbo',       color: '#ff4757', pts: [{ t: 30, s: 60 }, { t: 40, s: 75 }, { t: 50, s: 85 }, { t: 60, s: 95 }, { t: 70, s: 100 }] },
 }
 
 function CaseFanSection({ accent }: { accent: string }) {
   const { state } = useApp()
+  const { t } = useLanguage()
   const [channels, setChannels] = useState<FanChannel[]>([])
   const [profile, setProfile] = useState<CaseFanProfileId>('balanced')
   const [manualPts, setManualPts] = useState<FanPoint[]>([
@@ -346,15 +351,15 @@ function CaseFanSection({ accent }: { accent: string }) {
     <Card style={{ padding: '16px 20px', border: `1px solid #1a2020` }} glow={false} accent={accent}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>Case Fans</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>{t('cooling.case_fans')}</div>
           <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 3 }}>
-            Control via hwmon · CPU temp source
-            {channels.length > 0 && ` · ${channels.length} channel${channels.length > 1 ? 's' : ''} detected`}
+            {t('cooling.case_control_note')}
+            {channels.length > 0 && ` · ${t(channels.length > 1 ? 'cooling.channels_detected_many' : 'cooling.channels_detected_one', { count: channels.length })}`}
           </div>
           {error && <div style={{ fontSize: 10, color: '#ff4757', marginTop: 4 }}>{error}</div>}
           {channels.length > 0 && controllableCount === 0 && !error && (
             <div style={{ fontSize: 10, color: '#ff9800', marginTop: 4 }}>
-              Missing udev rule - re-run <code>install.sh</code> with sudo then reboot
+              {t('cooling.missing_udev')}
             </div>
           )}
         </div>
@@ -374,16 +379,16 @@ function CaseFanSection({ accent }: { accent: string }) {
 
       {channels.length === 0 ? (
         <div style={{ fontSize: 11, color: '#7f7f7f', padding: '4px 0 8px' }}>
-          No fans detected via hwmon
+          {t('cooling.no_fans')}
         </div>
       ) : (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-            <ProfileButton id="auto" label="Auto" color="#7f7f7f" active={profile === 'auto'} onClick={() => handleProfileClick('auto')}/>
+            <ProfileButton id="auto" label="cooling.auto" color="#7f7f7f" active={profile === 'auto'} onClick={() => handleProfileClick('auto')}/>
             {(Object.entries(CASE_PROFILES) as [Exclude<CaseFanProfileId, 'auto' | 'manual'>, typeof CASE_PROFILES[keyof typeof CASE_PROFILES]][]).map(([id, p]) => (
               <ProfileButton key={id} id={id} label={p.label} color={p.color} active={profile === id} onClick={() => handleProfileClick(id)}/>
             ))}
-            <ProfileButton id="manual" label="Manual" color={accent} active={profile === 'manual'} onClick={() => handleProfileClick('manual')}/>
+            <ProfileButton id="manual" label="cooling.manual" color={accent} active={profile === 'manual'} onClick={() => handleProfileClick('manual')}/>
           </div>
 
           {profile !== 'auto' && (
@@ -425,12 +430,13 @@ function TempCard({ label, value, tempUnit, accent }: { label: string; value: nu
 }
 
 function PumpCard({ rpm, accent }: { rpm: number; accent: string }) {
+  const { t } = useLanguage()
   const MAX_RPM = 3200
   const pct = Math.min(rpm / MAX_RPM, 1) * 100
   const color = pct > 85 ? '#ff4757' : pct > 65 ? '#ffb347' : accent
   return (
     <Card style={{ padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-      <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700 }}>Pump</div>
+      <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700 }}>{t('metric.pump')}</div>
       <div style={{ position: 'relative', width: 90, height: 90 }}>
         <CircularGauge value={pct} max={100} size={90} stroke={8} color={color}/>
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 8 }}>
@@ -446,6 +452,7 @@ function PumpCard({ rpm, accent }: { rpm: number; accent: string }) {
 
 export function CoolingScreen() {
   const { state } = useApp()
+  const { t } = useLanguage()
   const { temperatures, tempUnit, accent, deviceStatus } = state
   const [profile, setProfile] = useState<ProfileId>('balanced')
   const [tempSource, setTempSource] = useState('Liquid')
@@ -477,12 +484,12 @@ export function CoolingScreen() {
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>Cooling</div>
+      <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>{t('nav.cooling')}</div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-        <TempCard label="CPU"    value={temperatures.cpu}    tempUnit={tempUnit} accent={accent}/>
-        <TempCard label="GPU"    value={temperatures.gpu}    tempUnit={tempUnit} accent={accent}/>
-        <TempCard label="Liquid" value={temperatures.liquid} tempUnit={tempUnit} accent={accent}/>
+        <TempCard label={t('metric.cpu')}    value={temperatures.cpu}    tempUnit={tempUnit} accent={accent}/>
+        <TempCard label={t('metric.gpu')}    value={temperatures.gpu}    tempUnit={tempUnit} accent={accent}/>
+        <TempCard label={t('metric.liquid')} value={temperatures.liquid} tempUnit={tempUnit} accent={accent}/>
         <PumpCard rpm={temperatures.pumpRpm} accent={accent}/>
       </div>
 
@@ -491,9 +498,9 @@ export function CoolingScreen() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0' }}>
-              {deviceStatus.connected ? deviceStatus.productName : 'Kraken Elite'} - Pump
+              {t('cooling.pump_title', { name: deviceStatus.connected ? deviceStatus.productName : 'Kraken Elite' })}
             </div>
-            <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 3 }}>Watercooling · CPU &amp; liquid control</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 3 }}>{t('cooling.pump_desc')}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700, color: '#f0f0f0' }}>{temperatures.pumpRpm}</span>
@@ -502,20 +509,20 @@ export function CoolingScreen() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-          <ProfileButton id="auto" label="Auto" color="#7f7f7f" active={profile === 'auto'} onClick={() => setProfile('auto')}/>
+          <ProfileButton id="auto" label="cooling.auto" color="#7f7f7f" active={profile === 'auto'} onClick={() => setProfile('auto')}/>
           {(Object.entries(PROFILES) as [Exclude<ProfileId, 'auto' | 'manual'>, typeof PROFILES[keyof typeof PROFILES]][]).map(([id, p]) => (
             <ProfileButton key={id} id={id} label={p.label} color={p.color} active={profile === id} onClick={() => setProfile(id)}/>
           ))}
-          <ProfileButton id="manual" label="Manual" color={accent} active={profile === 'manual'} onClick={() => setProfile('manual')}/>
+          <ProfileButton id="manual" label="cooling.manual" color={accent} active={profile === 'manual'} onClick={() => setProfile('manual')}/>
         </div>
 
         {profile !== 'auto' && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <span style={{ fontSize: 11, color: '#7f7f7f' }}>Source</span>
+              <span style={{ fontSize: 11, color: '#7f7f7f' }}>{t('monitoring.source')}</span>
               <Dropdown value={tempSource} options={['Liquid', 'CPU']} onChange={setTempSource} width={100} small accent={accent}/>
               {profile !== 'manual' && (
-                <span style={{ fontSize: 10, color: '#7f7f7f', marginLeft: 4 }}>Switch to Manual mode to edit the curve</span>
+                <span style={{ fontSize: 10, color: '#7f7f7f', marginLeft: 4 }}>{t('cooling.manual_hint')}</span>
               )}
             </div>
             <FanCurveChart
@@ -541,9 +548,9 @@ export function CoolingScreen() {
             <GraphicsCard size={18} weight="regular" color="#7f7f7f" />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#9a9a9a' }}>GPU - Independent fans</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#9a9a9a' }}>{t('cooling.gpu_independent_title')}</div>
             <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 3 }}>
-              The GPU has its own fans managed by the graphics driver. They are not part of the Kraken watercooling circuit and cannot be controlled here.
+              {t('cooling.gpu_independent_desc')}
             </div>
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>

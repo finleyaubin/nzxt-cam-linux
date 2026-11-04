@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext'
 import { PickerButton, SensorList } from './SensorList'
 import { SensorDialog } from './display/SensorPicker'
 import { Cpu, Clock, Monitor, Drop, Key, Eye, EyeSlash } from '@phosphor-icons/react'
+import { useLanguage } from '../i18n/LangContext'
 
 const GITHUB_ISSUES_URL = 'https://github.com/cypherxdev77/nzxt-cam-linux/issues/new?template=device_support.md'
 
@@ -28,8 +29,9 @@ function SectionHeader({ icon, title, description }: { icon: React.ReactNode; ti
 function SensorSelect({ label, emptyLabel, value, sensors, accent, onChange }: {
   label: string; emptyLabel: string; value: string | null; sensors: Sensor[]; accent: string; onChange: (v: string | null) => void
 }) {
+  const { t } = useLanguage()
   const [open, setOpen] = useState(false)
-  const current = value ? sensors.find(s => s.id === value)?.label ?? 'Unavailable sensor' : emptyLabel
+  const current = value ? sensors.find(s => s.id === value)?.label ?? t('sensors.unavailable') : emptyLabel
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>{label}</span>
@@ -43,9 +45,10 @@ function SensorSelect({ label, emptyLabel, value, sensors, accent, onChange }: {
   )
 }
 
-function ApiKeyField({ label, help, getKeyUrl, value, onSave, placeholder = 'Paste API key', secret = true }: {
+function ApiKeyField({ label, help, getKeyUrl, value, onSave, placeholder, secret = true }: {
   label: string; help: string; getKeyUrl?: string; value: string; onSave: (v: string) => void; placeholder?: string; secret?: boolean
 }) {
+  const { t } = useLanguage()
   const [draft, setDraft] = useState(value)
   const [visible, setVisible] = useState(false)
   useEffect(() => setDraft(value), [value])
@@ -56,19 +59,19 @@ function ApiKeyField({ label, help, getKeyUrl, value, onSave, placeholder = 'Pas
       <span style={{ fontSize: 12, color: '#a0a0a0', fontWeight: 600 }}>{label}</span>
       <div style={{ display: 'flex', gap: 6 }}>
         <input
-          type={visible || !secret ? 'text' : 'password'} value={draft} placeholder={placeholder} autoComplete="off" spellCheck={false}
+          type={visible || !secret ? 'text' : 'password'} value={draft} placeholder={placeholder ?? t('settings.api_key.placeholder')} autoComplete="off" spellCheck={false}
           onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit() }}
           style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #2a2a2a', background: '#0d0d0d', color: '#e0e0e0', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}
         />
-        {secret && <button type="button" onClick={() => setVisible(v => !v)} aria-label={visible ? 'Hide key' : 'Show key'} style={{
+        {secret && <button type="button" onClick={() => setVisible(v => !v)} aria-label={visible ? t('settings.api_key.hide') : t('settings.api_key.show')} style={{
           display: 'flex', alignItems: 'center', padding: '0 10px', borderRadius: 8, border: '1px solid #2a2a2a',
           background: '#111', color: '#9a9a9a', cursor: 'pointer',
         }}>{visible ? <EyeSlash size={14}/> : <Eye size={14}/>}</button>}
       </div>
       <span style={{ fontSize: 11, color: '#7f7f7f' }}>
         {help}{' '}
-        {getKeyUrl && <a href={getKeyUrl} onClick={e => { e.preventDefault(); api.openExternal(getKeyUrl) }} style={{ color: '#9a9a9a' }}>Get a key</a>}
-        {value && (getKeyUrl ? ' · Saved' : 'Saved')}
+        {getKeyUrl && <a href={getKeyUrl} onClick={e => { e.preventDefault(); api.openExternal(getKeyUrl) }} style={{ color: '#9a9a9a' }}>{t('settings.api_key.get')}</a>}
+        {value && (getKeyUrl ? ` · ${t('common.saved')}` : t('common.saved'))}
       </span>
     </label>
   )
@@ -135,6 +138,7 @@ function NumField({ label, help, value, min, max, step = 1, accent, onChange }: 
 
 export function Settings() {
   const { state } = useApp()
+  const { t } = useLanguage()
   const accent = state.accent
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [gpus, setGpus] = useState<GpuSource[]>([])
@@ -167,10 +171,10 @@ export function Settings() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
       {/* Cadence */}
-      <SectionHeader icon={<IClock/>} title="Polling & precision" description="Controls the sensor read frequency and LCD refresh rate."/>
+      <SectionHeader icon={<IClock/>} title={t('settings.polling.title')} description={t('settings.polling.desc')}/>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
-          <div style={{ fontSize: 12, color: '#888', fontWeight: 600, marginBottom: 4 }}>Displayed decimals</div>
+          <div style={{ fontSize: 12, color: '#888', fontWeight: 600, marginBottom: 4 }}>{t('settings.decimals.title')}</div>
           <div style={{ fontSize: 10, color: '#7f7f7f', marginBottom: 7 }}>0 = 45° · 1 = 45.3° · 2 = 45.32°</div>
           <div style={{ display: 'flex', gap: 6 }}>
             {[0, 1, 2].map(d => (
@@ -188,30 +192,30 @@ export function Settings() {
 
       <button onClick={() => setAdvanced(v => !v)} aria-expanded={advanced} style={{
         marginTop: 12, padding: 0, background: 'none', border: 'none', color: '#777', fontSize: 12, fontWeight: 600, cursor: 'pointer', textAlign: 'left',
-      }}>{advanced ? '▾' : '▸'} Advanced (refresh intervals)</button>
+      }}>{advanced ? '▾' : '▸'} {t('settings.advanced')}</button>
       {advanced && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
-          <NumField label="Sensor read (ms)" help="Interval between CPU/GPU reads." value={settings?.pollIntervalMs ?? 1000} min={100} max={60000} step={50} accent={accent} onChange={v => update({ pollIntervalMs: v })}/>
-          <NumField label="LCD render (ms)" help="Scene render frequency. USB push only happens when the image changes." value={settings?.lcdPollMs ?? 500} min={50} max={60000} step={50} accent={accent} onChange={v => update({ lcdPollMs: v })}/>
-          <NumField label="LCD push cooldown (ms)" help="Minimum delay between 2 USB sends. 0 = none." value={settings?.lcdMinPushMs ?? 200} min={0} max={10000} step={50} accent={accent} onChange={v => update({ lcdMinPushMs: v })}/>
+          <NumField label={t('settings.interval.sensor.label')} help={t('settings.interval.sensor.help')} value={settings?.pollIntervalMs ?? 1000} min={100} max={60000} step={50} accent={accent} onChange={v => update({ pollIntervalMs: v })}/>
+          <NumField label={t('settings.interval.lcd_render.label')} help={t('settings.interval.lcd_render.help')} value={settings?.lcdPollMs ?? 500} min={50} max={60000} step={50} accent={accent} onChange={v => update({ lcdPollMs: v })}/>
+          <NumField label={t('settings.interval.lcd_push.label')} help={t('settings.interval.lcd_push.help')} value={settings?.lcdMinPushMs ?? 200} min={0} max={10000} step={50} accent={accent} onChange={v => update({ lcdMinPushMs: v })}/>
         </div>
       )}
 
       <Divider/>
 
       {/* GPU */}
-      <SectionHeader icon={<IChip/>} title="GPU source" description="Select the GPU whose temperature is displayed. On systems with iGPU + dGPU, choose the correct one."/>
+      <SectionHeader icon={<IChip/>} title={t('settings.gpu.title')} description={t('settings.gpu.desc')}/>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {/* Auto */}
         <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#0d0d0d', border: `1px solid ${!settings?.gpuSource ? `${accent}44` : '#1e1e1e'}`, borderRadius: 8, cursor: 'pointer', transition: 'all 140ms' }}>
           <input type="radio" name="gpu" checked={!settings?.gpuSource} onChange={() => update({ gpuSource: null })} style={{ accentColor: accent }}/>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#c0c0c0' }}>Automatic</div>
-            <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 2 }}>Dedicated card if available, otherwise iGPU</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#c0c0c0' }}>{t('settings.gpu.auto')}</div>
+            <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 2 }}>{t('settings.gpu.auto_desc')}</div>
           </div>
         </label>
         {gpus.length === 0 && (
-          <div style={{ fontSize: 11, color: '#7f7f7f', padding: '8px 14px' }}>No GPU detected via hwmon.</div>
+          <div style={{ fontSize: 11, color: '#7f7f7f', padding: '8px 14px' }}>{t('settings.gpu.none')}</div>
         )}
         {gpus.map(g => (
           <label key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#0d0d0d', border: `1px solid ${settings?.gpuSource === g.id ? `${accent}44` : '#1e1e1e'}`, borderRadius: 8, cursor: 'pointer', transition: 'all 140ms' }}>
@@ -221,7 +225,7 @@ export function Settings() {
               <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#7f7f7f', marginTop: 2 }}>{g.pci}</div>
             </div>
             <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: g.discrete ? `${accent}18` : '#1a1a1a', color: g.discrete ? accent : '#484848', whiteSpace: 'nowrap' }}>
-              {g.discrete ? 'Dedicated' : 'iGPU'}
+              {g.discrete ? t('settings.gpu.dedicated') : t('settings.gpu.integrated')}
             </span>
           </label>
         ))}
@@ -230,10 +234,10 @@ export function Settings() {
       <Divider/>
 
       {/* Sensors */}
-      <SectionHeader icon={<IChip/>} title="Sensors" description="Extra readings for the LCD: temperatures, load, clocks, power, fans or memory. Set the value that fills a gauge or bar."/>
+      <SectionHeader icon={<IChip/>} title={t('settings.sensors.title')} description={t('settings.sensors.desc')}/>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ maxWidth: 360 }}>
-          <SensorSelect label="CPU temperature source" emptyLabel="Automatic" value={settings?.cpuSource ?? null} sensors={sensors.filter(s => s.unit === '°')} accent={accent} onChange={v => update({ cpuSource: v })}/>
+          <SensorSelect label={t('settings.cpu_source')} emptyLabel={t('settings.gpu.auto')} value={settings?.cpuSource ?? null} sensors={sensors.filter(s => s.unit === '°')} accent={accent} onChange={v => update({ cpuSource: v })}/>
         </div>
         {settings && <SensorList slots={settings.sensors ?? []} catalog={sensors} accent={accent} onChange={slots => update({ sensors: slots })}/>}
       </div>
@@ -241,10 +245,10 @@ export function Settings() {
       <Divider/>
 
       {/* API keys */}
-      <SectionHeader icon={<Key size={13}/>} title="API keys" description="Stored locally in your config file (readable only by your user)."/>
+      <SectionHeader icon={<Key size={13}/>} title={t('settings.api_keys.title')} description={t('settings.api_keys.desc')}/>
       <ApiKeyField
         label="GIPHY"
-        help="Used to search GIFs for the LCD."
+        help={t('settings.api_keys.giphy_help')}
         getKeyUrl="https://developers.giphy.com/dashboard/"
         value={settings?.apiKeys?.giphy ?? ''}
         onSave={v => update({ apiKeys: { ...(settings?.apiKeys ?? {}), giphy: v } })}
@@ -253,16 +257,16 @@ export function Settings() {
       <Divider/>
 
       {/* Home Assistant */}
-      <SectionHeader icon={<IChip/>} title="Home Assistant" description="Show numeric Home Assistant entities (room temperature, power draw, …) on the LCD. They appear in the sensor picker."/>
+      <SectionHeader icon={<IChip/>} title={t('settings.ha.title')} description={t('settings.ha.desc')}/>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <ApiKeyField
-          label="Server URL" secret={false} placeholder="http://homeassistant.local:8123" help=""
+          label={t('settings.ha.url')} secret={false} placeholder="http://homeassistant.local:8123" help=""
           value={settings?.homeAssistantUrl ?? ''}
           onSave={v => update({ homeAssistantUrl: v })}
         />
         <ApiKeyField
-          label="Long-lived access token" placeholder="Paste token"
-          help={`Create one under your Home Assistant profile > Security.${settings?.homeAssistantUrl && settings.apiKeys?.homeassistant ? ` ${sensors.filter(s => s.id.startsWith('ha:')).length} entities found.` : ''}`}
+          label={t('settings.ha.token')} placeholder={t('settings.ha.token_placeholder')}
+          help={`${t('settings.ha.token_help')}${settings?.homeAssistantUrl && settings.apiKeys?.homeassistant ? ` ${t('settings.ha.entities_found', { count: sensors.filter(s => s.id.startsWith('ha:')).length })}` : ''}`}
           value={settings?.apiKeys?.homeassistant ?? ''}
           onSave={v => update({ apiKeys: { ...(settings?.apiKeys ?? {}), homeassistant: v } })}
         />
@@ -271,7 +275,7 @@ export function Settings() {
       <Divider/>
 
       {/* AIO */}
-      <SectionHeader icon={<IDroplet/>} title="Watercooling AIO" description="Tested on the NZXT Kraken Elite V2 (2024) and Kraken 2023 Elite. Other models are pending hardware support."/>
+      <SectionHeader icon={<IDroplet/>} title={t('settings.aio.title')} description={t('settings.aio.desc')}/>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {brands.map(brand => (
           <div key={brand}>
@@ -295,10 +299,10 @@ export function Settings() {
                           fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 8, letterSpacing: '0.5px',
                           background: supported ? '#00e87a18' : '#1a1a1a',
                           color: supported ? '#00e87a' : '#3a3a3a',
-                        }}>{supported ? 'Supported' : 'Draft'}</span>
-                        {connected && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 8, background: `${accent}18`, color: accent }}>Connected</span>}
+                        }}>{supported ? t('settings.aio.supported') : t('settings.aio.draft')}</span>
+                        {connected && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 8, background: `${accent}18`, color: accent }}>{t('settings.aio.connected')}</span>}
                       </div>
-                      <div style={{ fontSize: 10, color: '#7f7f7f' }}>Screen {d.lcd}{d.note ? ` - ${d.note}` : ''}</div>
+                      <div style={{ fontSize: 10, color: '#7f7f7f' }}>{t('settings.aio.screen', { lcd: d.lcd })}{d.noteKey ? ` - ${t(d.noteKey)}` : ''}</div>
                     </div>
                     {!supported && (
                       <button onClick={() => requestAccess(d.id, d.name, d.brand)} style={{
@@ -308,7 +312,7 @@ export function Settings() {
                       }}
                       onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#3a3a3a'; (e.currentTarget as HTMLButtonElement).style.color = '#888' }}
                       onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#222'; (e.currentTarget as HTMLButtonElement).style.color = '#7f7f7f' }}
-                      >{requested.has(d.id) ? 'Request sent' : "Request support"}</button>
+                      >{requested.has(d.id) ? t('settings.aio.request_sent') : t('settings.aio.request_support')}</button>
                     )}
                   </div>
                 )
@@ -321,9 +325,12 @@ export function Settings() {
       <Divider/>
 
       {/* Monitor section placeholder */}
-      <SectionHeader icon={<IMonitor/>} title="Display"/>
+      <SectionHeader icon={<IMonitor/>} title={t('settings.display.title')}/>
       <div style={{ fontSize: 11, color: '#7f7f7f', fontFamily: 'JetBrains Mono, monospace', padding: '4px 0' }}>
-        LCD resolution: {detected ? detected.lcd.replace('×', ' × ') : '-'} px · Interface: USB Direct · Device: {state.deviceStatus.connected ? state.deviceStatus.productName : 'not connected'}
+        {t('settings.display.info', {
+          resolution: detected ? detected.lcd.replace('×', ' × ') : '-',
+          device: state.deviceStatus.connected ? state.deviceStatus.productName : t('settings.display.not_connected'),
+        })}
       </div>
     </div>
   )

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { CaretDown } from '@phosphor-icons/react'
 import { api } from '../../lib/api'
 import { Field } from './fields'
+import { useLanguage } from '../../i18n/LangContext'
 
 const MAX_ROWS = 200
 
@@ -21,6 +22,7 @@ interface Props {
 
 /** Searchable list of installed fonts, each shown in its own typeface. */
 export function FontPicker({ value, defaultLabel, accent, onChange }: Props) {
+  const { t } = useLanguage()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [installed, setInstalled] = useState<string[] | null>(null)
@@ -51,7 +53,7 @@ export function FontPicker({ value, defaultLabel, accent, onChange }: Props) {
   }
 
   return (
-    <Field label="Font">
+    <Field label={t('font.label')}>
       <div ref={ref} style={{ position: 'relative', width: '100%' }}>
         <div onClick={() => setOpen(o => !o)} style={{
           background: '#1c1c1c', border: `1px solid ${open ? accent : '#2c2c2c'}`, borderRadius: 8, height: 28, padding: '0 28px 0 10px',
@@ -60,7 +62,7 @@ export function FontPicker({ value, defaultLabel, accent, onChange }: Props) {
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: value ? quoted(value) : undefined }}>
             {value ?? defaultLabel}
           </span>
-          {missing && <span style={{ marginLeft: 6, fontSize: 10, color: '#ffb347', flexShrink: 0 }}>not installed</span>}
+          {missing && <span style={{ marginLeft: 6, fontSize: 10, color: '#ffb347', flexShrink: 0 }}>{t('font.not_installed')}</span>}
           <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', color: '#9a9a9a', display: 'flex' }}><CaretDown size={10}/></span>
         </div>
         {open && (
@@ -68,14 +70,14 @@ export function FontPicker({ value, defaultLabel, accent, onChange }: Props) {
             position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: '#1c1c1c', border: '1px solid #2c2c2c',
             borderRadius: 8, padding: 4, zIndex: 400, boxShadow: '0 12px 36px rgba(0,0,0,0.7)',
           }}>
-            <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search fonts…" aria-label="Search fonts"
+            <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={t('font.search')} aria-label={t('font.search_label')}
               style={{ width: '100%', boxSizing: 'border-box', background: '#0d0d0d', border: '1px solid #252525', borderRadius: 8, color: '#e0e0e0', fontSize: 12, padding: '4px 8px', marginBottom: 4 }}/>
             <div style={{ maxHeight: 280, overflowY: 'auto' }}>
               {!q && row('default', defaultLabel, null, { fontSize: 12, fontStyle: 'italic' })}
               {matches.slice(0, MAX_ROWS).map(f => row(f, f, f, { fontFamily: quoted(f) }))}
-              {installed === null && <div style={{ padding: 10, fontSize: 11, color: '#7f7f7f' }}>Looking for fonts…</div>}
-              {installed !== null && matches.length === 0 && <div style={{ padding: 10, fontSize: 11, color: '#7f7f7f' }}>No matches</div>}
-              {matches.length > MAX_ROWS && <div style={{ padding: 10, fontSize: 11, color: '#7f7f7f' }}>Showing {MAX_ROWS} of {matches.length}. Keep typing to narrow it down.</div>}
+              {installed === null && <div style={{ padding: 10, fontSize: 11, color: '#7f7f7f' }}>{t('font.loading')}</div>}
+              {installed !== null && matches.length === 0 && <div style={{ padding: 10, fontSize: 11, color: '#7f7f7f' }}>{t('font.no_matches')}</div>}
+              {matches.length > MAX_ROWS && <div style={{ padding: 10, fontSize: 11, color: '#7f7f7f' }}>{t('font.showing', { shown: MAX_ROWS, total: matches.length })}</div>}
             </div>
           </div>
         )}

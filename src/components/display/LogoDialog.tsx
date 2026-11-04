@@ -2,35 +2,37 @@ import { useEffect, useState } from 'react'
 import { MagnifyingGlass } from '@phosphor-icons/react'
 import { SystemLogo, api } from '../../lib/api'
 import { Modal } from '../ui/Modal'
+import { useLanguage } from '../../i18n/LangContext'
 
 /** Popup listing logos found on this machine (distro, desktop, hardware); picking one hands back its file path. */
 export function LogoDialog({ accent, onPick, onClose }: { accent: string; onPick: (path: string) => void; onClose: () => void }) {
+  const { t } = useLanguage()
   const [logos, setLogos] = useState<SystemLogo[] | null>(null)
   const [query, setQuery] = useState('')
 
   useEffect(() => { api.listSystemLogos().then(setLogos).catch(() => setLogos([])) }, [])
 
   const tokens = query.toLowerCase().split(/\s+/).filter(Boolean)
-  const shown = (logos ?? []).filter(l => tokens.every(t => `${l.label} ${l.group}`.toLowerCase().includes(t)))
+  const shown = (logos ?? []).filter(l => tokens.every(token => `${l.label} ${l.group}`.toLowerCase().includes(token)))
   const groups = [...new Set(shown.map(l => l.group))].map(group => [group, shown.filter(l => l.group === group)] as const)
   const message = (text: string) => <div style={{ padding: 24, fontSize: 12, color: '#9a9a9a', lineHeight: 1.6 }}>{text}</div>
 
   return (
     <Modal
-      title="Add a logo" width={720} height={560} onClose={onClose}
+      title={t('logos.title')} width={720} height={560} onClose={onClose}
       headerExtra={(
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: '#0d0d0d', border: '1px solid #252525', borderRadius: 8, padding: '0 10px' }}>
           <MagnifyingGlass size={13} color="#7f7f7f"/>
-          <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search logos…" aria-label="Search logos"
+          <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={t('logos.search')} aria-label={t('logos.search_label')}
             style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', color: '#e0e0e0', fontSize: 12, padding: '7px 0' }}/>
         </div>
       )}
-      footer={<span style={{ flex: 1 }}>Found on this system for your distribution, desktop and hardware. Drop your own PNG or SVG files into <code>~/.config/nzxtcam-archlinux-rust/logos</code> to list them here.</span>}
+      footer={<span style={{ flex: 1 }}>{t('logos.footer_before')} <code>~/.config/nzxtcam-archlinux-rust/logos</code> {t('logos.footer_after')}</span>}
     >
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 12px 12px' }}>
-        {logos === null ? message('Looking for logos on this system…')
-          : logos.length === 0 ? message('No logos were found for your distribution, desktop or hardware. Drop PNG or SVG files into ~/.config/nzxtcam-archlinux-rust/logos to list your own, or use Image to pick a file.')
-          : shown.length === 0 ? message('No logos match.')
+        {logos === null ? message(t('logos.loading'))
+          : logos.length === 0 ? message(t('logos.none'))
+          : shown.length === 0 ? message(t('logos.no_match'))
           : groups.map(([group, list]) => (
             <div key={group}>
               <div style={{ padding: '12px 2px 6px', fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700 }}>{group} · {list.length}</div>

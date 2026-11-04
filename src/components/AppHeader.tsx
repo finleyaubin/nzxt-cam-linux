@@ -1,12 +1,14 @@
 import { useApp } from '../context/AppContext'
 import { api } from '../lib/api'
 import { Minus, X } from '@phosphor-icons/react'
+import { useLanguage } from '../i18n/LangContext'
 
 const drag = { WebkitAppRegion: 'drag' } as React.CSSProperties
 const noDrag = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
 
 export function AppHeader() {
   const { state } = useApp()
+  const { t } = useLanguage()
   const { accent, deviceStatus } = state
 
   return (
@@ -32,17 +34,17 @@ export function AppHeader() {
             boxShadow: deviceStatus.connected ? `0 0 6px ${accent}` : 'none',
           }}/>
           <span style={{ fontSize: 11, color: deviceStatus.connected ? '#c0c0c0' : '#3a3a3a', fontWeight: 600 }}>
-            {deviceStatus.connected ? deviceStatus.productName : 'Not connected'}
+            {deviceStatus.connected ? deviceStatus.productName : t('common.not_connected')}
           </span>
         </div>
       </div>
 
       {/* Right: window controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, ...noDrag }}>
-        <WinBtn title="Minimize" onClick={() => api.hideWindow()}>
+        <WinBtn title={t('window.minimize')} onClick={() => api.hideWindow()}>
           <Minus size={13} weight="regular" />
         </WinBtn>
-        <WinBtn title="Quit" onClick={() => api.quitApp()} danger>
+        <WinBtn title={t('window.quit')} onClick={() => api.quitApp()} danger>
           <X size={12} weight="regular" />
         </WinBtn>
       </div>

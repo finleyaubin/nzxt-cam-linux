@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useApp } from '../../context/AppContext'
+import { useLanguage } from '../../i18n/LangContext'
+import type { TranslationKey } from '../../i18n/languages'
 import { Card } from '../ui/Card'
 import { Dropdown } from '../ui/Dropdown'
 import { Slider } from '../ui/Slider'
@@ -12,28 +14,28 @@ function hexToRgb(hex: string): [number, number, number] {
   return [parseInt(h.substring(0, 2), 16), parseInt(h.substring(2, 4), 16), parseInt(h.substring(4, 6), 16)]
 }
 
-const RING_MODES = [
-  { id: 'off',          label: 'Off',          hasColor: false, hasSpeed: false },
-  { id: 'fixed',        label: 'Fixed',         hasColor: true,  hasSpeed: false },
-  { id: 'breathing',    label: 'Breathing',     hasColor: true,  hasSpeed: true  },
-  { id: 'pulse',        label: 'Pulse',         hasColor: true,  hasSpeed: true  },
-  { id: 'spectrumWave', label: 'Spectrum',       hasColor: false, hasSpeed: true  },
-  { id: 'rainbowFlow',  label: 'Rainbow Flow',  hasColor: false, hasSpeed: true  },
-  { id: 'rainbowPulse', label: 'Rainbow Pulse', hasColor: false, hasSpeed: true  },
-  { id: 'superRainbow', label: 'Super Rainbow', hasColor: false, hasSpeed: true  },
-  { id: 'marquee',      label: 'Marquee',       hasColor: true,  hasSpeed: true  },
+const RING_MODES: { id: string; label: TranslationKey; hasColor: boolean; hasSpeed: boolean }[] = [
+  { id: 'off',          label: 'lighting.mode.off',          hasColor: false, hasSpeed: false },
+  { id: 'fixed',        label: 'lighting.mode.fixed',         hasColor: true,  hasSpeed: false },
+  { id: 'breathing',    label: 'lighting.mode.breathing',     hasColor: true,  hasSpeed: true  },
+  { id: 'pulse',        label: 'lighting.mode.pulse',         hasColor: true,  hasSpeed: true  },
+  { id: 'spectrumWave', label: 'lighting.mode.spectrumWave',       hasColor: false, hasSpeed: true  },
+  { id: 'rainbowFlow',  label: 'lighting.mode.rainbowFlow',  hasColor: false, hasSpeed: true  },
+  { id: 'rainbowPulse', label: 'lighting.mode.rainbowPulse', hasColor: false, hasSpeed: true  },
+  { id: 'superRainbow', label: 'lighting.mode.superRainbow', hasColor: false, hasSpeed: true  },
+  { id: 'marquee',      label: 'lighting.mode.marquee',       hasColor: true,  hasSpeed: true  },
 ]
 
-const SPEEDS: { id: RingSpeed; label: string }[] = [
-  { id: 'slowest', label: 'Slowest' }, { id: 'slower', label: 'Slow' },
-  { id: 'normal',  label: 'Normal'   }, { id: 'faster', label: 'Fast'  },
-  { id: 'fastest', label: 'Max'      },
+const SPEEDS: { id: RingSpeed; label: TranslationKey }[] = [
+  { id: 'slowest', label: 'lighting.speed.slowest' }, { id: 'slower', label: 'lighting.speed.slower' },
+  { id: 'normal',  label: 'lighting.speed.normal'   }, { id: 'faster', label: 'lighting.speed.faster'  },
+  { id: 'fastest', label: 'lighting.speed.fastest'      },
 ]
 
-const CHANNELS: { id: RingChannel; label: string; hint: string }[] = [
-  { id: 'ch01', label: 'Ring AIO',     hint: 'Ring around the LCD' },
-  { id: 'ch02', label: 'Fans',         hint: 'Fans / accessories'  },
-  { id: 'ch07', label: 'All',          hint: 'All channels'       },
+const CHANNELS: { id: RingChannel; label: TranslationKey; hint: TranslationKey }[] = [
+  { id: 'ch01', label: 'lighting.channel.ring',     hint: 'lighting.channel.ring_hint' },
+  { id: 'ch02', label: 'lighting.channel.fans',         hint: 'lighting.channel.fans_hint'  },
+  { id: 'ch07', label: 'lighting.channel.all',          hint: 'lighting.channel.all_hint'       },
 ]
 
 const SWATCHES = ['#9d4edd', '#00e87a', '#ff4757', '#ffb347', '#00bcd4', '#ff6b9d', '#ffffff', '#00d4ff']
@@ -91,9 +93,10 @@ function BrightnessRow({ value, onChange, accent }: { value: number; onChange: (
 }
 
 function RingDeviceRow({ name, sub, isFan, accent }: {
-  name: string; sub: string; isFan?: boolean; accent: string
+  name: TranslationKey; sub: TranslationKey; isFan?: boolean; accent: string
 }) {
   const { state } = useApp()
+  const { t } = useLanguage()
   const connected = state.deviceStatus.connected
 
   const [channel, setChannel] = useState<RingChannel>(isFan ? 'ch02' : 'ch01')
@@ -148,20 +151,20 @@ function RingDeviceRow({ name, sub, isFan, accent }: {
         </div>
 
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#e8e8e8' }}>{name}</div>
-          <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 2 }}>{sub}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#e8e8e8' }}>{t(name)}</div>
+          <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 2 }}>{t(sub)}</div>
         </div>
         <div style={{ width: 120 }}>
           <BrightnessRow value={brightness} onChange={setBrightness} accent={accent}/>
         </div>
         <Dropdown
-          value={CHANNELS.find(c => c.id === channel)?.label ?? ''}
-          options={CHANNELS.map(c => c.label)}
-          onChange={v => setChannel(CHANNELS.find(c => c.label === v)?.id ?? 'ch02')}
+          value={t(CHANNELS.find(c => c.id === channel)!.label)}
+          options={CHANNELS.map(c => t(c.label))}
+          onChange={v => setChannel(CHANNELS.find(c => t(c.label) === v)!.id)}
           width={140} small accent={accent}
         />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 10, color: '#7f7f7f' }}>Sync</span>
+          <span style={{ fontSize: 10, color: '#7f7f7f' }}>{t('lighting.sync')}</span>
           <ToggleSwitch on={sync} onChange={setSync} size="sm" color={accent}/>
         </div>
       </div>
@@ -175,7 +178,7 @@ function RingDeviceRow({ name, sub, isFan, accent }: {
               color: effect === m.id ? accent : '#555',
               border: `1px solid ${effect === m.id ? `${accent}55` : '#2a2a2a'}`,
               transition: 'all 130ms',
-            }}>{m.label}</div>
+            }}>{t(m.label)}</div>
           ))}
         </div>
 
@@ -194,7 +197,7 @@ function RingDeviceRow({ name, sub, isFan, accent }: {
                 color: speed === s.id ? accent : '#555',
                 border: `1px solid ${speed === s.id ? `${accent}55` : '#2a2a2a'}`,
                 transition: 'all 130ms',
-              }}>{s.label}</div>
+              }}>{t(s.label)}</div>
             ))}
           </div>
         )}
@@ -209,10 +212,10 @@ function RingDeviceRow({ name, sub, isFan, accent }: {
             boxShadow: connected ? `0 0 12px ${accent}44` : 'none', transition: 'all 140ms',
           }}>
             <Play size={12} weight="fill" />
-            {sending ? 'Sending…' : 'Apply'}
+            {sending ? t('common.sending') : t('common.apply')}
           </button>
-          {lastApplied && <span style={{ fontSize: 11, color: '#00e87a' }}>Applied</span>}
-          {!connected && <span style={{ fontSize: 11, color: '#ffb347' }}>Device not connected</span>}
+          {lastApplied && <span style={{ fontSize: 11, color: '#00e87a' }}>{t('common.applied')}</span>}
+          {!connected && <span style={{ fontSize: 11, color: '#ffb347' }}>{t('lighting.not_connected')}</span>}
         </div>
       </div>
     </div>
@@ -221,12 +224,13 @@ function RingDeviceRow({ name, sub, isFan, accent }: {
 
 export function LightingScreen() {
   const { state } = useApp()
+  const { t } = useLanguage()
   const { accent } = state
   const [autoSync, setAutoSync] = useState(true)
 
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>Lighting</div>
+      <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>{t('nav.lighting')}</div>
 
       <Card style={{ padding: '18px 20px' }} accent={accent}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -235,17 +239,17 @@ export function LightingScreen() {
               {state.deviceStatus.connected ? state.deviceStatus.productName : 'Kraken Elite'}
             </div>
             <div style={{ fontSize: 10, color: state.deviceStatus.connected ? '#00e87a' : '#484848', marginTop: 2 }}>
-              {state.deviceStatus.connected ? 'Connected' : 'Not connected'}
+              {state.deviceStatus.connected ? t('common.connected') : t('common.not_connected')}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, color: '#9a9a9a' }}>RGB Auto Sync</span>
+            <span style={{ fontSize: 11, color: '#9a9a9a' }}>{t('lighting.auto_sync')}</span>
             <ToggleSwitch on={autoSync} onChange={setAutoSync} color={accent}/>
           </div>
         </div>
 
-        <RingDeviceRow name="Ring AIO"     sub="Channel 1 · Ring around the LCD" isFan={false} accent={accent}/>
-        <RingDeviceRow name="Fans"         sub="Channel 2 · External fans"   isFan={true}  accent={accent}/>
+        <RingDeviceRow name="lighting.channel.ring" sub="lighting.channel.ring_sub" isFan={false} accent={accent}/>
+        <RingDeviceRow name="lighting.channel.fans" sub="lighting.channel.fans_sub"   isFan={true}  accent={accent}/>
       </Card>
     </div>
   )

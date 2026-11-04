@@ -1,6 +1,7 @@
 import { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from '@phosphor-icons/react'
+import { useLanguage } from '../../i18n/LangContext'
 
 interface Props {
   title: string
@@ -17,6 +18,7 @@ interface Props {
 
 /** Centred popup over a dimmed backdrop. Keys stay inside it so editor shortcuts (Delete, arrows) can't fire behind it. */
 export function Modal({ title, onClose, headerExtra, footer, onKeyDown, width = 780, height = 580, children }: Props) {
+  const { t } = useLanguage()
   return createPortal(
     <div
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
@@ -33,7 +35,7 @@ export function Modal({ title, onClose, headerExtra, footer, onKeyDown, width = 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderBottom: '1px solid #222' }}>
           <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{title}</div>
           {headerExtra ?? <div style={{ flex: 1 }}/>}
-          <button onClick={onClose} aria-label="Close" style={{ display: 'flex', padding: 6, borderRadius: 8, border: '1px solid #252525', background: '#111', color: '#9a9a9a', cursor: 'pointer' }}><X size={13}/></button>
+          <button onClick={onClose} aria-label={t('common.close')} style={{ display: 'flex', padding: 6, borderRadius: 8, border: '1px solid #252525', background: '#111', color: '#9a9a9a', cursor: 'pointer' }}><X size={13}/></button>
         </div>
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>{children}</div>
         {footer && <div style={{ display: 'flex', gap: 12, padding: '8px 14px', borderTop: '1px solid #222', fontSize: 11, color: '#7f7f7f' }}>{footer}</div>}

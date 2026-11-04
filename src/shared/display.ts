@@ -7,6 +7,8 @@
  * (cf. PRESETS) que l'utilisateur peut ensuite déplacer / éditer librement.
  */
 
+import type { TranslationKey } from '../i18n/languages'
+
 export const LCD_SIZE = 640
 
 export type BaseMetric = 'cpu' | 'gpu' | 'liquid' | 'pump'
@@ -272,8 +274,8 @@ export function makeText(text: string, overrides: Partial<TextElement> = {}): Te
 
 export interface Preset {
   id: string
-  name: string
-  description: string
+  nameKey: TranslationKey
+  descriptionKey: TranslationKey
   build: () => DisplayConfig
 }
 
@@ -282,8 +284,8 @@ const BG = '#0a0a0f'
 export const PRESETS: Preset[] = [
   {
     id: 'triple-rings',
-    name: '3 rings',
-    description: 'CPU, GPU and liquid as concentric gauges',
+    nameKey: 'preset.triple_rings.name',
+    descriptionKey: 'preset.triple_rings.desc',
     build: () => ({
       background: BG,
       elements: [
@@ -299,8 +301,8 @@ export const PRESETS: Preset[] = [
   },
   {
     id: 'single-cpu',
-    name: 'CPU only',
-    description: 'One large centered gauge',
+    nameKey: 'preset.single_cpu.name',
+    descriptionKey: 'preset.single_cpu.desc',
     build: () => ({
       background: BG,
       elements: [
@@ -310,8 +312,8 @@ export const PRESETS: Preset[] = [
   },
   {
     id: 'single-gpu',
-    name: 'GPU only',
-    description: 'One large centered gauge',
+    nameKey: 'preset.single_gpu.name',
+    descriptionKey: 'preset.single_gpu.desc',
     build: () => ({
       background: BG,
       elements: [
@@ -321,8 +323,8 @@ export const PRESETS: Preset[] = [
   },
   {
     id: 'single-liquid',
-    name: 'Liquid only',
-    description: 'Liquid temperature as a large gauge',
+    nameKey: 'preset.single_liquid.name',
+    descriptionKey: 'preset.single_liquid.desc',
     build: () => ({
       background: BG,
       elements: [
@@ -332,8 +334,8 @@ export const PRESETS: Preset[] = [
   },
   {
     id: 'dual-bars',
-    name: '2 bars',
-    description: 'CPU and GPU as horizontal bars (CAM style)',
+    nameKey: 'preset.dual_bars.name',
+    descriptionKey: 'preset.dual_bars.desc',
     build: () => ({
       background: BG,
       elements: [
@@ -344,8 +346,8 @@ export const PRESETS: Preset[] = [
   },
   {
     id: 'big-number',
-    name: 'Big number',
-    description: 'Just the CPU temperature, very large',
+    nameKey: 'preset.big_number.name',
+    descriptionKey: 'preset.big_number.desc',
     build: () => ({
       background: BG,
       elements: [
@@ -361,13 +363,13 @@ export function defaultConfig(): DisplayConfig {
 }
 
 /** Variables a text element can use; `sensorN` tokens are added per bound sensor by the editor. */
-export const TEXT_VARIABLES: { token: string; label: string }[] = [
-  { token: '{cpu}', label: 'CPU temperature' },
-  { token: '{gpu}', label: 'GPU temperature' },
-  { token: '{liquid}', label: 'Liquid temperature' },
-  { token: '{pump}', label: 'Pump speed' },
-  { token: '{time}', label: 'Time' },
-  { token: '{date}', label: 'Date' },
+export const TEXT_VARIABLES: { token: string; label: TranslationKey; short: TranslationKey }[] = [
+  { token: '{cpu}', label: 'variable.cpu', short: 'variable.cpu.short' },
+  { token: '{gpu}', label: 'variable.gpu', short: 'variable.gpu.short' },
+  { token: '{liquid}', label: 'variable.liquid', short: 'variable.liquid.short' },
+  { token: '{pump}', label: 'variable.pump', short: 'variable.pump.short' },
+  { token: '{time}', label: 'variable.time', short: 'variable.time' },
+  { token: '{date}', label: 'variable.date', short: 'variable.date' },
 ]
 
 export interface Readings {
