@@ -15,6 +15,7 @@ use crate::image_io;
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::SystemTime;
 use std::f32::consts::PI;
 use tiny_skia::{IntSize, Pixmap, PixmapPaint, PremultipliedColorU8, Transform};
 
@@ -47,12 +48,14 @@ enum Base<'a> {
     Transparent,
 }
 
-static BACKGROUND: Mutex<Option<(String, Arc<Background>)>> = Mutex::new(None);
+static BACKGROUND: Mutex<Option<((String, SystemTime), Arc<Background>)>> = Mutex::new(None);
 
 fn load_background(path: &str) -> Result<Arc<Background>> {
+    let modified = std::fs::metadata(path).and_then(|m| m.modified()).map_err(|e| anyhow::anyhow!("Read background {path}: {e}"))?;
+    let key = (path.to_string(), modified);
     let mut cache = BACKGROUND.lock();
     if let Some((cached, bg)) = cache.as_ref() {
-        if cached == path {
+        if *cached == key {
             return Ok(bg.clone());
         }
     }
@@ -63,7 +66,7 @@ fn load_background(path: &str) -> Result<Arc<Background>> {
     } else {
         Background::Still(first)
     });
-    *cache = Some((path.to_string(), bg.clone()));
+    *cache = Some((key, bg.clone()));
     Ok(bg)
 }
 
@@ -755,7 +758,7 @@ mod tests {
             id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
             color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
-            value_size: 40.0, corner_radius: 0.0, gradient_to: None, show_range, range_angle, range_offset, value_pill: false,
+            value_size: 40.0, corner_radius: 0.0, gradient_to: None, text_position: Default::default(), show_range, range_angle, range_offset, value_pill: false,
         };
         let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures::default()).unwrap() else { panic!() };
@@ -815,7 +818,7 @@ mod tests {
                 id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
                 color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep: 270.0,
                 warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: true, show_label: false, label: String::new(),
-                value_size: 40.0, corner_radius: 0.0, gradient_to: None, show_range: false, range_angle: 0.0, range_offset: 0.0, value_pill,
+                value_size: 40.0, corner_radius: 0.0, gradient_to: None, text_position: Default::default(), show_range: false, range_angle: 0.0, range_offset: 0.0, value_pill,
             };
             let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
             let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures { cpu: 100.0, ..Temperatures::default() }).unwrap() else { panic!() };
@@ -888,7 +891,7 @@ mod tests {
             id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 200.0, thickness: 30.0, max: 100.0,
             color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep: 270.0,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: true, show_label: false, label: String::new(),
-            value_size: 48.0, corner_radius: 0.0, gradient_to: None, text_position: TextPosition::Bottom,
+            value_size: 48.0, corner_radius: 0.0, gradient_to: None, text_position: TextPosition::Bottom, show_range: false, range_angle: 0.0, range_offset: 0.0, value_pill: false,
         };
         let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures { cpu: 50.0, ..Temperatures::default() }).unwrap() else { panic!() };
