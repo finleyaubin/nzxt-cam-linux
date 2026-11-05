@@ -978,7 +978,7 @@ mod tests {
             rgba
         };
         let default = render(None, None);
-        let Some(other) = crate::render::fonts::families().into_iter().find(|f| {
+        let Some(other) = crate::render::fonts::font_entries().into_iter().map(|e| e.family).find(|f| {
             let r = render(Some(f), None);
             r != default
         }) else {

@@ -69,12 +69,49 @@ struct InstalledFace {
     family: String,
     style: String,
     path: String,
+    monospaced: bool,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FontEntry {
+    pub family: String,
+    pub category: &'static str,
+}
+
+const SERIF_FAMILIES: &[&str] = &[
+    "times", "georgia", "garamond", "palatino", "baskerville", "bodoni", "cambria", "merriweather", "playfair",
+    "lora", "crimson", "cormorant", "bookman", "century", "didot", "minion", "charter", "caslon", "libre bodoni",
+];
+const SANS_FAMILIES: &[&str] = &[
+    "inter", "roboto", "ubuntu", "cantarell", "open", "lato", "montserrat", "poppins", "helvetica", "arial",
+    "segoe", "verdana", "tahoma", "fira", "source", "nunito", "raleway", "oxygen", "liberation", "adwaita",
+    "sf pro", "work", "manrope", "dm", "ibm plex", "jost", "outfit", "rubik", "mulish", "barlow",
+];
+
+/// fontconfig records no style class, so only monospace is exact; the rest is inferred from the family name.
+fn classify(family: &str, monospaced: bool) -> &'static str {
+    let name = family.to_lowercase();
+    let has = |words: &[&str]| words.iter().any(|w| name.contains(w));
+    if monospaced || has(&["mono", "code", "courier", "console"]) {
+        "monospace"
+    } else if has(&["script", "hand", "brush", "calligraph", "cursive", "marker", "pacifico", "lobster", "dancing", "caveat", "signature"]) {
+        "handwriting"
+    } else if has(&["display", "decorative", "stencil", "pixel", "poster", "headline", "fancy", "comic", "blackletter"]) {
+        "display"
+    } else if name.contains("serif") && !name.contains("sans") || SERIF_FAMILIES.iter().any(|f| name.starts_with(f)) {
+        "serif"
+    } else if has(&["sans", "grotesk", "gothic"]) || SANS_FAMILIES.iter().any(|f| name.starts_with(f)) {
+        "sans"
+    } else {
+        "other"
+    }
 }
 
 fn installed_faces() -> &'static [InstalledFace] {
     INSTALLED.get_or_init(|| {
         let out = std::process::Command::new("fc-list")
-            .args(["--format", "%{family[0]}\t%{style[0]}\t%{file}\n"])
+            .args(["--format", "%{family[0]}\t%{style[0]}\t%{spacing}\t%{file}\n"])
             .output();
         let Ok(out) = out else {
             log::warn!("fc-list not available: only the built-in font can be used");
@@ -83,22 +120,28 @@ fn installed_faces() -> &'static [InstalledFace] {
         String::from_utf8_lossy(&out.stdout)
             .lines()
             .filter_map(|line| {
-                let mut parts = line.splitn(3, '\t');
-                let (family, style, path) = (parts.next()?, parts.next()?, parts.next()?);
+                let mut parts = line.splitn(4, '\t');
+                let (family, style, spacing, path) = (parts.next()?, parts.next()?, parts.next()?, parts.next()?);
                 let ext = std::path::Path::new(path).extension()?.to_str()?.to_ascii_lowercase();
                 (!family.is_empty() && matches!(ext.as_str(), "ttf" | "otf"))
-                    .then(|| InstalledFace { family: family.into(), style: style.into(), path: path.into() })
+                    .then(|| InstalledFace { family: family.into(), style: style.into(), path: path.into(), monospaced: matches!(spacing, "100" | "110") })
             })
             .collect()
     })
 }
 
-/// Family names of every installed TrueType/OpenType font, sorted and de-duplicated.
-pub fn families() -> Vec<String> {
-    let mut names: Vec<String> = installed_faces().iter().map(|f| f.family.clone()).collect();
-    names.sort_by_key(|n| n.to_lowercase());
-    names.dedup();
-    names
+/// Every installed TrueType/OpenType family with its category, sorted and de-duplicated.
+pub fn font_entries() -> Vec<FontEntry> {
+    let mut by_family: std::collections::BTreeMap<String, bool> = std::collections::BTreeMap::new();
+    for face in installed_faces() {
+        *by_family.entry(face.family.clone()).or_default() |= face.monospaced;
+    }
+    let mut entries: Vec<FontEntry> = by_family
+        .into_iter()
+        .map(|(family, monospaced)| FontEntry { category: classify(&family, monospaced), family })
+        .collect();
+    entries.sort_by_key(|e| e.family.to_lowercase());
+    entries
 }
 
 /// Prefers the upright bold face (the look the display uses), then upright regular, then anything.
@@ -297,8 +340,19 @@ mod tests {
     }
 
     #[test]
+    fn classifies_fonts_by_category() {
+        assert_eq!(classify("Anything", true), "monospace");
+        assert_eq!(classify("Noto Serif", false), "serif");
+        assert_eq!(classify("Noto Sans", false), "sans");
+        assert_eq!(classify("DejaVu Sans Mono", false), "monospace");
+        assert_eq!(classify("Pacifico", false), "handwriting");
+        assert_eq!(classify("Inter", false), "sans");
+        assert_eq!(classify("Zzyzx", false), "other");
+    }
+
+    #[test]
     fn family_list_is_sorted_and_unique() {
-        let names = families();
+        let names: Vec<String> = font_entries().into_iter().map(|e| e.family).collect();
         assert!(names.windows(2).all(|w| w[0].to_lowercase() <= w[1].to_lowercase() && w[0] != w[1]));
         if let Some(first) = names.first() {
             assert!(resolve(Some(first)).is_ok());

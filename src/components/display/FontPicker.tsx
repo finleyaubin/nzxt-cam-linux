@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CaretDown, MagnifyingGlass } from '@phosphor-icons/react'
-import { api } from '../../lib/api'
+import { api, FontCategory, FontEntry } from '../../lib/api'
 import { Field } from './fields'
 import { useLanguage } from '../../i18n/LangContext'
 
 const MAX_ROWS = 200
 
-let families: Promise<string[]> | null = null
+const CATEGORIES: ('all' | FontCategory)[] = ['all', 'sans', 'serif', 'monospace', 'handwriting', 'display', 'other']
+
+let families: Promise<FontEntry[]> | null = null
 const installedFonts = () => (families ??= api.listFonts().catch(() => []))
 
 const quoted = (name: string) => `"${name.replace(/"/g, '')}", sans-serif`
@@ -34,7 +36,8 @@ export function FontPicker({ value, defaultLabel, onChange }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [highlighted, setHighlighted] = useState(0)
-  const [installed, setInstalled] = useState<string[] | null>(null)
+  const [category, setCategory] = useState<'all' | FontCategory>('all')
+  const [installed, setInstalled] = useState<FontEntry[] | null>(null)
   const ref = useRef<HTMLDivElement>(null)
   const highlightedRow = useRef<HTMLDivElement>(null)
 
@@ -46,16 +49,21 @@ export function FontPicker({ value, defaultLabel, onChange }: Props) {
   }, [])
   useEffect(() => { highlightedRow.current?.scrollIntoView({ block: 'nearest' }) }, [highlighted, open])
 
-  const matches = useMemo(() => searchFonts(installed ?? [], query), [installed, query])
+  const inCategory = useMemo(
+    () => (installed ?? []).filter(f => category === 'all' || f.category === category).map(f => f.family),
+    [installed, category],
+  )
+  const matches = useMemo(() => searchFonts(inCategory, query), [inCategory, query])
   const rows: (string | null)[] = useMemo(
     () => [...(query.trim() ? [] : [null]), ...matches.slice(0, MAX_ROWS)],
     [matches, query],
   )
-  const missing = !!value && installed !== null && !installed.includes(value)
+  const missing = !!value && installed !== null && !installed.some(f => f.family === value)
 
   const close = () => { setOpen(false); setQuery('') }
   const pick = (font: string | null) => { close(); onChange(font) }
   const search = (text: string) => { setQuery(text); setHighlighted(0) }
+  const chooseCategory = (c: 'all' | FontCategory) => { setCategory(c); setHighlighted(0) }
 
   const onSearchKey = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setHighlighted(h => Math.min(rows.length - 1, h + 1)) }
@@ -87,6 +95,14 @@ export function FontPicker({ value, defaultLabel, onChange }: Props) {
               <input autoFocus value={query} onChange={e => search(e.target.value)} onKeyDown={onSearchKey}
                 placeholder={t('font.search')} aria-label={t('font.search_label')}
                 style={{ width: '100%', boxSizing: 'border-box', background: 'var(--hover)', border: 'none', borderRadius: 6, fontSize: 13, padding: '6px 8px 6px 28px' }}/>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+              {CATEGORIES.map(c => (
+                <button key={c} onClick={() => chooseCategory(c)} style={{
+                  border: 'none', borderRadius: 12, padding: '2px 10px', fontSize: 12, cursor: 'pointer',
+                  background: category === c ? 'var(--accent)' : 'var(--hover)', color: category === c ? 'var(--accent-fg)' : undefined,
+                }}>{t(`font.category.${c}`)}</button>
+              ))}
             </div>
             <div style={{ maxHeight: 340, overflowY: 'auto' }}>
               {rows.map((font, i) => (
