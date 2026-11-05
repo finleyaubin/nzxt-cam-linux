@@ -31,11 +31,11 @@ const TYPE_NAME: Record<DisplayElement['type'], TranslationKey> = {
 function IconButton({ title, onClick, danger, children }: { title: string; onClick: () => void; danger?: boolean; children: React.ReactNode }) {
   return (
     <button onClick={onClick} title={title} aria-label={title} style={{
-      display: 'flex', padding: 7, borderRadius: 8, border: '1px solid #252525', background: '#111', cursor: 'pointer',
-      color: '#9a9a9a',
+      display: 'flex', padding: 7, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer',
+      color: 'var(--fg-dim)',
     }}
-    onMouseEnter={e => { e.currentTarget.style.color = danger ? '#ff4757' : '#fff' }}
-    onMouseLeave={e => { e.currentTarget.style.color = '#9a9a9a' }}>{children}</button>
+    onMouseEnter={e => { e.currentTarget.style.color = danger ? '#f66151' : '#fff' }}
+    onMouseLeave={e => { e.currentTarget.style.color = 'var(--fg-dim)' }}>{children}</button>
   )
 }
 
@@ -80,7 +80,7 @@ function GradientField({ el, accent, set }: { el: GaugeElement | BarElement; acc
     <CheckField label={t('inspector.gradient')} checked={on} accent={accent} onChange={v => set({ gradientTo: v ? '#00bcd4' : null })}>
       {on && (
         <label style={{ position: 'relative', width: 22, height: 22, cursor: 'pointer' }} title={t('inspector.gradient_end')}>
-          <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: el.gradientTo ?? '#00bcd4', boxShadow: '0 0 0 2px #0d0d0d, 0 0 0 3px #2a2a2a' }}/>
+          <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: el.gradientTo ?? '#00bcd4', boxShadow: '0 0 0 2px var(--window), 0 0 0 3px var(--border)' }}/>
           <input type="color" value={el.gradientTo ?? '#00bcd4'} onChange={e => set({ gradientTo: e.target.value })}
             aria-label={t('inspector.gradient_end')} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}/>
         </label>
@@ -112,11 +112,11 @@ function TextFields({ el, metrics, accent, set }: { el: TextElement; metrics: Me
         ))}
       </div>
       {usedSensors.length > 0 && (
-        <div style={{ fontSize: 10, color: '#7f7f7f', paddingLeft: 102, lineHeight: 1.6 }}>
+        <div style={{ fontSize: 11, color: 'var(--fg-dim)', paddingLeft: 102, lineHeight: 1.6 }}>
           {usedSensors.map(id => <div key={id}><code>{`{${id}}`}</code> {t('inspector.sensor_is', { label: metrics.find(m => m.id === id)?.label ?? t('inspector.not_set') })}</div>)}
         </div>
       )}
-      <div style={{ fontSize: 10, color: '#7f7f7f', paddingLeft: 102, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 11, color: 'var(--fg-dim)', paddingLeft: 102, lineHeight: 1.5 }}>
         {t('inspector.variables_help', { max: MAX_SENSORS })}
       </div>
       <FontPicker value={el.font} defaultLabel={t('inspector.scene_font')} accent={accent} onChange={font => set({ font })}/>
@@ -146,7 +146,7 @@ function ImageFields({ el, accent, set }: { el: ImageElement; accent: string; se
       </Field>
       {picking && <LogoDialog accent={accent} onClose={() => setPicking(false)} onPick={path => { set({ path }); setPicking(false) }}/>}
       <NumField label={t('inspector.opacity')} value={el.opacity} min={0} max={100} unit="%" accent={accent} onChange={opacity => set({ opacity: Math.round(opacity) })}/>
-      <div style={{ fontSize: 10, color: '#7f7f7f', paddingLeft: 102, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 11, color: 'var(--fg-dim)', paddingLeft: 102, lineHeight: 1.5 }}>
         {t('inspector.image_note')}
       </div>
     </>
@@ -167,7 +167,7 @@ function Advanced({ children }: { children: React.ReactNode }) {
     <>
       <button onClick={toggle} aria-expanded={open} style={{
         display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-        fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700,
+        fontSize: 11, color: 'var(--fg-dim)', fontWeight: 700,
       }}>{open ? '▾' : '▸'} {t('inspector.advanced')}</button>
       {open && children}
     </>

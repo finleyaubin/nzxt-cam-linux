@@ -3,17 +3,16 @@ import { ReactNode } from 'react'
 import { Slider } from '../ui/Slider'
 import { Dropdown } from '../ui/Dropdown'
 
-const LABEL: React.CSSProperties = { fontSize: 12, color: '#a0a0a0', fontWeight: 500, width: 92, flexShrink: 0 }
+const LABEL: React.CSSProperties = { fontSize: 13, color: 'var(--fg-dim)', width: 96, flexShrink: 0 }
 const INPUT: React.CSSProperties = {
-  background: '#0d0d0d', border: '1px solid #252525', borderRadius: 8, color: '#e0e0e0', fontSize: 12,
-  padding: '4px 8px', minWidth: 0,
+  background: 'var(--hover)', border: 'none', borderRadius: 6, fontSize: 13, padding: '5px 8px', minWidth: 0,
 }
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 28 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 32 }}>
       <div style={LABEL}>{label}</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>{children}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, flexWrap: 'wrap' }}>{children}</div>
     </div>
   )
 }
@@ -28,9 +27,9 @@ export function NumField({ label, value, min, max, sliderMax = max, step = 1, un
         type="number" value={Math.round(value * 100) / 100} min={min} max={max} step={step}
         onChange={e => { const v = e.target.valueAsNumber; if (Number.isFinite(v)) onChange(v) }}
         aria-label={label}
-        style={{ ...INPUT, width: 58, fontFamily: 'JetBrains Mono, monospace' }}
+        style={{ ...INPUT, width: 58, fontVariantNumeric: 'tabular-nums' }}
       />
-      {unit && <span style={{ fontSize: 11, color: '#7f7f7f', width: 14 }}>{unit}</span>}
+      {unit && <span style={{ fontSize: 11, color: 'var(--fg-dim)', width: 14 }}>{unit}</span>}
     </Field>
   )
 }
@@ -50,11 +49,11 @@ export function ColorField({ label, value, onChange }: { label: string; value: s
   return (
     <Field label={label}>
       <label style={{ position: 'relative', width: 22, height: 22, flexShrink: 0, cursor: 'pointer' }}>
-        <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: value, boxShadow: '0 0 0 2px #0d0d0d, 0 0 0 3px #2a2a2a' }}/>
+        <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: value, boxShadow: '0 0 0 2px var(--window), 0 0 0 3px var(--border)' }}/>
         <input type="color" value={value} onChange={e => onChange(e.target.value)} aria-label={label}
           style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}/>
       </label>
-      <span style={{ fontSize: 11, color: '#7f7f7f', fontFamily: 'JetBrains Mono, monospace' }}>{value}</span>
+      <span style={{ fontSize: 11, color: 'var(--fg-dim)', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
     </Field>
   )
 }
@@ -83,18 +82,17 @@ export function SelectField({ label, value, options, accent, onChange }: {
   )
 }
 
-export function Pill({ active, accent, onClick, children, title }: {
-  active?: boolean; accent: string; onClick: () => void; children: ReactNode; title?: string
+export function Pill({ active, onClick, children, title }: {
+  active?: boolean; accent?: string; onClick: () => void; children: ReactNode; title?: string
 }) {
   return (
-    <button onClick={onClick} title={title} style={{
-      display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-      cursor: 'pointer', border: `1px solid ${active ? `${accent}55` : '#252525'}`,
-      background: active ? `${accent}18` : '#111', color: active ? accent : '#9a9a9a', transition: 'all 120ms',
+    <button className="adw-btn" onClick={onClick} title={title} style={{
+      minHeight: 28, padding: '0 10px', fontWeight: 400, fontSize: 13,
+      background: active ? 'var(--accent)' : undefined, color: active ? 'var(--accent-fg)' : undefined,
     }}>{children}</button>
   )
 }
 
 export function SectionTitle({ children }: { children: ReactNode }) {
-  return <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700 }}>{children}</div>
+  return <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6 }}>{children}</div>
 }

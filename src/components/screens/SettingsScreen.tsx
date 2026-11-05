@@ -4,11 +4,13 @@ import { useApp } from '../../context/AppContext'
 import { Card } from '../ui/Card'
 import { ToggleSwitch } from '../ui/ToggleSwitch'
 import { Dropdown } from '../ui/Dropdown'
-import { Settings } from '../Settings'
+import { SegmentedControl } from '../ui/SegmentedControl'
+import { Settings, SettingsPage } from '../Settings'
 import { ProfileManager } from '../ProfileManager'
 import { api } from '../../lib/api'
 import { languages, Lang, TranslationKey } from '../../i18n/languages'
-import { GithubLogo, Bug, ChatCircle, CaretRight, Check } from '@phosphor-icons/react'
+import { GithubLogo, Bug, ChatCircle, CaretRight, Check, SlidersHorizontal, Pulse, Thermometer, PlugsConnected, Drop, Stack, Lifebuoy } from '@phosphor-icons/react'
+import type { Icon } from '@phosphor-icons/react'
 
 const ACCENT_COLORS: { name: TranslationKey; c: string }[] = [
   { name: 'accent.blue',   c: '#3584e4' },
@@ -45,20 +47,6 @@ function Row({ title, subtitle, last, onClick, children }: {
         {subtitle && <div style={{ fontSize: 12, color: 'var(--fg-dim)', marginTop: 2 }}>{subtitle}</div>}
       </div>
       {children}
-    </div>
-  )
-}
-
-function SegmentedControl<T extends string>({ value, options, onChange }: { value: T; options: readonly T[]; onChange: (v: T) => void }) {
-  return (
-    <div style={{ display: 'flex', gap: 2, padding: 2, borderRadius: 8, background: 'var(--hover)' }}>
-      {options.map(o => (
-        <button key={o} onClick={() => onChange(o)} style={{
-          border: 'none', borderRadius: 6, padding: '4px 14px', cursor: 'pointer', fontWeight: 700,
-          background: value === o ? 'var(--card-solid)' : 'transparent',
-          boxShadow: value === o ? '0 1px 2px rgba(0,0,0,0.25)' : 'none',
-        }}>{o}</button>
-      ))}
     </div>
   )
 }
@@ -101,13 +89,23 @@ function SupportTab() {
   )
 }
 
-type Tab = 'general' | 'profiles' | 'support'
+type Page = 'general' | SettingsPage | 'profiles' | 'support'
+
+const PAGES: { id: Page; label: TranslationKey; Icon: Icon }[] = [
+  { id: 'general',      label: 'settings.tab.general',         Icon: SlidersHorizontal },
+  { id: 'monitoring',   label: 'nav.monitoring',               Icon: Pulse },
+  { id: 'sensors',      label: 'settings.sensors.title',       Icon: Thermometer },
+  { id: 'integrations', label: 'settings.page.integrations',   Icon: PlugsConnected },
+  { id: 'devices',      label: 'settings.page.devices',         Icon: Drop },
+  { id: 'profiles',     label: 'settings.tab.profiles',        Icon: Stack },
+  { id: 'support',      label: 'settings.tab.support',         Icon: Lifebuoy },
+]
 
 export function SettingsScreen() {
   const { state, dispatch } = useApp()
   const { t, lang, setLang } = useLanguage()
   const { accent, compact, tempUnit } = state
-  const [tab, setTab] = useState<Tab>('general')
+  const [page, setPage] = useState<Page>('general')
   const [autostart, setAutostart] = useState(false)
 
   useEffect(() => {
@@ -123,23 +121,28 @@ export function SettingsScreen() {
     }
   }
 
-  const tabLabels: Record<Tab, string> = {
-    general: t('settings.tab.general'), profiles: t('settings.tab.profiles'), support: t('settings.tab.support'),
-  }
   const labelToLang = Object.fromEntries(languageIds.map(id => [languageLabel(id), id]))
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto' }}>
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 24px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-        <SegmentedControl
-          value={tabLabels[tab]}
-          options={Object.values(tabLabels)}
-          onChange={label => setTab((Object.keys(tabLabels) as Tab[]).find(k => tabLabels[k] === label)!)}
-        />
+    <div style={{ height: '100%', display: 'grid', gridTemplateColumns: '240px minmax(0, 1fr)' }}>
+      <nav style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto', boxShadow: '1px 0 0 var(--border)' }}>
+        {PAGES.map(({ id, label, Icon }) => (
+          <button key={id} className={page === id ? undefined : 'adw-row'} onClick={() => setPage(id)} style={{
+            display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', textAlign: 'left',
+            background: page === id ? 'var(--selected)' : 'transparent', fontWeight: page === id ? 700 : 400,
+          }}>
+            <Icon size={17} weight={page === id ? 'fill' : 'regular'} style={{ flexShrink: 0 }}/>
+            {t(label)}
+          </button>
+        ))}
+      </nav>
 
-        {tab === 'general' && (
-          <>
-            <Group title={t('nav.settings')}>
+      <div style={{ overflowY: 'auto' }}>
+        <div style={{ maxWidth: 1040, padding: '24px 28px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700 }}>{t(PAGES.find(p => p.id === page)!.label)}</h1>
+
+          {page === 'general' && (
+            <Group>
               <Row title={t('settings.accent_color')}>
                 <AccentSwatches accent={accent} onPick={c => dispatch({ type: 'SET_ACCENT', payload: c })}/>
               </Row>
@@ -156,12 +159,12 @@ export function SettingsScreen() {
                 <ToggleSwitch on={autostart} onChange={toggleAutostart} color={accent}/>
               </Row>
             </Group>
-            <Settings/>
-          </>
-        )}
+          )}
 
-        {tab === 'profiles' && <Card style={{ padding: 20 }}><ProfileManager/></Card>}
-        {tab === 'support' && <SupportTab/>}
+          {page !== 'general' && page !== 'profiles' && page !== 'support' && <Settings page={page}/>}
+          {page === 'profiles' && <Card style={{ padding: 20 }}><ProfileManager/></Card>}
+          {page === 'support' && <SupportTab/>}
+        </div>
       </div>
     </div>
   )

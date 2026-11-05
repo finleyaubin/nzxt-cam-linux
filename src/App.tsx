@@ -10,11 +10,13 @@ import { LCDScreen } from './components/screens/LCDScreen'
 import { SettingsScreen } from './components/screens/SettingsScreen'
 import { useDevice } from './hooks/useDevice'
 import { useTemperatures } from './hooks/useTemperatures'
+import { useSystemTheme } from './hooks/useSystemTheme'
 
 function MainApp() {
   const { state } = useApp()
   useDevice()
   useTemperatures()
+  useSystemTheme()
 
   const { section } = state
 

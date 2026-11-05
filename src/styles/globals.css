@@ -7,15 +7,11 @@
   --window: #fafafa;
   --view: #ffffff;
   --headerbar: #ebebeb;
-  --card: rgba(0, 0, 0, 0.05);
   --card-solid: #ffffff;
   --popover: #ffffff;
-  --border: rgba(0, 0, 0, 0.12);
-  --hover: rgba(0, 0, 0, 0.07);
-  --selected: rgba(0, 0, 0, 0.1);
   --fg: #2e2e32;
-  --fg-dim: #77767b;
   --accent: #3584e4;
+  --accent-fg: #ffffff;
   --danger: #e01b24;
   --warning: #e5a50a;
   --success: #26a269;
@@ -44,6 +40,14 @@
   }
 }
 
+html {
+  --card: color-mix(in srgb, var(--fg) 6%, transparent);
+  --border: color-mix(in srgb, var(--fg) 12%, transparent);
+  --hover: color-mix(in srgb, var(--fg) 8%, transparent);
+  --selected: color-mix(in srgb, var(--fg) 13%, transparent);
+  --fg-dim: color-mix(in srgb, var(--fg) 55%, transparent);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -51,8 +55,8 @@
 }
 
 body {
-  font-family: 'Adwaita Sans', Cantarell, 'Noto Sans', system-ui, sans-serif;
-  font-size: 14px;
+  font-family: var(--ui-font, 'Adwaita Sans'), Cantarell, 'Noto Sans', system-ui, sans-serif;
+  font-size: var(--ui-font-size, 14px);
   background-color: var(--window);
   color: var(--fg);
   overflow: hidden;
@@ -107,7 +111,7 @@ input[type='range']::-webkit-slider-thumb {
 }
 .adw-btn:hover { background: var(--selected); }
 .adw-btn:disabled { opacity: 0.4; cursor: default; }
-.adw-btn.suggested { background: var(--accent); color: #fff; }
+.adw-btn.suggested { background: var(--accent); color: var(--accent-fg); }
 .adw-btn.suggested:hover { filter: brightness(1.1); }
 .adw-btn.destructive { background: var(--danger); color: #fff; }
 .adw-btn.flat { background: transparent; }

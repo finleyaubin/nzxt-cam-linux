@@ -44,7 +44,7 @@ export function FontPicker({ value, defaultLabel, accent, onChange }: Props) {
     const active = font === (value ?? null)
     return (
       <div key={key} onClick={() => pick(font)} style={{
-        padding: '6px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 14, color: active ? accent : '#d0d0d0',
+        padding: '6px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 14, color: active ? accent : 'var(--fg)',
         background: active ? `${accent}1a` : 'transparent', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', ...style,
       }}
       onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
@@ -56,28 +56,28 @@ export function FontPicker({ value, defaultLabel, accent, onChange }: Props) {
     <Field label={t('font.label')}>
       <div ref={ref} style={{ position: 'relative', width: '100%' }}>
         <div onClick={() => setOpen(o => !o)} style={{
-          background: '#1c1c1c', border: `1px solid ${open ? accent : '#2c2c2c'}`, borderRadius: 8, height: 28, padding: '0 28px 0 10px',
-          cursor: 'pointer', fontSize: 13, color: '#ddd', display: 'flex', alignItems: 'center', position: 'relative', userSelect: 'none',
+          background: 'var(--border)', border: `1px solid ${open ? accent : 'var(--border)'}`, borderRadius: 8, height: 28, padding: '0 28px 0 10px',
+          cursor: 'pointer', fontSize: 13, color: 'var(--fg)', display: 'flex', alignItems: 'center', position: 'relative', userSelect: 'none',
         }}>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: value ? quoted(value) : undefined }}>
             {value ?? defaultLabel}
           </span>
-          {missing && <span style={{ marginLeft: 6, fontSize: 10, color: '#ffb347', flexShrink: 0 }}>{t('font.not_installed')}</span>}
-          <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', color: '#9a9a9a', display: 'flex' }}><CaretDown size={10}/></span>
+          {missing && <span style={{ marginLeft: 6, fontSize: 11, color: '#f5c211', flexShrink: 0 }}>{t('font.not_installed')}</span>}
+          <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-dim)', display: 'flex' }}><CaretDown size={10}/></span>
         </div>
         {open && (
           <div style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: '#1c1c1c', border: '1px solid #2c2c2c',
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--border)', border: '1px solid var(--border)',
             borderRadius: 8, padding: 4, zIndex: 400, boxShadow: '0 12px 36px rgba(0,0,0,0.7)',
           }}>
             <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={t('font.search')} aria-label={t('font.search_label')}
-              style={{ width: '100%', boxSizing: 'border-box', background: '#0d0d0d', border: '1px solid #252525', borderRadius: 8, color: '#e0e0e0', fontSize: 12, padding: '4px 8px', marginBottom: 4 }}/>
+              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--window)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--fg)', fontSize: 12, padding: '4px 8px', marginBottom: 4 }}/>
             <div style={{ maxHeight: 280, overflowY: 'auto' }}>
               {!q && row('default', defaultLabel, null, { fontSize: 12, fontStyle: 'italic' })}
               {matches.slice(0, MAX_ROWS).map(f => row(f, f, f, { fontFamily: quoted(f) }))}
-              {installed === null && <div style={{ padding: 10, fontSize: 11, color: '#7f7f7f' }}>{t('font.loading')}</div>}
-              {installed !== null && matches.length === 0 && <div style={{ padding: 10, fontSize: 11, color: '#7f7f7f' }}>{t('font.no_matches')}</div>}
-              {matches.length > MAX_ROWS && <div style={{ padding: 10, fontSize: 11, color: '#7f7f7f' }}>{t('font.showing', { shown: MAX_ROWS, total: matches.length })}</div>}
+              {installed === null && <div style={{ padding: 10, fontSize: 11, color: 'var(--fg-dim)' }}>{t('font.loading')}</div>}
+              {installed !== null && matches.length === 0 && <div style={{ padding: 10, fontSize: 11, color: 'var(--fg-dim)' }}>{t('font.no_matches')}</div>}
+              {matches.length > MAX_ROWS && <div style={{ padding: 10, fontSize: 11, color: 'var(--fg-dim)' }}>{t('font.showing', { shown: MAX_ROWS, total: matches.length })}</div>}
             </div>
           </div>
         )}

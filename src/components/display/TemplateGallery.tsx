@@ -62,12 +62,12 @@ export function TemplateGallery({ current, accent, onPick, onSaveCurrent }: {
   const card = (key: string, title: string, sub: string | undefined, config: DisplayConfig, onDelete?: () => void) => (
     <div key={key} style={{ position: 'relative' }}>
       <button onClick={() => onPick(config)} style={{
-        width: '100%', padding: 8, background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 10,
-        cursor: 'pointer', textAlign: 'left', color: '#c0c0c0',
+        width: '100%', padding: 8, background: 'var(--window)', border: '1px solid var(--border)', borderRadius: 10,
+        cursor: 'pointer', textAlign: 'left', color: 'var(--fg)',
       }}>
         <TemplateThumb config={config}/>
         <div style={{ fontSize: 12, fontWeight: 700, marginTop: 8 }}>{title}</div>
-        {sub && <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 2 }}>{sub}</div>}
+        {sub && <div style={{ fontSize: 11, color: 'var(--fg-dim)', marginTop: 2 }}>{sub}</div>}
       </button>
       {onDelete && (
         <button onClick={onDelete} aria-label={t('templates.delete', { name: title })} style={{
@@ -78,14 +78,14 @@ export function TemplateGallery({ current, accent, onPick, onSaveCurrent }: {
     </div>
   )
   const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 } as const
-  const heading = (s: string) => <div style={{ fontSize: 11, fontWeight: 700, color: '#777', margin: '14px 0 8px', textTransform: 'uppercase', letterSpacing: 0.6 }}>{s}</div>
+  const heading = (s: string) => <div style={{ fontSize: 11, fontWeight: 700, color: '#777', margin: '14px 0 8px', letterSpacing: 0.6 }}>{s}</div>
 
   return (
     <div>
       {onSaveCurrent && (
         <div style={{ display: 'flex', gap: 8 }}>
           <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()}
-            placeholder={t('templates.name_placeholder')} style={{ flex: 1, padding: '7px 10px', background: '#0d0d0d', border: '1px solid #222', borderRadius: 8, color: '#ddd', fontSize: 12 }}/>
+            placeholder={t('templates.name_placeholder')} style={{ flex: 1, padding: '7px 10px', background: 'var(--window)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--fg)', fontSize: 12 }}/>
           <button onClick={save} disabled={!name.trim()} style={{
             padding: '7px 14px', borderRadius: 8, border: `1px solid ${accent}55`, background: `${accent}18`,
             color: accent, fontSize: 12, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'default', opacity: name.trim() ? 1 : 0.5,
