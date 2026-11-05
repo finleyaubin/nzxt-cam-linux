@@ -18,7 +18,7 @@ export function FirstRunPicker({ accent, onPick, onSkip }: {
   const options = useMemo(() => PRESETS.slice(0, 4).map(p => ({ id: p.id, name: t(p.nameKey), description: t(p.descriptionKey), config: p.build() })), [t])
   return (
     <div style={{
-      position: 'absolute', inset: 0, zIndex: 20, background: '#000d', display: 'flex',
+      position: 'absolute', inset: 0, zIndex: 20, background: 'var(--window)', display: 'flex',
       alignItems: 'center', justifyContent: 'center', padding: 16, overflow: 'auto',
     }}>
       <div style={{ maxWidth: 640, width: '100%', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: 20 }}>

@@ -21,7 +21,7 @@ interface Props {
 }
 
 /** Searchable list of installed fonts, each shown in its own typeface. */
-export function FontPicker({ value, defaultLabel, accent, onChange }: Props) {
+export function FontPicker({ value, defaultLabel, onChange }: Props) {
   const { t } = useLanguage()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -44,10 +44,10 @@ export function FontPicker({ value, defaultLabel, accent, onChange }: Props) {
     const active = font === (value ?? null)
     return (
       <div key={key} onClick={() => pick(font)} style={{
-        padding: '6px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 14, color: active ? accent : 'var(--fg)',
-        background: active ? `${accent}1a` : 'transparent', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', ...style,
+        padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: active ? 700 : 400,
+        background: active ? 'var(--selected)' : 'transparent', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', ...style,
       }}
-      onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+      onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'var(--hover)' }}
       onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}>{label}</div>
     )
   }
@@ -56,7 +56,7 @@ export function FontPicker({ value, defaultLabel, accent, onChange }: Props) {
     <Field label={t('font.label')}>
       <div ref={ref} style={{ position: 'relative', width: '100%' }}>
         <div onClick={() => setOpen(o => !o)} style={{
-          background: 'var(--border)', border: `1px solid ${open ? accent : 'var(--border)'}`, borderRadius: 8, height: 28, padding: '0 28px 0 10px',
+          background: 'var(--hover)', borderRadius: 6, height: 28, padding: '0 28px 0 10px',
           cursor: 'pointer', fontSize: 13, color: 'var(--fg)', display: 'flex', alignItems: 'center', position: 'relative', userSelect: 'none',
         }}>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: value ? quoted(value) : undefined }}>
@@ -67,11 +67,11 @@ export function FontPicker({ value, defaultLabel, accent, onChange }: Props) {
         </div>
         {open && (
           <div style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--border)', border: '1px solid var(--border)',
-            borderRadius: 8, padding: 4, zIndex: 400, boxShadow: '0 12px 36px rgba(0,0,0,0.7)',
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--popover)',
+            borderRadius: 12, padding: 6, zIndex: 400, boxShadow: 'var(--shadow-popover)',
           }}>
             <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={t('font.search')} aria-label={t('font.search_label')}
-              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--window)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--fg)', fontSize: 12, padding: '4px 8px', marginBottom: 4 }}/>
+              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--hover)', border: 'none', borderRadius: 6, color: 'var(--fg)', fontSize: 13, padding: '5px 8px', marginBottom: 4 }}/>
             <div style={{ maxHeight: 280, overflowY: 'auto' }}>
               {!q && row('default', defaultLabel, null, { fontSize: 12, fontStyle: 'italic' })}
               {matches.slice(0, MAX_ROWS).map(f => row(f, f, f, { fontFamily: quoted(f) }))}
