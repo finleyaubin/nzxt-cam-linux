@@ -11,12 +11,14 @@ import { SettingsScreen } from './components/screens/SettingsScreen'
 import { useDevice } from './hooks/useDevice'
 import { useTemperatures } from './hooks/useTemperatures'
 import { useSystemTheme } from './hooks/useSystemTheme'
+import { useDisplayConfigSync } from './hooks/useDisplayConfigSync'
 
 function MainApp() {
   const { state } = useApp()
   useDevice()
   useTemperatures()
   useSystemTheme()
+  useDisplayConfigSync()
 
   const { section } = state
 
