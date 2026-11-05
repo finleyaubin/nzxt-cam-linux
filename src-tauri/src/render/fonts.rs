@@ -32,6 +32,7 @@ const SYSTEM_FALLBACKS: &[&str] = &[
 static FONT_CACHE: OnceCell<Arc<FontVec>> = OnceCell::new();
 static CHOSEN: Mutex<Option<HashMap<String, Option<Arc<FontVec>>>>> = Mutex::new(None);
 static INSTALLED: OnceCell<Vec<InstalledFace>> = OnceCell::new();
+static ENTRIES: OnceCell<Vec<FontEntry>> = OnceCell::new();
 
 /// Get the built-in default font, loading it from disk on first call.
 pub fn font() -> Result<Arc<FontVec>> {
@@ -69,49 +70,58 @@ struct InstalledFace {
     family: String,
     style: String,
     path: String,
-    monospaced: bool,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct FontEntry {
     pub family: String,
     pub category: &'static str,
 }
 
-const SERIF_FAMILIES: &[&str] = &[
-    "times", "georgia", "garamond", "palatino", "baskerville", "bodoni", "cambria", "merriweather", "playfair",
-    "lora", "crimson", "cormorant", "bookman", "century", "didot", "minion", "charter", "caslon", "libre bodoni",
-];
-const SANS_FAMILIES: &[&str] = &[
-    "inter", "roboto", "ubuntu", "cantarell", "open", "lato", "montserrat", "poppins", "helvetica", "arial",
-    "segoe", "verdana", "tahoma", "fira", "source", "nunito", "raleway", "oxygen", "liberation", "adwaita",
-    "sf pro", "work", "manrope", "dm", "ibm plex", "jost", "outfit", "rubik", "mulish", "barlow",
-];
+/// OS/2 table layout: sFamilyClass at byte 30, PANOSE at bytes 32..42.
+const OS2_FAMILY_CLASS_OFFSET: usize = 30;
+const OS2_PANOSE_OFFSET: usize = 32;
+const PANOSE_LEN: usize = 10;
+const PANOSE_PROPORTION_MONOSPACED: u8 = 9;
 
-/// fontconfig records no style class, so only monospace is exact; the rest is inferred from the family name.
-fn classify(family: &str, monospaced: bool) -> &'static str {
-    let name = family.to_lowercase();
-    let has = |words: &[&str]| words.iter().any(|w| name.contains(w));
-    if monospaced || has(&["mono", "code", "courier", "console"]) {
-        "monospace"
-    } else if has(&["script", "hand", "brush", "calligraph", "cursive", "marker", "pacifico", "lobster", "dancing", "caveat", "signature"]) {
-        "handwriting"
-    } else if has(&["display", "decorative", "stencil", "pixel", "poster", "headline", "fancy", "comic", "blackletter"]) {
-        "display"
-    } else if name.contains("serif") && !name.contains("sans") || SERIF_FAMILIES.iter().any(|f| name.starts_with(f)) {
-        "serif"
-    } else if has(&["sans", "grotesk", "gothic"]) || SANS_FAMILIES.iter().any(|f| name.starts_with(f)) {
-        "sans"
-    } else {
-        "other"
+/// Category from the font's own metadata: IBM family class first, PANOSE as the second opinion.
+fn categorize(family_class: u8, panose: &[u8; PANOSE_LEN], monospaced: bool) -> &'static str {
+    let [kind, serif_style, _, proportion, ..] = *panose;
+    if monospaced || proportion == PANOSE_PROPORTION_MONOSPACED {
+        return "monospace";
     }
+    match (family_class, kind, serif_style) {
+        (1..=5 | 7, ..) => "serif",
+        (8, ..) => "sans",
+        (9, ..) => "display",
+        (10, ..) => "handwriting",
+        (_, 3, _) => "handwriting",
+        (_, 4, _) => "display",
+        (_, 2, 2..=10 | 14) => "serif",
+        (_, 2, 11..=13 | 15) => "sans",
+        _ => "other",
+    }
+}
+
+fn category_of_file(path: &str) -> Result<&'static str> {
+    let bytes = std::fs::read(path).map_err(|e| anyhow!("read {path}: {e}"))?;
+    let face = ttf_parser::Face::parse(&bytes, 0).map_err(|e| anyhow!("parse {path}: {e}"))?;
+    let os2 = face.raw_face().table(ttf_parser::Tag::from_bytes(b"OS/2"));
+    let (family_class, panose) = match os2 {
+        Some(t) if t.len() >= OS2_PANOSE_OFFSET + PANOSE_LEN => (
+            t[OS2_FAMILY_CLASS_OFFSET],
+            t[OS2_PANOSE_OFFSET..OS2_PANOSE_OFFSET + PANOSE_LEN].try_into().expect("slice length is PANOSE_LEN"),
+        ),
+        _ => (0, [0; PANOSE_LEN]),
+    };
+    Ok(categorize(family_class, &panose, face.is_monospaced()))
 }
 
 fn installed_faces() -> &'static [InstalledFace] {
     INSTALLED.get_or_init(|| {
         let out = std::process::Command::new("fc-list")
-            .args(["--format", "%{family[0]}\t%{style[0]}\t%{spacing}\t%{file}\n"])
+            .args(["--format", "%{family[0]}\t%{style[0]}\t%{file}\n"])
             .output();
         let Ok(out) = out else {
             log::warn!("fc-list not available: only the built-in font can be used");
@@ -120,28 +130,35 @@ fn installed_faces() -> &'static [InstalledFace] {
         String::from_utf8_lossy(&out.stdout)
             .lines()
             .filter_map(|line| {
-                let mut parts = line.splitn(4, '\t');
-                let (family, style, spacing, path) = (parts.next()?, parts.next()?, parts.next()?, parts.next()?);
+                let mut parts = line.splitn(3, '\t');
+                let (family, style, path) = (parts.next()?, parts.next()?, parts.next()?);
                 let ext = std::path::Path::new(path).extension()?.to_str()?.to_ascii_lowercase();
                 (!family.is_empty() && matches!(ext.as_str(), "ttf" | "otf"))
-                    .then(|| InstalledFace { family: family.into(), style: style.into(), path: path.into(), monospaced: matches!(spacing, "100" | "110") })
+                    .then(|| InstalledFace { family: family.into(), style: style.into(), path: path.into() })
             })
             .collect()
     })
 }
 
-/// Every installed TrueType/OpenType family with its category, sorted and de-duplicated.
+/// Every installed TrueType/OpenType family with its category, sorted and de-duplicated; computed once.
 pub fn font_entries() -> Vec<FontEntry> {
-    let mut by_family: std::collections::BTreeMap<String, bool> = std::collections::BTreeMap::new();
-    for face in installed_faces() {
-        *by_family.entry(face.family.clone()).or_default() |= face.monospaced;
-    }
-    let mut entries: Vec<FontEntry> = by_family
-        .into_iter()
-        .map(|(family, monospaced)| FontEntry { category: classify(&family, monospaced), family })
-        .collect();
-    entries.sort_by_key(|e| e.family.to_lowercase());
-    entries
+    ENTRIES
+        .get_or_init(|| {
+            let mut faces: Vec<&InstalledFace> = installed_faces().iter().collect();
+            faces.sort_by_key(|f| (f.family.to_lowercase(), face_rank(&f.style)));
+            faces.dedup_by(|later, first| later.family == first.family);
+            faces
+                .into_iter()
+                .map(|face| FontEntry {
+                    family: face.family.clone(),
+                    category: category_of_file(&face.path).unwrap_or_else(|e| {
+                        log::warn!("Font \"{}\" left uncategorised: {e}", face.family);
+                        "other"
+                    }),
+                })
+                .collect()
+        })
+        .clone()
 }
 
 /// Prefers the upright bold face (the look the display uses), then upright regular, then anything.
@@ -340,14 +357,16 @@ mod tests {
     }
 
     #[test]
-    fn classifies_fonts_by_category() {
-        assert_eq!(classify("Anything", true), "monospace");
-        assert_eq!(classify("Noto Serif", false), "serif");
-        assert_eq!(classify("Noto Sans", false), "sans");
-        assert_eq!(classify("DejaVu Sans Mono", false), "monospace");
-        assert_eq!(classify("Pacifico", false), "handwriting");
-        assert_eq!(classify("Inter", false), "sans");
-        assert_eq!(classify("Zzyzx", false), "other");
+    fn categorizes_from_font_metadata() {
+        let none = [0u8; PANOSE_LEN];
+        assert_eq!(categorize(0, &none, true), "monospace");
+        assert_eq!(categorize(0, &[2, 0, 0, 9, 0, 0, 0, 0, 0, 0], false), "monospace");
+        assert_eq!(categorize(5, &none, false), "serif");
+        assert_eq!(categorize(8, &none, false), "sans");
+        assert_eq!(categorize(10, &none, false), "handwriting");
+        assert_eq!(categorize(0, &[2, 11, 0, 0, 0, 0, 0, 0, 0, 0], false), "sans");
+        assert_eq!(categorize(0, &[3, 0, 0, 0, 0, 0, 0, 0, 0, 0], false), "handwriting");
+        assert_eq!(categorize(0, &none, false), "other");
     }
 
     #[test]
