@@ -37,7 +37,7 @@ type Action =
 
 const initialState: AppState = {
   section: 'monitoring',
-  accent: '#9d4edd',
+  accent: '#3584e4',
   compact: false,
   tempUnit: '°C',
   deviceStatus: { connected: false, productName: 'Not detected', pid: null, error: null, lcdControllable: false },

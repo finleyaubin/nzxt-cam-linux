@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
-import { useApp } from '../context/AppContext'
 import { useLanguage } from '../i18n/LangContext'
 
 export function CloseDialog() {
-  const { state } = useApp()
-  const accent = state.accent
   const { t } = useLanguage()
   const [visible, setVisible] = useState(false)
 
@@ -28,43 +25,18 @@ export function CloseDialog() {
   }
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 9999,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
-    }}>
-      <div style={{
-        background: '#111', border: '1px solid #222', borderRadius: 12,
-        padding: 28, width: 320, display: 'flex', flexDirection: 'column', gap: 20,
-        boxShadow: '0 32px 80px rgba(0,0,0,0.8)',
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }}>
+      <div role="alertdialog" style={{
+        background: 'var(--popover)', borderRadius: 18, padding: '24px 24px 16px', width: 340,
+        display: 'flex', flexDirection: 'column', gap: 20, boxShadow: 'var(--shadow-popover)', textAlign: 'center',
       }}>
         <div>
-          <div style={{ fontSize: 15, fontWeight: 800, color: '#f0f0f0', marginBottom: 6, letterSpacing: '-0.2px' }}>
-            {t('dialog.close.title')}
-          </div>
-          <div style={{ fontSize: 12, color: '#9a9a9a', lineHeight: 1.6 }}>
-            {t('dialog.close.sub')}
-          </div>
+          <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>{t('dialog.close.title')}</div>
+          <div style={{ color: 'var(--fg-dim)', lineHeight: 1.5 }}>{t('dialog.close.sub')}</div>
         </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button onClick={hideWindow} style={{
-            padding: '10px 0', borderRadius: 8, border: 'none',
-            background: accent, color: '#fff', fontSize: 13, fontWeight: 700,
-            cursor: 'pointer', boxShadow: `0 0 18px ${accent}44`, transition: 'all 140ms',
-          }}>
-            {t('dialog.close.keep_background')}
-          </button>
-          <button onClick={quitApp} style={{
-            padding: '10px 0', borderRadius: 8, border: '1px solid #252525',
-            background: 'transparent', color: '#9a9a9a', fontSize: 13, fontWeight: 600,
-            cursor: 'pointer', transition: 'all 140ms',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = '#ff4757'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#ff475733' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = '#9a9a9a'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#252525' }}
-          >
-            {t('dialog.close.quit')}
-          </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="adw-btn" onClick={quitApp} style={{ flex: 1 }}>{t('dialog.close.quit')}</button>
+          <button className="adw-btn suggested" onClick={hideWindow} style={{ flex: 1 }}>{t('dialog.close.keep_background')}</button>
         </div>
       </div>
     </div>

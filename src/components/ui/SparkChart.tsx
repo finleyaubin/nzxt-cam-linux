@@ -5,7 +5,7 @@ interface Props {
   uid: string
 }
 
-export function SparkChart({ data = [], color = '#9d4edd', height = 44, uid = 'a' }: Props) {
+export function SparkChart({ data = [], color = '#3584e4', height = 44, uid = 'a' }: Props) {
   if (data.length < 2) return null
   const W = 200, H = height
   const pts = data.map((v, i) => [

@@ -8,15 +8,15 @@ import { Card } from '../ui/Card'
 import { ProgressBar } from '../ui/ProgressBar'
 
 function gaugeColor(v: number, isTemp = false) {
-  if (isTemp) return v > 80 ? '#ff4757' : v > 60 ? '#ffb347' : '#9d4edd'
-  return v > 82 ? '#ff4757' : v > 62 ? '#ffb347' : '#9d4edd'
+  if (isTemp) return v > 80 ? '#f66151' : v > 60 ? '#f5c211' : '#3584e4'
+  return v > 82 ? '#f66151' : v > 62 ? '#f5c211' : '#3584e4'
 }
 
 function Stat({ label, val }: { label: string; val: string }) {
   return (
     <div style={{ marginBottom: 8 }}>
-      <div style={{ fontSize: 9, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: 2 }}>{label}</div>
-      <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#c4c4c4', fontWeight: 500 }}>{val}</div>
+      <div style={{ fontSize: 11, color: 'var(--fg-dim)', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12, color: 'var(--fg)', fontWeight: 500 }}>{val}</div>
     </div>
   )
 }
@@ -34,22 +34,22 @@ function TempCard({ id, title, sub, value, max, tempUnit, hist }: {
         <div style={{ position: 'relative', width: 130, height: 130, flexShrink: 0 }}>
           <CircularGauge value={value} max={max} size={130} stroke={10} color={gc}/>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 12 }}>
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 30, fontWeight: 700, color: '#f2f2f2', lineHeight: 1 }}>
-              {disp}<span style={{ fontSize: 14, color: '#7f7f7f', fontWeight: 400 }}>{unit}</span>
+            <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 30, fontWeight: 700, color: 'var(--fg)', lineHeight: 1 }}>
+              {disp}<span style={{ fontSize: 14, color: 'var(--fg-dim)', fontWeight: 400 }}>{unit}</span>
             </div>
-            <div style={{ fontSize: 9, color: '#7f7f7f', marginTop: 5, letterSpacing: '1.2px', textTransform: 'uppercase' }}>{t('monitoring.temp')}</div>
+            <div style={{ fontSize: 11, color: 'var(--fg-dim)', marginTop: 5 }}>{t('monitoring.temp')}</div>
           </div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: '#f0f0f0', marginBottom: 2, letterSpacing: '-0.3px' }}>{title}</div>
-          <div style={{ fontSize: 10, color: '#7f7f7f', marginBottom: 16, fontWeight: 500 }}>{sub}</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--fg)', marginBottom: 2 }}>{title}</div>
+          <div style={{ fontSize: 11, color: 'var(--fg-dim)', marginBottom: 16, fontWeight: 500 }}>{sub}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 14px' }}>
             <Stat label={t('monitoring.value')} val={`${disp}${unit}`}/>
             <Stat label={t('monitoring.max')} val={`${max}${unit}`}/>
           </div>
         </div>
       </div>
-      <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid #1c1c1c' }}>
+      <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
         <SparkChart data={hist} color={gc} height={44} uid={id}/>
       </div>
     </Card>
@@ -59,16 +59,16 @@ function TempCard({ id, title, sub, value, max, tempUnit, hist }: {
 function PumpCard({ rpm, hist }: { rpm: number; hist: number[] }) {
   const { t } = useLanguage()
   const rpmPct = Math.min(100, (rpm / 3000) * 100)
-  const gc = '#9d4edd'
+  const gc = '#3584e4'
   return (
     <Card style={{ padding: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', marginBottom: 16, letterSpacing: '-0.2px' }}>{t('monitoring.pump_rpm')}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg)', marginBottom: 16 }}>{t('monitoring.pump_rpm')}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <div style={{ position: 'relative', width: 90, height: 90, flexShrink: 0 }}>
           <CircularGauge value={rpmPct} size={90} stroke={8} color={gc}/>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 8 }}>
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 14, fontWeight: 700, color: '#f2f2f2', lineHeight: 1 }}>{Math.round(rpm)}</div>
-            <div style={{ fontSize: 8, color: '#7f7f7f', marginTop: 4, letterSpacing: '1px' }}>RPM</div>
+            <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 14, fontWeight: 700, color: 'var(--fg)', lineHeight: 1 }}>{Math.round(rpm)}</div>
+            <div style={{ fontSize: 11, color: 'var(--fg-dim)', marginTop: 4 }}>RPM</div>
           </div>
         </div>
         <div>
@@ -76,7 +76,7 @@ function PumpCard({ rpm, hist }: { rpm: number; hist: number[] }) {
           <Stat label={t('monitoring.source')} val={t('monitoring.source_liquid')}/>
         </div>
       </div>
-      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #1c1c1c' }}>
+      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
         <SparkChart data={hist} color={gc} height={34} uid="pump"/>
       </div>
     </Card>
@@ -102,17 +102,17 @@ function StorageCard() {
   const fmt = (bytes: number) => bytes >= 1e12 ? `${(bytes / 1e12).toFixed(1)} TB` : `${Math.round(bytes / 1e9)} GB`
   return (
     <Card style={{ padding: 18 }}>
-      <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', marginBottom: 18, letterSpacing: '-0.2px' }}>{t('monitoring.storage')}</div>
-      {error && <div style={{ fontSize: 10, color: '#ff4757' }}>{error}</div>}
-      {drives?.length === 0 && <div style={{ fontSize: 10, color: '#7f7f7f' }}>{t('monitoring.no_drives')}</div>}
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg)', marginBottom: 18 }}>{t('monitoring.storage')}</div>
+      {error && <div style={{ fontSize: 11, color: '#f66151' }}>{error}</div>}
+      {drives?.length === 0 && <div style={{ fontSize: 11, color: 'var(--fg-dim)' }}>{t('monitoring.no_drives')}</div>}
       {drives?.map(({ device, mount, usedBytes, totalBytes }) => {
         const pct = usedBytes / totalBytes * 100
-        const c = pct > 90 ? '#ff4757' : pct > 74 ? '#ffb347' : '#9d4edd'
+        const c = pct > 90 ? '#f66151' : pct > 74 ? '#f5c211' : '#3584e4'
         return (
           <div key={device} style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, alignItems: 'center' }}>
-              <span title={device} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: c, fontWeight: 600 }}>{mount}</span>
-              <span style={{ fontSize: 9, color: '#7f7f7f' }}>{fmt(usedBytes)} / {fmt(totalBytes)}</span>
+              <span title={device} style={{ fontVariantNumeric: 'tabular-nums', fontSize: 11, color: c, fontWeight: 600 }}>{mount}</span>
+              <span style={{ fontSize: 11, color: 'var(--fg-dim)' }}>{fmt(usedBytes)} / {fmt(totalBytes)}</span>
             </div>
             <ProgressBar value={pct} max={100} color={c} height={3}/>
           </div>
@@ -131,7 +131,7 @@ const genHist = (base = 20, len = 52): number[] => {
 export function MonitoringScreen() {
   const { state } = useApp()
   const { t } = useLanguage()
-  const { temperatures, tempUnit, deviceStatus } = state
+  const { temperatures, tempUnit } = state
   const [cpuH, setCpuH] = useState(() => genHist(temperatures.cpu))
   const [gpuH, setGpuH] = useState(() => genHist(temperatures.gpu))
   const [liqH, setLiqH] = useState(() => genHist(temperatures.liquid))
@@ -147,12 +147,7 @@ export function MonitoringScreen() {
   return (
     <div style={{ height: '100%', overflowY: 'auto', padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>{t('nav.monitoring')}</div>
-        {deviceStatus.connected && (
-          <div style={{ fontSize: 11, color: '#7f7f7f', background: '#111', border: '1px solid #1e1e1e', padding: '4px 12px', borderRadius: 20 }}>
-            {deviceStatus.productName}
-          </div>
-        )}
+        <div style={{ fontSize: 20, fontWeight: 700 }}>{t('nav.monitoring')}</div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -166,7 +161,7 @@ export function MonitoringScreen() {
         <StorageCard/>
       </div>
 
-      <div style={{ padding: '10px 18px', background: '#0d0d0d', border: '1px solid #181818', borderRadius: 8, display: 'flex', gap: 20 }}>
+      <div style={{ padding: '10px 16px', background: 'var(--card)', borderRadius: 12, display: 'flex', gap: 24 }}>
         {[
           { label: t('metric.cpu'),    val: `${Math.round(temperatures.cpu)}°C`    },
           { label: t('metric.gpu'),    val: `${Math.round(temperatures.gpu)}°C`    },
@@ -174,8 +169,8 @@ export function MonitoringScreen() {
           { label: t('metric.pump'),   val: `${Math.round(temperatures.pumpRpm)} RPM` },
         ].map(({ label, val }) => (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 9, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700 }}>{label}</span>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#9a9a9a', fontWeight: 500 }}>{val}</span>
+            <span style={{ fontSize: 11, color: 'var(--fg-dim)', fontWeight: 700 }}>{label}</span>
+            <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 11, color: 'var(--fg-dim)', fontWeight: 500 }}>{val}</span>
           </div>
         ))}
       </div>

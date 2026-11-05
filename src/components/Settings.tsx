@@ -18,10 +18,10 @@ function SectionHeader({ icon, title, description }: { icon: React.ReactNode; ti
   return (
     <div style={{ marginBottom: 18 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: description ? 6 : 0 }}>
-        <span style={{ color: '#7f7f7f' }}>{icon}</span>
-        <span style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700 }}>{title}</span>
+        <span style={{ color: 'var(--fg-dim)' }}>{icon}</span>
+        <span style={{ fontSize: 11, color: 'var(--fg-dim)', fontWeight: 700 }}>{title}</span>
       </div>
-      {description && <div style={{ fontSize: 11, color: '#7f7f7f', lineHeight: 1.6, paddingLeft: 21 }}>{description}</div>}
+      {description && <div style={{ fontSize: 11, color: 'var(--fg-dim)', lineHeight: 1.6, paddingLeft: 21 }}>{description}</div>}
     </div>
   )
 }
@@ -34,7 +34,7 @@ function SensorSelect({ label, emptyLabel, value, sensors, accent, onChange }: {
   const current = value ? sensors.find(s => s.id === value)?.label ?? t('sensors.unavailable') : emptyLabel
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>{label}</span>
+      <span style={{ fontSize: 12, color: 'var(--fg-dim)', fontWeight: 600 }}>{label}</span>
       <div style={{ display: 'flex' }}><PickerButton label={current} onClick={() => setOpen(true)}/></div>
       {open && (
         <SensorDialog title={label} builtins={[{ id: 'cpu', label: emptyLabel, unit: '', max: 0 }]} accent={accent} onClose={() => setOpen(false)}
@@ -61,16 +61,16 @@ function ApiKeyField({ label, help, getKeyUrl, value, onSave, placeholder, secre
         <input
           type={visible || !secret ? 'text' : 'password'} value={draft} placeholder={placeholder ?? t('settings.api_key.placeholder')} autoComplete="off" spellCheck={false}
           onChange={e => setDraft(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === 'Enter') commit() }}
-          style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid #2a2a2a', background: '#0d0d0d', color: '#e0e0e0', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' }}
+          style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--window)', color: 'var(--fg)', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}
         />
         {secret && <button type="button" onClick={() => setVisible(v => !v)} aria-label={visible ? t('settings.api_key.hide') : t('settings.api_key.show')} style={{
-          display: 'flex', alignItems: 'center', padding: '0 10px', borderRadius: 8, border: '1px solid #2a2a2a',
-          background: '#111', color: '#9a9a9a', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', padding: '0 10px', borderRadius: 8, border: '1px solid var(--border)',
+          background: 'var(--card)', color: 'var(--fg-dim)', cursor: 'pointer',
         }}>{visible ? <EyeSlash size={14}/> : <Eye size={14}/>}</button>}
       </div>
-      <span style={{ fontSize: 11, color: '#7f7f7f' }}>
+      <span style={{ fontSize: 11, color: 'var(--fg-dim)' }}>
         {help}{' '}
-        {getKeyUrl && <a href={getKeyUrl} onClick={e => { e.preventDefault(); api.openExternal(getKeyUrl) }} style={{ color: '#9a9a9a' }}>{t('settings.api_key.get')}</a>}
+        {getKeyUrl && <a href={getKeyUrl} onClick={e => { e.preventDefault(); api.openExternal(getKeyUrl) }} style={{ color: 'var(--fg-dim)' }}>{t('settings.api_key.get')}</a>}
         {value && (getKeyUrl ? ` · ${t('common.saved')}` : t('common.saved'))}
       </span>
     </label>
@@ -78,7 +78,7 @@ function ApiKeyField({ label, help, getKeyUrl, value, onSave, placeholder, secre
 }
 
 function Divider() {
-  return <div style={{ height: 1, background: '#1a1a1a', margin: '20px 0' }}/>
+  return <div style={{ height: 1, background: 'var(--card)', margin: '20px 0' }}/>
 }
 
 interface NumFieldProps {
@@ -108,8 +108,8 @@ function NumField({ label, help, value, min, max, step = 1, accent, onChange }: 
   }
   return (
     <div>
-      <div style={{ fontSize: 12, color: '#888', fontWeight: 600, marginBottom: 4 }}>{label}</div>
-      {help && <div style={{ fontSize: 10, color: '#7f7f7f', marginBottom: 7, lineHeight: 1.5 }}>{help}</div>}
+      <div style={{ fontSize: 12, color: 'var(--fg-dim)', fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      {help && <div style={{ fontSize: 11, color: 'var(--fg-dim)', marginBottom: 7, lineHeight: 1.5 }}>{help}</div>}
       <div style={{ position: 'relative' }}>
         <input
           type="number"
@@ -123,11 +123,11 @@ function NumField({ label, help, value, min, max, step = 1, accent, onChange }: 
           onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
           style={{
             width: '100%', boxSizing: 'border-box',
-            background: '#0d0d0d',
-            border: `1px solid ${focused ? `${accent}55` : '#222'}`,
+            background: 'var(--window)',
+            border: `1px solid ${focused ? `${accent}55` : 'var(--border)'}`,
             borderRadius: 8, padding: '7px 10px',
-            fontSize: 12, fontFamily: 'JetBrains Mono, monospace',
-            color: '#c0c0c0', outline: 'none',
+            fontSize: 12, fontVariantNumeric: 'tabular-nums',
+            color: 'var(--fg)', outline: 'none',
             transition: 'border-color 150ms',
           }}
         />
@@ -174,16 +174,16 @@ export function Settings() {
       <SectionHeader icon={<IClock/>} title={t('settings.polling.title')} description={t('settings.polling.desc')}/>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         <div>
-          <div style={{ fontSize: 12, color: '#888', fontWeight: 600, marginBottom: 4 }}>{t('settings.decimals.title')}</div>
-          <div style={{ fontSize: 10, color: '#7f7f7f', marginBottom: 7 }}>0 = 45° · 1 = 45.3° · 2 = 45.32°</div>
+          <div style={{ fontSize: 12, color: 'var(--fg-dim)', fontWeight: 600, marginBottom: 4 }}>{t('settings.decimals.title')}</div>
+          <div style={{ fontSize: 11, color: 'var(--fg-dim)', marginBottom: 7 }}>0 = 45° · 1 = 45.3° · 2 = 45.32°</div>
           <div style={{ display: 'flex', gap: 6 }}>
             {[0, 1, 2].map(d => (
               <button key={d} onClick={() => update({ decimals: d })} style={{
                 padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                border: `1px solid ${(settings?.decimals ?? 0) === d ? `${accent}55` : '#222'}`,
-                background: (settings?.decimals ?? 0) === d ? `${accent}18` : '#0d0d0d',
-                color: (settings?.decimals ?? 0) === d ? accent : '#555',
-                transition: 'all 140ms', fontFamily: 'JetBrains Mono, monospace',
+                border: `1px solid ${(settings?.decimals ?? 0) === d ? `${accent}55` : 'var(--border)'}`,
+                background: (settings?.decimals ?? 0) === d ? `${accent}18` : 'var(--window)',
+                color: (settings?.decimals ?? 0) === d ? accent : 'var(--fg-dim)',
+                transition: 'all 140ms', fontVariantNumeric: 'tabular-nums',
               }}>{d}</button>
             ))}
           </div>
@@ -207,24 +207,24 @@ export function Settings() {
       <SectionHeader icon={<IChip/>} title={t('settings.gpu.title')} description={t('settings.gpu.desc')}/>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {/* Auto */}
-        <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#0d0d0d', border: `1px solid ${!settings?.gpuSource ? `${accent}44` : '#1e1e1e'}`, borderRadius: 8, cursor: 'pointer', transition: 'all 140ms' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--window)', border: `1px solid ${!settings?.gpuSource ? `${accent}44` : 'var(--border)'}`, borderRadius: 8, cursor: 'pointer', transition: 'all 140ms' }}>
           <input type="radio" name="gpu" checked={!settings?.gpuSource} onChange={() => update({ gpuSource: null })} style={{ accentColor: accent }}/>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#c0c0c0' }}>{t('settings.gpu.auto')}</div>
-            <div style={{ fontSize: 10, color: '#7f7f7f', marginTop: 2 }}>{t('settings.gpu.auto_desc')}</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>{t('settings.gpu.auto')}</div>
+            <div style={{ fontSize: 11, color: 'var(--fg-dim)', marginTop: 2 }}>{t('settings.gpu.auto_desc')}</div>
           </div>
         </label>
         {gpus.length === 0 && (
-          <div style={{ fontSize: 11, color: '#7f7f7f', padding: '8px 14px' }}>{t('settings.gpu.none')}</div>
+          <div style={{ fontSize: 11, color: 'var(--fg-dim)', padding: '8px 14px' }}>{t('settings.gpu.none')}</div>
         )}
         {gpus.map(g => (
-          <label key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: '#0d0d0d', border: `1px solid ${settings?.gpuSource === g.id ? `${accent}44` : '#1e1e1e'}`, borderRadius: 8, cursor: 'pointer', transition: 'all 140ms' }}>
+          <label key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--window)', border: `1px solid ${settings?.gpuSource === g.id ? `${accent}44` : 'var(--border)'}`, borderRadius: 8, cursor: 'pointer', transition: 'all 140ms' }}>
             <input type="radio" name="gpu" checked={settings?.gpuSource === g.id} onChange={() => update({ gpuSource: g.id })} style={{ accentColor: accent }}/>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#c0c0c0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.label}</div>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#7f7f7f', marginTop: 2 }}>{g.pci}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.label}</div>
+              <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 11, color: 'var(--fg-dim)', marginTop: 2 }}>{g.pci}</div>
             </div>
-            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: g.discrete ? `${accent}18` : '#1a1a1a', color: g.discrete ? accent : '#484848', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 8, background: g.discrete ? `${accent}18` : 'var(--card)', color: g.discrete ? accent : 'var(--fg-dim)', whiteSpace: 'nowrap' }}>
               {g.discrete ? t('settings.gpu.dedicated') : t('settings.gpu.integrated')}
             </span>
           </label>
@@ -279,7 +279,7 @@ export function Settings() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {brands.map(brand => (
           <div key={brand}>
-            <div style={{ fontSize: 10, color: '#7f7f7f', fontWeight: 700, letterSpacing: '0.7px', textTransform: 'uppercase', marginBottom: 8 }}>{brand}</div>
+            <div style={{ fontSize: 11, color: 'var(--fg-dim)', fontWeight: 700, marginBottom: 8 }}>{brand}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
               {AIO_DEVICES.filter(d => d.brand === brand).map(d => {
                 const supported = d.status === 'supported'
@@ -288,30 +288,30 @@ export function Settings() {
                   <div key={d.id} style={{
                     display: 'flex', alignItems: 'center', gap: 12,
                     padding: '10px 14px', borderRadius: 8,
-                    background: supported ? '#0d0d0d' : '#090909',
-                    border: `1px solid ${connected ? `${accent}44` : supported ? '#1e1e1e' : '#141414'}`,
+                    background: supported ? 'var(--window)' : 'var(--window)',
+                    border: `1px solid ${connected ? `${accent}44` : supported ? 'var(--border)' : 'var(--card)'}`,
                     opacity: supported ? 1 : 0.6, transition: 'all 140ms',
                   }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3 }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: '#c0c0c0' }}>{d.name}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>{d.name}</span>
                         <span style={{
-                          fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 8, letterSpacing: '0.5px',
-                          background: supported ? '#00e87a18' : '#1a1a1a',
-                          color: supported ? '#00e87a' : '#3a3a3a',
+                          fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 8,
+                          background: supported ? '#00e87a18' : 'var(--card)',
+                          color: supported ? '#33d17a' : 'var(--border)',
                         }}>{supported ? t('settings.aio.supported') : t('settings.aio.draft')}</span>
-                        {connected && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 8, background: `${accent}18`, color: accent }}>{t('settings.aio.connected')}</span>}
+                        {connected && <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 8, background: `${accent}18`, color: accent }}>{t('settings.aio.connected')}</span>}
                       </div>
-                      <div style={{ fontSize: 10, color: '#7f7f7f' }}>{t('settings.aio.screen', { lcd: d.lcd })}{d.noteKey ? ` - ${t(d.noteKey)}` : ''}</div>
+                      <div style={{ fontSize: 11, color: 'var(--fg-dim)' }}>{t('settings.aio.screen', { lcd: d.lcd })}{d.noteKey ? ` - ${t(d.noteKey)}` : ''}</div>
                     </div>
                     {!supported && (
                       <button onClick={() => requestAccess(d.id, d.name, d.brand)} style={{
-                        padding: '5px 14px', borderRadius: 8, border: '1px solid #222',
-                        background: 'transparent', color: '#7f7f7f', fontSize: 11, fontWeight: 600,
+                        padding: '5px 14px', borderRadius: 8, border: '1px solid var(--border)',
+                        background: 'transparent', color: 'var(--fg-dim)', fontSize: 11, fontWeight: 600,
                         cursor: 'pointer', transition: 'all 140ms',
                       }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#3a3a3a'; (e.currentTarget as HTMLButtonElement).style.color = '#888' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#222'; (e.currentTarget as HTMLButtonElement).style.color = '#7f7f7f' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--fg-dim)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--fg-dim)' }}
                       >{requested.has(d.id) ? t('settings.aio.request_sent') : t('settings.aio.request_support')}</button>
                     )}
                   </div>
@@ -326,7 +326,7 @@ export function Settings() {
 
       {/* Monitor section placeholder */}
       <SectionHeader icon={<IMonitor/>} title={t('settings.display.title')}/>
-      <div style={{ fontSize: 11, color: '#7f7f7f', fontFamily: 'JetBrains Mono, monospace', padding: '4px 0' }}>
+      <div style={{ fontSize: 11, color: 'var(--fg-dim)', fontVariantNumeric: 'tabular-nums', padding: '4px 0' }}>
         {t('settings.display.info', {
           resolution: detected ? detected.lcd.replace('×', ' × ') : '-',
           device: state.deviceStatus.connected ? state.deviceStatus.productName : t('settings.display.not_connected'),

@@ -19,7 +19,7 @@ function MainApp() {
   const { section } = state
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: '#0e0e0e', color: '#e0e0e0', overflow: 'hidden', fontFamily: 'Manrope, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', background: 'var(--window)', color: 'var(--fg)', overflow: 'hidden', fontFamily: 'inherit' }}>
       <AppHeader />
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <AppSidebar />
