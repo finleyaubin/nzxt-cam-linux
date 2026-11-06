@@ -61,9 +61,10 @@ jobs:
         with:
           workspaces: src-tauri
       - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf rpm
+          version: 1
       - run: npm ci
       - name: Build deb, rpm and AppImage
         run: npm run tauri build -- --bundles deb,rpm,appimage --config '{"bundle":{"active":true}}'
