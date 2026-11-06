@@ -91,6 +91,10 @@ function useScenePreview(config: DisplayConfig | null): string | null {
   return url
 }
 
+const WIDE_LAYOUT_MIN_PX = 1000
+const SIDE_LEFT_PX = 280
+const SIDE_RIGHT_PX = 380
+
 export function DisplayEditor() {
   const { state, dispatch } = useApp()
   const { t } = useLanguage()
@@ -222,7 +226,7 @@ export function DisplayEditor() {
       : kind === 'bar'   ? makeBar(m.id, { ...at, ...reading, width: 320, height: 26, valueSize: 24 })
       : kind === 'graph' ? makeGraph(m.id, { ...at, ...reading, width: 360, height: 170 })
       : kind === 'value' ? makeText(`{${m.id}}${unitSuffix(m.unit)}`, { ...at, size: 64 })
-      : makeText('Label', { ...at, size: 32, color: '#9aa0b4' })
+      : makeText('Label', { ...at, size: 32, color: 'var(--fg-dim)' })
     snapshot()
     setConfig({ ...cfg, elements: [...cfg.elements, el] })
     select(el.id)
@@ -394,11 +398,23 @@ export function DisplayEditor() {
 
   // Fit the canvas to the space available.
   const areaRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [wide, setWide] = useState(true)
   const [size, setSize] = useState(460)
   useLayoutEffect(() => {
     const node = areaRef.current
     if (!node) return
-    const measure = () => setSize(Math.max(260, Math.min(620, Math.floor(Math.min(node.clientWidth, node.clientHeight)) - 32)))
+    const measure = () => setSize(Math.max(260, Math.min(860, Math.floor(Math.min(node.clientWidth, node.clientHeight)) - 32)))
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(node)
+    return () => ro.disconnect()
+  }, [config === null])
+
+  useLayoutEffect(() => {
+    const node = rootRef.current
+    if (!node) return
+    const measure = () => setWide(node.clientWidth >= WIDE_LAYOUT_MIN_PX)
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(node)
@@ -445,7 +461,7 @@ export function DisplayEditor() {
     return names
   }, [config, metrics, resolve, t])
 
-  if (!config) return <div style={{ color: '#7f7f7f', fontSize: 13, padding: 24 }}>{t('editor.loading')}</div>
+  if (!config) return <div style={{ color: 'var(--fg-dim)', fontSize: 13, padding: 24 }}>{t('editor.loading')}</div>
 
 
   const selected = config.elements.find(el => el.id === selectedId) ?? null
@@ -453,53 +469,8 @@ export function DisplayEditor() {
   const dirty = JSON.stringify(config) !== displayApplied
   const connected = deviceStatus.connected
 
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 330px', gap: 16, height: '100%', minHeight: 0, position: 'relative' }}>
-      {firstRun && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: '#0e0e0ef2', borderRadius: 12, overflow: 'auto', padding: 16 }}>
-          <FirstRunPicker accent={accent} onPick={c => { applyLayout(c); setFirstRun(false) }} onSkip={() => setFirstRun(false)}/>
-        </div>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, minHeight: 0 }}>
-        <div ref={areaRef} style={{ flex: 1, minHeight: 0, display: 'grid', placeItems: 'center' }}>
-          <SceneCanvas
-            config={config} previewUrl={previewUrl} selectedIds={selectedIds} size={size} accent={accent} resolve={resolve}
-            onSelect={select} onGestureStart={() => snapshot()} onPatch={mapElement} onPatchMany={mapMany}
-            onTextEdit={(id, text) => editElement(id, { text })}
-            onContextMenu={(id, x, y) => setMenu({ id, x, y })}
-            onDropKind={(kind, x, y) => addKind(kind as AddKind, { x, y })}
-          />
-        </div>
-        {selectedIds.length >= 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, color: '#7f7f7f' }}>{t('editor.selected', { count: selectedIds.length })}</span>
-            <Pill accent={accent} onClick={() => centerElements(selectedIds, 'x')} title={t('inspector.centre_h_tip')}>{t('inspector.centre_h')}</Pill>
-            <Pill accent={accent} onClick={() => centerElements(selectedIds, 'y')} title={t('inspector.centre_v_tip')}>{t('inspector.centre_v')}</Pill>
-            {selectedIds.length >= 2 && ALIGN_BUTTONS.map(({ mode, label }) => (
-              <Pill key={mode} accent={accent} onClick={() => alignSelection(mode)} title={t(label)}>{ALIGN_SHORT[mode]}</Pill>
-            ))}
-          </div>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <button onClick={applyToLcd} disabled={status === 'applying'} style={{
-            display: 'flex', alignItems: 'center', gap: 7, background: accent, border: 'none', color: '#fff',
-            borderRadius: 8, padding: '8px 18px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            boxShadow: dirty ? `0 0 16px ${accent}55` : 'none', transition: 'all 140ms',
-          }}>
-            <Play size={12} weight="fill"/>
-            {status === 'applying' ? t('common.sending') : status === 'done' ? (connected ? t('common.applied') : t('editor.saved')) : connected ? t('editor.apply_lcd') : t('editor.save_layout')}
-          </button>
-          <Pill accent={accent} onClick={undo} title={t('editor.undo_tip')}><ArrowCounterClockwise size={13}/>{t('editor.undo')}</Pill>
-          <Pill accent={accent} onClick={redo} title={t('editor.redo_tip')}><ArrowClockwise size={13}/>{t('editor.redo')}</Pill>
-          <Pill accent={accent} onClick={revert} title={t('editor.revert_tip')}><ArrowUUpLeft size={13}/>{t('editor.revert')}</Pill>
-          <Pill accent={accent} active={live} onClick={toggleLive} title={t('editor.live_tip')}>{t('editor.live')}</Pill>
-          {status === 'error' && <span style={{ fontSize: 11, color: '#ff4757' }}>{error}</span>}
-          {status !== 'error' && dirty && <span style={{ fontSize: 11, color: '#ffb347' }}>{t('editor.not_applied')}</span>}
-          {!connected && <span style={{ fontSize: 11, color: '#7f7f7f' }}>{t('editor.not_connected_note')}</span>}
-        </div>
-      </div>
-
-      <Card style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }} accent={accent} glow={false}>
+  const elementsPanel = (
+    <>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <SectionTitle>{t('editor.add_section')}</SectionTitle>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -514,29 +485,81 @@ export function DisplayEditor() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           <SectionTitle>{t('editor.layers')}</SectionTitle>
-          {config.elements.length === 0 && <div style={{ fontSize: 11, color: '#7f7f7f' }}>{t('editor.layers_empty')}</div>}
+          {config.elements.length === 0 && <div style={{ fontSize: 11, color: 'var(--fg-dim)' }}>{t('editor.layers_empty')}</div>}
           {[...config.elements].reverse().map(el => {
             const Icon = iconFor(el)
             const active = selectedIds.includes(el.id)
             return (
               <div key={el.id} onClick={e => select(el.id, e.shiftKey)} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '5px 6px 5px 9px', borderRadius: 8, cursor: 'pointer',
-                background: active ? `${accent}18` : '#0f0f0f', border: `1px solid ${active ? `${accent}55` : '#1a1a1a'}`,
-                color: active ? accent : '#b8b8b8', fontSize: 12,
+                display: 'flex', alignItems: 'center', gap: 8, padding: '6px 6px 6px 10px', borderRadius: 6, cursor: 'pointer',
+                background: active ? `${accent}18` : 'var(--window)', border: `1px solid ${active ? `${accent}55` : 'var(--card)'}`,
+                color: active ? accent : 'var(--fg)', fontSize: 12,
               }}>
                 <Icon size={13} style={{ flexShrink: 0 }}/>
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titles.get(el.id)}</span>
                 <button onClick={e => { e.stopPropagation(); removeElement(el.id) }} aria-label={t('editor.remove')} title={t('editor.remove')} style={{
-                  display: 'flex', padding: 4, border: 'none', background: 'transparent', color: '#7f7f7f', cursor: 'pointer',
+                  display: 'flex', padding: 4, border: 'none', background: 'transparent', color: 'var(--fg-dim)', cursor: 'pointer',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.color = '#ff4757' }}
-                onMouseLeave={e => { e.currentTarget.style.color = '#7f7f7f' }}><X size={12}/></button>
+                onMouseEnter={e => { e.currentTarget.style.color = '#f66151' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--fg-dim)' }}><X size={12}/></button>
               </div>
             )
           })}
         </div>
+    </>
+  )
 
-        <div style={{ height: 1, background: '#1c1c1c' }}/>
+  return (
+    <div ref={rootRef} style={{ display: 'grid', gridTemplateColumns: wide ? `${SIDE_LEFT_PX}px minmax(0, 1fr) ${SIDE_RIGHT_PX}px` : `minmax(0, 1fr) ${SIDE_RIGHT_PX}px`, gap: 16, height: '100%', minHeight: 0, position: 'relative' }}>
+      {firstRun && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: 'var(--window)', borderRadius: 12, overflow: 'auto', padding: 16 }}>
+          <FirstRunPicker accent={accent} onPick={c => { applyLayout(c); setFirstRun(false) }} onSkip={() => setFirstRun(false)}/>
+        </div>
+      )}
+      {wide && (
+        <Card style={{ padding: 16, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
+          {elementsPanel}
+        </Card>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, minHeight: 0 }}>
+        <div ref={areaRef} style={{ flex: 1, minHeight: 0, display: 'grid', placeItems: 'center' }}>
+          <SceneCanvas
+            config={config} previewUrl={previewUrl} selectedIds={selectedIds} size={size} accent={accent} resolve={resolve}
+            onSelect={select} onGestureStart={() => snapshot()} onPatch={mapElement} onPatchMany={mapMany}
+            onTextEdit={(id, text) => editElement(id, { text })}
+            onContextMenu={(id, x, y) => setMenu({ id, x, y })}
+            onDropKind={(kind, x, y) => addKind(kind as AddKind, { x, y })}
+          />
+        </div>
+        {selectedIds.length >= 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, color: 'var(--fg-dim)' }}>{t('editor.selected', { count: selectedIds.length })}</span>
+            <Pill accent={accent} onClick={() => centerElements(selectedIds, 'x')} title={t('inspector.centre_h_tip')}>{t('inspector.centre_h')}</Pill>
+            <Pill accent={accent} onClick={() => centerElements(selectedIds, 'y')} title={t('inspector.centre_v_tip')}>{t('inspector.centre_v')}</Pill>
+            {selectedIds.length >= 2 && ALIGN_BUTTONS.map(({ mode, label }) => (
+              <Pill key={mode} accent={accent} onClick={() => alignSelection(mode)} title={t(label)}>{ALIGN_SHORT[mode]}</Pill>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <button className="adw-btn suggested" onClick={applyToLcd} disabled={status === 'applying'}>
+            <Play size={12} weight="fill"/>
+            {status === 'applying' ? t('common.sending') : status === 'done' ? (connected ? t('common.applied') : t('editor.saved')) : connected ? t('editor.apply_lcd') : t('editor.save_layout')}
+          </button>
+          <Pill accent={accent} onClick={undo} title={t('editor.undo_tip')}><ArrowCounterClockwise size={13}/>{t('editor.undo')}</Pill>
+          <Pill accent={accent} onClick={redo} title={t('editor.redo_tip')}><ArrowClockwise size={13}/>{t('editor.redo')}</Pill>
+          <Pill accent={accent} onClick={revert} title={t('editor.revert_tip')}><ArrowUUpLeft size={13}/>{t('editor.revert')}</Pill>
+          <Pill accent={accent} active={live} onClick={toggleLive} title={t('editor.live_tip')}>{t('editor.live')}</Pill>
+          {status === 'error' && <span style={{ fontSize: 11, color: '#f66151' }}>{error}</span>}
+          {status !== 'error' && dirty && <span style={{ fontSize: 11, color: '#f5c211' }}>{t('editor.not_applied')}</span>}
+          {!connected && <span style={{ fontSize: 11, color: 'var(--fg-dim)' }}>{t('editor.not_connected_note')}</span>}
+        </div>
+      </div>
+
+      <Card style={{ padding: 16, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 14, minHeight: 0 }}>
+        {!wide && elementsPanel}
+
+        {!wide && <div style={{ height: 1, background: 'var(--border)' }}/>}
 
         {selected
           ? <ElementInspector
@@ -556,7 +579,7 @@ export function DisplayEditor() {
       {menu && (
         <div onPointerDown={e => e.stopPropagation()} style={{
           position: 'fixed', left: menu.x, top: menu.y, zIndex: 50, minWidth: 150, padding: 4, borderRadius: 8,
-          background: '#141414', border: '1px solid #2a2a2a', boxShadow: '0 8px 24px #000a', display: 'flex', flexDirection: 'column',
+          background: 'var(--popover)', boxShadow: 'var(--shadow-popover)', display: 'flex', flexDirection: 'column',
         }}>
           {([
             ['editor.menu.copy', () => copyElements(selectedIds.includes(menu.id) ? selectedIds : [menu.id])],
@@ -570,9 +593,9 @@ export function DisplayEditor() {
           ] as [TranslationKey, () => void][]).map(([label, run]) => (
             <button key={label} onClick={() => { setMenu(null); run() }} style={{
               textAlign: 'left', padding: '6px 10px', border: 'none', borderRadius: 5, background: 'transparent',
-              color: label === 'editor.menu.delete' ? '#ff4757' : '#d0d0d0', fontSize: 12, cursor: 'pointer',
+              color: label === 'editor.menu.delete' ? '#f66151' : 'var(--fg)', fontSize: 12, cursor: 'pointer',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#222' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--border)' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>{t(label)}</button>
           ))}
         </div>

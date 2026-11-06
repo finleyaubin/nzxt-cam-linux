@@ -4,7 +4,7 @@ use crate::commands::AppState;
 use crate::{config, image_io, render};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// Whether this instance's window should open once the UI has painted.
 pub static START_VISIBLE: AtomicBool = AtomicBool::new(true);
@@ -209,6 +209,10 @@ pub async fn run_actions(app: AppHandle, actions: Vec<Action>) {
         if let Err(e) = apply(&app, action).await {
             log::warn!("CLI {label} failed: {e}");
         }
+    }
+    // The open window holds its own copy of the layout; without this its next Apply overwrites what the CLI just set.
+    if let Err(e) = app.emit("display-config-changed", ()) {
+        log::warn!("display-config-changed event failed: {e}");
     }
 }
 

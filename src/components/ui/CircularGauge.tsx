@@ -6,7 +6,7 @@ interface Props {
   color?: string
 }
 
-export function CircularGauge({ value = 0, max = 100, size = 120, stroke = 10, color = '#9d4edd' }: Props) {
+export function CircularGauge({ value = 0, max = 100, size = 120, stroke = 10, color = '#3584e4' }: Props) {
   const c = size / 2
   const r = c - stroke - 3
 
@@ -24,22 +24,15 @@ export function CircularGauge({ value = 0, max = 100, size = 120, stroke = 10, c
   const S = 225, R = 270
   const pct = Math.min(Math.max(value / max, 0), 1)
   const endAngle = S + pct * R
-  const gid = `cgg${color.replace('#', '').slice(0, 4)}${size}`
 
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow: 'visible', flexShrink: 0 }}>
-      <defs>
-        <filter id={gid}>
-          <feGaussianBlur stdDeviation="3" result="blur"/>
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-      </defs>
-      <path d={arcD(S, S + R)} fill="none" stroke="#1d1d1d" strokeWidth={stroke} strokeLinecap="round"/>
+      <path d={arcD(S, S + R)} fill="none" stroke="var(--border)" strokeWidth={stroke} strokeLinecap="round"/>
       {pct > 0.003 && (
         <path
           d={arcD(S, endAngle)}
           fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
-          style={{ filter: `drop-shadow(0 0 5px ${color}99)`, transition: 'all 550ms cubic-bezier(.4,0,.2,1)' }}
+          style={{ transition: 'all 300ms ease' }}
         />
       )}
     </svg>

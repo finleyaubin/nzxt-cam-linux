@@ -14,6 +14,9 @@ import { DisplayConfig } from '@shared/display'
 // ============================================================================
 // Types — mirror Rust types
 // ============================================================================
+export type FontCategory = 'sans' | 'serif' | 'monospace' | 'handwriting' | 'display' | 'other'
+export interface FontEntry { family: string; category: FontCategory }
+
 export interface DeviceStatus {
   connected: boolean
   productName: string
@@ -142,7 +145,7 @@ export const api = {
     invoke<CommandResult>('save_display_config', { configIn: config }),
   renderDisplayPreview: (config: DisplayConfig) =>
     invoke<PreviewResult>('render_display_preview', { configIn: config }),
-  listFonts: () => invoke<string[]>('list_fonts'),
+  listFonts: () => invoke<FontEntry[]>('list_fonts'),
 
   // --- Settings ---
   saveGiphyGif: (id: string, bytes: ArrayBuffer) =>

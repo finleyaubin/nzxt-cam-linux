@@ -7,6 +7,7 @@ import { FontPicker } from './FontPicker'
 import { GiphyDialog } from './GiphyPicker'
 import { ThemePicker } from './ThemePicker'
 import { TemplateGallery } from './TemplateGallery'
+import { SegmentedControl } from '../ui/SegmentedControl'
 import { Gif, ImageSquare, X } from '@phosphor-icons/react'
 
 const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path
@@ -26,6 +27,8 @@ export function ScenePanel({ config, accent, onChange, onLayout, onRestyle }: Pr
   const { t } = useLanguage()
   const [rotation, setRotation] = useState(0)
   const [showGiphy, setShowGiphy] = useState(false)
+  const [tab, setTab] = useState<'style' | 'layouts'>('style')
+  const tabLabels = { style: t('scene.tab.style'), layouts: t('scene.tab.layouts') }
   const image = config.backgroundImage ?? null
 
   useEffect(() => { api.getLcdOrientation().then(setRotation) }, [])
@@ -42,11 +45,11 @@ export function ScenePanel({ config, accent, onChange, onLayout, onRestyle }: Pr
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-      <div style={{ fontSize: 13, fontWeight: 700 }}>{t('scene.title')}</div>
-      <div style={{ fontSize: 11, color: '#7f7f7f', lineHeight: 1.5 }}>
-        {t('scene.help')}
-      </div>
+      <SegmentedControl value={tabLabels[tab]} options={[tabLabels.style, tabLabels.layouts]}
+        onChange={label => setTab(label === tabLabels.style ? 'style' : 'layouts')}/>
+      {tab === 'style' && <div style={{ fontSize: 12, color: 'var(--fg-dim)', lineHeight: 1.5 }}>{t('scene.help')}</div>}
 
+      {tab === 'style' && <>
       <SectionTitle>{t('scene.theme')}</SectionTitle>
       <ThemePicker config={config} accent={accent} onRestyle={onRestyle}/>
 
@@ -63,7 +66,7 @@ export function ScenePanel({ config, accent, onChange, onLayout, onRestyle }: Pr
         <Pill accent={accent} active={showGiphy} onClick={() => setShowGiphy(true)}><Gif size={13}/>GIPHY</Pill>
         {image && (
           <button onClick={() => onChange({ backgroundImage: null })} aria-label={t('scene.remove_background')} style={{
-            display: 'flex', padding: 5, borderRadius: 8, border: '1px solid #252525', background: 'transparent', color: '#9a9a9a', cursor: 'pointer',
+            display: 'flex', padding: 5, borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--fg-dim)', cursor: 'pointer',
           }}><X size={12}/></button>
         )}
       </Field>
@@ -72,7 +75,7 @@ export function ScenePanel({ config, accent, onChange, onLayout, onRestyle }: Pr
         <>
           <NumField label={t('scene.dim')} value={config.backgroundDim ?? 0} min={0} max={90} unit="%" accent={accent} onChange={backgroundDim => onChange({ backgroundDim: Math.round(backgroundDim) })}/>
           {image.toLowerCase().endsWith('.gif') && (
-            <div style={{ fontSize: 10, color: '#7f7f7f', lineHeight: 1.5 }}>
+            <div style={{ fontSize: 11, color: 'var(--fg-dim)', lineHeight: 1.5 }}>
               {t('scene.gif_note')}
             </div>
           )}
@@ -84,8 +87,9 @@ export function ScenePanel({ config, accent, onChange, onLayout, onRestyle }: Pr
         {[0, 90, 180, 270].map(deg => <Pill key={deg} active={rotation === deg} accent={accent} onClick={() => rotate(deg)}>{deg}°</Pill>)}
       </Field>
 
-      <SectionTitle>{t('scene.templates_section')}</SectionTitle>
-      <TemplateGallery current={config} accent={accent} onPick={onLayout} onSaveCurrent={name => { api.saveLayout(name, config) }}/>
+      </>}
+
+      {tab === 'layouts' && <TemplateGallery current={config} accent={accent} onPick={onLayout} onSaveCurrent={name => { api.saveLayout(name, config) }}/>}
     </div>
   )
 }

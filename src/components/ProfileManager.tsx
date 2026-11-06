@@ -29,9 +29,9 @@ function SaveDialog({ onSave, onCancel }: {
   const [includeRing, setIncludeRing] = useState(true)
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(4px)' }}>
-      <div style={{ background: '#111', border: '1px solid #222', borderRadius: 12, padding: 24, width: 340, display: 'flex', flexDirection: 'column', gap: 18, boxShadow: '0 32px 80px rgba(0,0,0,0.8)' }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#f0f0f0', letterSpacing: '-0.2px' }}>{t('profiles.new')}</div>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200,  }}>
+      <div style={{ background: 'var(--popover)', boxShadow: 'var(--shadow-popover)', borderRadius: 12, padding: 24, width: 340, display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg)' }}>{t('profiles.new')}</div>
 
         <input
           autoFocus
@@ -40,14 +40,14 @@ function SaveDialog({ onSave, onCancel }: {
           onChange={e => setName(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && name.trim() && onSave(name.trim(), includeLcd, includeRing)}
           style={{
-            background: '#0d0d0d', border: `1px solid ${accent}44`, borderRadius: 8,
-            padding: '9px 12px', fontSize: 13, color: '#e0e0e0', outline: 'none',
-            fontFamily: 'Manrope, sans-serif',
+            background: 'var(--window)', border: `1px solid ${accent}44`, borderRadius: 8,
+            padding: '9px 12px', fontSize: 13, color: 'var(--fg)', outline: 'none',
+            fontFamily: 'inherit',
           }}
         />
 
         <div>
-          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 700, marginBottom: 10 }}>{t('profiles.include')}</div>
+          <div style={{ fontSize: 11, color: 'var(--fg-dim)', fontWeight: 700, marginBottom: 10 }}>{t('profiles.include')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[
               { key: 'lcd', label: t('profiles.include_lcd'), val: includeLcd, set: setIncludeLcd },
@@ -55,20 +55,20 @@ function SaveDialog({ onSave, onCancel }: {
             ].map(({ key, label, val, set }) => (
               <div key={key} onClick={() => set(!val)} style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, cursor: 'pointer',
-                background: val ? `${accent}0e` : '#0d0d0d',
-                border: `1px solid ${val ? `${accent}44` : '#1e1e1e'}`,
+                background: val ? `${accent}0e` : 'var(--window)',
+                border: `1px solid ${val ? `${accent}44` : 'var(--border)'}`,
                 transition: 'all 140ms',
               }}>
                 <div style={{
                   width: 16, height: 16, borderRadius: 8, flexShrink: 0,
                   background: val ? accent : 'transparent',
-                  border: `1.5px solid ${val ? accent : '#3a3a3a'}`,
+                  border: `1.5px solid ${val ? accent : 'var(--border)'}`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   transition: 'all 140ms',
                 }}>
                   {val && <Check size={9} weight="regular" color="#fff" />}
                 </div>
-                <span style={{ fontSize: 12, fontWeight: 600, color: val ? '#d0d0d0' : '#555' }}>{label}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: val ? 'var(--fg)' : 'var(--fg-dim)' }}>{label}</span>
               </div>
             ))}
           </div>
@@ -76,14 +76,14 @@ function SaveDialog({ onSave, onCancel }: {
 
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onCancel} style={{
-            flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid #222',
-            background: 'transparent', color: '#9a9a9a', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 140ms',
+            flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border)',
+            background: 'transparent', color: 'var(--fg-dim)', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 140ms',
           }}>{t('common.cancel')}</button>
           <button onClick={() => name.trim() && onSave(name.trim(), includeLcd, includeRing)} disabled={!name.trim()} style={{
             flex: 1, padding: '9px 0', borderRadius: 8, border: 'none',
-            background: name.trim() ? accent : '#252525', color: name.trim() ? '#fff' : '#444',
+            background: name.trim() ? accent : 'var(--border)', color: name.trim() ? '#fff' : 'var(--fg-dim)',
             fontSize: 12, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'not-allowed',
-            boxShadow: name.trim() ? `0 0 14px ${accent}44` : 'none', transition: 'all 140ms',
+           transition: 'all 140ms',
           }}>{t('common.save')}</button>
         </div>
       </div>
@@ -162,14 +162,14 @@ export function ProfileManager() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700 }}>{t('profiles.saved_title')}</div>
-          <div style={{ fontSize: 11, color: '#7f7f7f', marginTop: 4 }}>{t('profiles.saved_desc')}</div>
+          <div style={{ fontSize: 11, color: 'var(--fg-dim)', fontWeight: 700 }}>{t('profiles.saved_title')}</div>
+          <div style={{ fontSize: 11, color: 'var(--fg-dim)', marginTop: 4 }}>{t('profiles.saved_desc')}</div>
         </div>
         <button onClick={() => setShowSaveDialog(true)} style={{
           display: 'flex', alignItems: 'center', gap: 7,
           padding: '8px 16px', borderRadius: 8, border: 'none',
           background: accent, color: '#fff', fontSize: 12, fontWeight: 700,
-          cursor: 'pointer', boxShadow: `0 0 14px ${accent}44`, transition: 'all 140ms',
+          cursor: 'pointer', transition: 'all 140ms',
         }}>
           <IPlus/> New profile
         </button>
@@ -177,21 +177,21 @@ export function ProfileManager() {
 
       {/* Profile list */}
       {profiles.length === 0 ? (
-        <div style={{ padding: '28px 20px', borderRadius: 12, border: '1px dashed #1e1e1e', textAlign: 'center' }}>
-          <div style={{ fontSize: 12, color: '#7f7f7f', fontWeight: 500 }}>{t('profiles.empty_title')}</div>
-          <div style={{ fontSize: 11, color: '#7f7f7f', marginTop: 5 }}>{t('profiles.empty_desc')}</div>
+        <div style={{ padding: '28px 20px', borderRadius: 12, border: '1px dashed var(--border)', textAlign: 'center' }}>
+          <div style={{ fontSize: 12, color: 'var(--fg-dim)', fontWeight: 500 }}>{t('profiles.empty_title')}</div>
+          <div style={{ fontSize: 11, color: 'var(--fg-dim)', marginTop: 5 }}>{t('profiles.empty_desc')}</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {profiles.map(p => (
             <div key={p.name} style={{
               display: 'flex', alignItems: 'center', gap: 12,
-              padding: '11px 14px', background: '#0d0d0d',
-              border: '1px solid #1a1a1a', borderRadius: 8, transition: 'border-color 140ms',
+              padding: '11px 14px', background: 'var(--window)',
+              border: '1px solid var(--card)', borderRadius: 8, transition: 'border-color 140ms',
             }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#d0d0d0', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
-                <div style={{ fontSize: 10, color: '#7f7f7f' }}>{LCD_TYPE_LABEL[p.lcdType] ? t(LCD_TYPE_LABEL[p.lcdType]) : p.lcdType}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg)', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--fg-dim)' }}>{LCD_TYPE_LABEL[p.lcdType] ? t(LCD_TYPE_LABEL[p.lcdType]) : p.lcdType}</div>
               </div>
               <button onClick={() => handleApply(p.name)} disabled={!connected || applying === p.name} style={{
                 display: 'flex', alignItems: 'center', gap: 6,
@@ -203,12 +203,12 @@ export function ProfileManager() {
                 <IPlay/>{applying === p.name ? t('common.sending') : t('common.apply')}
               </button>
               <button onClick={() => handleDelete(p.name)} style={{
-                width: 30, height: 30, borderRadius: 8, border: '1px solid #1e1e1e',
-                background: 'transparent', color: '#7f7f7f', cursor: 'pointer',
+                width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border)',
+                background: 'transparent', color: 'var(--fg-dim)', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 130ms',
               }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#ff475733'; (e.currentTarget as HTMLButtonElement).style.color = '#ff4757'; (e.currentTarget as HTMLButtonElement).style.background = '#ff475712' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#1e1e1e'; (e.currentTarget as HTMLButtonElement).style.color = '#7f7f7f'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#ff475733'; (e.currentTarget as HTMLButtonElement).style.color = '#f66151'; (e.currentTarget as HTMLButtonElement).style.background = '#ff475712' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLButtonElement).style.color = 'var(--fg-dim)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent' }}
               ><ITrash/></button>
             </div>
           ))}
@@ -218,26 +218,26 @@ export function ProfileManager() {
       {/* Autostart */}
       {profiles.length > 0 && (
         <div>
-          <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', fontWeight: 700, marginBottom: 8 }}>{t('profiles.autostart_title')}</div>
-          <div style={{ fontSize: 11, color: '#7f7f7f', marginBottom: 10, lineHeight: 1.6 }}>
-            Add to <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#7f7f7f' }}>~/.config/hypr/hyprland.conf</span> to launch a profile at startup:
+          <div style={{ fontSize: 11, color: 'var(--fg-dim)', fontWeight: 700, marginBottom: 8 }}>{t('profiles.autostart_title')}</div>
+          <div style={{ fontSize: 11, color: 'var(--fg-dim)', marginBottom: 10, lineHeight: 1.6 }}>
+            Add to <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--fg-dim)' }}>~/.config/hypr/hyprland.conf</span> to launch a profile at startup:
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {profiles.map(p => (
               <div key={p.name} onClick={() => copyCmd(p.name)} title={t('common.click_to_copy')} style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '8px 12px', borderRadius: 8,
-                background: '#0a0a0a', border: `1px solid ${copied === p.name ? `${accent}44` : '#181818'}`,
+                background: 'var(--window)', border: `1px solid ${copied === p.name ? `${accent}44` : 'var(--card)'}`,
                 cursor: 'pointer', transition: 'all 130ms',
               }}
-              onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = '#2a2a2a'}
-              onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = copied === p.name ? `${accent}44` : '#181818'}
+              onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)'}
+              onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = copied === p.name ? `${accent}44` : 'var(--card)'}
               >
-                <span style={{ color: copied === p.name ? accent : '#3a3a3a', flexShrink: 0 }}><ICopy/></span>
-                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#7f7f7f', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ color: copied === p.name ? accent : 'var(--border)', flexShrink: 0 }}><ICopy/></span>
+                <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 11, color: 'var(--fg-dim)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {autoStartCmd(p.name)}
                 </span>
-                {copied === p.name && <span style={{ fontSize: 10, color: accent, fontWeight: 700, flexShrink: 0 }}>{t('common.copied')}</span>}
+                {copied === p.name && <span style={{ fontSize: 11, color: accent, fontWeight: 700, flexShrink: 0 }}>{t('common.copied')}</span>}
               </div>
             ))}
           </div>
@@ -246,13 +246,13 @@ export function ProfileManager() {
 
       {/* Feedback */}
       {success && (
-        <div style={{ fontSize: 11, color: '#00e87a', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ fontSize: 11, color: '#33d17a', display: 'flex', alignItems: 'center', gap: 6 }}>
           <Check size={12} weight="regular" />
           {success}
         </div>
       )}
       {error && (
-        <div style={{ padding: '9px 13px', background: '#ff475712', border: '1px solid #ff475733', borderRadius: 8, fontSize: 11, color: '#ff4757' }}>{error}</div>
+        <div style={{ padding: '9px 13px', background: '#ff475712', border: '1px solid #ff475733', borderRadius: 8, fontSize: 11, color: '#f66151' }}>{error}</div>
       )}
 
       {showSaveDialog && <SaveDialog onSave={handleSave} onCancel={() => setShowSaveDialog(false)}/>}

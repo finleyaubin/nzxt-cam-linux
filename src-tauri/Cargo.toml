@@ -30,6 +30,7 @@ nusb = { version = "0.2", features = ["tokio"] }
 tiny-skia = "0.12"
 # TTF glyph rasterization
 ab_glyph = "0.2"
+ttf-parser = "0.25"
 
 # Image decode/encode + GIF (replaces Jimp + Python subprocess)
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "bmp", "webp", "gif"] }

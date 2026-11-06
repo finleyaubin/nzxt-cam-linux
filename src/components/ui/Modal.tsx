@@ -25,20 +25,20 @@ export function Modal({ title, onClose, headerExtra, footer, onKeyDown, width = 
       onKeyDown={e => { onKeyDown?.(e); if (e.key === 'Escape') onClose(); e.stopPropagation() }}
       style={{
         position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
+        background: 'rgba(0,0,0,0.4)',
       }}
     >
       <div role="dialog" aria-modal="true" aria-label={title} style={{
         width: `min(${width}px, 100%)`, height: `min(${height}px, 100%)`, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        background: '#141414', border: '1px solid #2a2a2a', borderRadius: 12, boxShadow: '0 32px 80px rgba(0,0,0,0.8)',
+        background: 'var(--popover)', borderRadius: 12, boxShadow: 'var(--shadow-popover)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderBottom: '1px solid #222' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{title}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 10px 8px 16px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>{title}</div>
           {headerExtra ?? <div style={{ flex: 1 }}/>}
-          <button onClick={onClose} aria-label={t('common.close')} style={{ display: 'flex', padding: 6, borderRadius: 8, border: '1px solid #252525', background: '#111', color: '#9a9a9a', cursor: 'pointer' }}><X size={13}/></button>
+          <button className="adw-btn circular flat" onClick={onClose} aria-label={t('common.close')} style={{ width: 28, minHeight: 28 }}><X size={14} weight="bold"/></button>
         </div>
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>{children}</div>
-        {footer && <div style={{ display: 'flex', gap: 12, padding: '8px 14px', borderTop: '1px solid #222', fontSize: 11, color: '#7f7f7f' }}>{footer}</div>}
+        {footer && <div style={{ display: 'flex', gap: 12, padding: '8px 14px', borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--fg-dim)' }}>{footer}</div>}
       </div>
     </div>,
     document.body,

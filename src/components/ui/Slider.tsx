@@ -6,16 +6,16 @@ interface Props {
   color?: string
 }
 
-export function Slider({ value, min = 0, max = 100, onChange, color = '#9d4edd' }: Props) {
+export function Slider({ value, min = 0, max = 100, onChange, color = 'var(--accent)' }: Props) {
   const pct = ((value - min) / (max - min)) * 100
   return (
-    <div style={{ position: 'relative', height: 20, display: 'flex', alignItems: 'center' }}>
+    <div style={{ position: 'relative', height: 24, display: 'flex', alignItems: 'center' }}>
       <input
         type="range" min={min} max={max} value={value}
         onChange={e => onChange(+e.target.value)}
         style={{
           width: '100%',
-          background: `linear-gradient(to right, ${color} ${pct}%, #252525 ${pct}%)`,
+          background: `linear-gradient(to right, ${color} ${pct}%, var(--selected) ${pct}%)`,
         }}
       />
     </div>
