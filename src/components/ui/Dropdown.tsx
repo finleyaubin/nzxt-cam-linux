@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { CaretDown } from '@phosphor-icons/react'
 
 interface Props {
@@ -10,31 +11,63 @@ interface Props {
   accent?: string
 }
 
+const POPUP_MAX_HEIGHT = 280
+const POPUP_MARGIN = 12
+const MIN_ROOM_BELOW = 160
+
+interface Placement { left: number; width: number; top?: number; bottom?: number; maxHeight: number }
+
+function placeBelowOrAbove(trigger: DOMRect): Placement {
+  const below = window.innerHeight - trigger.bottom - POPUP_MARGIN
+  const above = trigger.top - POPUP_MARGIN
+  const flip = below < MIN_ROOM_BELOW && above > below
+  return flip
+    ? { left: trigger.left, width: trigger.width, bottom: window.innerHeight - trigger.top + 4, maxHeight: Math.min(POPUP_MAX_HEIGHT, above) }
+    : { left: trigger.left, width: trigger.width, top: trigger.bottom + 4, maxHeight: Math.min(POPUP_MAX_HEIGHT, below) }
+}
+
 export function Dropdown({ value, options, onChange, width = 160, small }: Props) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [placement, setPlacement] = useState<Placement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
+  const open = placement !== null
+  const close = () => setPlacement(null)
+
   useEffect(() => {
-    const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
-    document.addEventListener('mousedown', fn)
-    return () => document.removeEventListener('mousedown', fn)
-  }, [])
+    if (!open) return
+    const outside = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (!triggerRef.current?.contains(target) && !popupRef.current?.contains(target)) close()
+    }
+    const scrolledAway = (e: Event) => { if (!popupRef.current?.contains(e.target as Node)) close() }
+    document.addEventListener('mousedown', outside)
+    window.addEventListener('resize', close)
+    window.addEventListener('scroll', scrolledAway, true)
+    return () => {
+      document.removeEventListener('mousedown', outside)
+      window.removeEventListener('resize', close)
+      window.removeEventListener('scroll', scrolledAway, true)
+    }
+  }, [open])
+
+  const toggle = () => setPlacement(open ? null : placeBelowOrAbove(triggerRef.current!.getBoundingClientRect()))
+
   return (
-    <div ref={ref} style={{ position: 'relative', width, flexShrink: 0 }}>
-      <button className="adw-btn" onClick={() => setOpen(o => !o)} style={{
+    <div style={{ position: 'relative', width, flexShrink: 0 }}>
+      <button ref={triggerRef} className="adw-btn" onClick={toggle} style={{
         width: '100%', minHeight: small ? 28 : 34, justifyContent: 'space-between',
         padding: '0 10px', fontWeight: 400, fontSize: small ? 12 : 14,
       }}>
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
         <CaretDown size={10} weight="bold" style={{ flexShrink: 0, color: 'var(--fg-dim)' }}/>
       </button>
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 400,
-          background: 'var(--popover)', borderRadius: 12, padding: 6, boxShadow: 'var(--shadow-popover)',
-          maxHeight: 280, overflowY: 'auto',
+      {placement && createPortal(
+        <div ref={popupRef} style={{
+          position: 'fixed', zIndex: 2000, ...placement,
+          background: 'var(--popover)', borderRadius: 12, padding: 6, boxShadow: 'var(--shadow-popover)', overflowY: 'auto',
         }}>
           {options.map(opt => (
-            <div key={opt} className="adw-row" onClick={() => { onChange(opt); setOpen(false) }} style={{
+            <div key={opt} className="adw-row" onClick={() => { onChange(opt); close() }} style={{
               padding: '7px 10px', borderRadius: 6, cursor: 'pointer', fontSize: small ? 12 : 14,
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
@@ -42,7 +75,8 @@ export function Dropdown({ value, options, onChange, width = 160, small }: Props
               {opt === value && <span style={{ color: 'var(--accent)', fontWeight: 700 }}>✓</span>}
             </div>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
