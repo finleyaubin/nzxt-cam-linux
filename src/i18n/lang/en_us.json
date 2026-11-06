@@ -153,6 +153,7 @@
   "cooling.pump_title": "{name} - Pump",
   "cooling.pump_desc": "Watercooling · CPU & liquid control",
   "cooling.manual_hint": "Switch to Manual mode to edit the curve",
+  "cooling.no_cpu_reading": "No CPU temperature reading, so the fan curve was not applied.",
   "cooling.gpu_independent_title": "GPU - Independent fans",
   "cooling.gpu_independent_desc": "The GPU has its own fans managed by the graphics driver. They are not part of the Kraken watercooling circuit and cannot be controlled here.",
   "lighting.mode.off": "Off",

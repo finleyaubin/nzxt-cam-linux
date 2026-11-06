@@ -415,7 +415,9 @@ pub(super) fn draw_graph(pm: &mut Pixmap, font: &FontVec, el: &GraphElement, ser
     let step = (plot_right - plot_left) / (window - 1.0);
     let point = |i: usize| {
         let age = (series.len() - 1 - i) as f32;
-        let frac = (series[i] / el.max.max(0.0001)).clamp(0.0, 1.0) as f32;
+        // A gap in the history (no reading) is drawn on the floor of the plot.
+        let value = if series[i].is_finite() { series[i] } else { 0.0 };
+        let frac = (value / el.max.max(0.0001)).clamp(0.0, 1.0) as f32;
         (plot_right - age * step, plot_bottom - frac * plot_h)
     };
 

@@ -66,7 +66,7 @@ impl MetricId {
             MetricId::Gpu => t.gpu,
             MetricId::Liquid => t.liquid,
             MetricId::Pump => t.pump_rpm,
-            MetricId::Sensor(i) => t.sensors.get(*i as usize).copied().unwrap_or(0.0),
+            MetricId::Sensor(i) => t.sensors.get(*i as usize).copied().unwrap_or(NO_READING),
         }
     }
 }

@@ -26,12 +26,12 @@ export interface DeviceStatus {
 }
 
 export interface Temperatures {
-  cpu: number
-  gpu: number
-  liquid: number
-  pumpRpm: number
+  cpu: number | null
+  gpu: number | null
+  liquid: number | null
+  pumpRpm: number | null
   /** Indexed by sensor slot; `sensor{i+1}` metric. */
-  sensors: number[]
+  sensors: (number | null)[]
 }
 
 export interface SensorSlot {

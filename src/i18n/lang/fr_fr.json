@@ -153,6 +153,7 @@
   "cooling.pump_title": "{name} - Pompe",
   "cooling.pump_desc": "Watercooling · contrôle CPU et liquide",
   "cooling.manual_hint": "Passez en mode manuel pour modifier la courbe",
+  "cooling.no_cpu_reading": "Aucune température CPU disponible : la courbe des ventilateurs n’a pas été appliquée.",
   "cooling.gpu_independent_title": "GPU - ventilateurs indépendants",
   "cooling.gpu_independent_desc": "Le GPU a ses propres ventilateurs, gérés par le pilote graphique. Ils ne font pas partie du circuit watercooling Kraken et ne peuvent pas être contrôlés ici.",
   "lighting.mode.off": "Éteint",

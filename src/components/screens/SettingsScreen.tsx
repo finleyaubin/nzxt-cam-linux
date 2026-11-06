@@ -68,8 +68,8 @@ function AccentSwatches({ accent, onPick }: { accent: string; onPick: (c: string
 function SupportTab() {
   const { t } = useLanguage()
   const links = [
-    { title: t('settings.support.github.title'), desc: t('settings.support.github.desc'), Icon: GithubLogo, url: 'https://github.com/cypherxdev77/nzxt-cam-linux' },
-    { title: t('settings.support.bug.title'),    desc: t('settings.support.bug.desc'),    Icon: Bug,        url: 'https://github.com/cypherxdev77/nzxt-cam-linux/issues/new' },
+    { title: t('settings.support.github.title'), desc: t('settings.support.github.desc'), Icon: GithubLogo, url: 'https://github.com/finleyaubin/nzxt-cam-linux' },
+    { title: t('settings.support.bug.title'),    desc: t('settings.support.bug.desc'),    Icon: Bug,        url: 'https://github.com/finleyaubin/nzxt-cam-linux/issues/new' },
     { title: t('settings.support.reddit.title'), desc: t('settings.support.reddit.desc'), Icon: ChatCircle, url: 'https://reddit.com/r/NZXT' },
   ]
   return (

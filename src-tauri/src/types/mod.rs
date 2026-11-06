@@ -24,6 +24,9 @@ pub struct Temperatures {
     pub sensors: [f64; MAX_SENSORS],
 }
 
+/// Value of a metric whose sensor is missing or unreadable; shown as "--" and sent to the UI as null.
+pub const NO_READING: f64 = f64::NAN;
+
 /// User-bound sensor slots (`sensor1`..`sensorN` metrics).
 pub const MAX_SENSORS: usize = 8;
 
@@ -239,6 +242,9 @@ pub struct FileFilter {
 
 /// Format a metric value with N decimals (0..=2).
 pub fn format_metric(v: f64, decimals: u8) -> String {
+    if !v.is_finite() {
+        return "--".into();
+    }
     let d = decimals.min(2) as usize;
     format!("{:.*}", d, v)
 }
@@ -303,6 +309,17 @@ pub fn hex_to_rgb(hex: &str) -> (u8, u8, u8) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn missing_readings_show_dashes_and_reach_the_ui_as_null() {
+        assert_eq!(format_metric(NO_READING, 1), "--");
+        assert_eq!(format_metric(f64::INFINITY, 0), "--");
+        assert_eq!(format_metric(21.46, 1), "21.5");
+        let t = Temperatures { cpu: NO_READING, ..Temperatures::default() };
+        assert_eq!(resolve_text("{cpu}|{gpu}", t, 0), "--|0");
+        assert!(serde_json::to_value(t).unwrap()["cpu"].is_null());
+        assert!(MetricId::Sensor(7).value_from(Temperatures { sensors: [NO_READING; MAX_SENSORS], ..t }).is_nan());
+    }
 
     #[test]
     fn metric_ids_round_trip() {

@@ -153,6 +153,7 @@
   "cooling.pump_title": "{name} - Pumpe",
   "cooling.pump_desc": "Wasserkühlung · CPU- und Flüssigkeitssteuerung",
   "cooling.manual_hint": "Wechsle in den manuellen Modus, um die Kurve zu bearbeiten",
+  "cooling.no_cpu_reading": "Keine CPU-Temperatur verfügbar, daher wurde die Lüfterkurve nicht angewendet.",
   "cooling.gpu_independent_title": "GPU - Unabhängige Lüfter",
   "cooling.gpu_independent_desc": "Die GPU hat eigene Lüfter, die vom Grafiktreiber verwaltet werden. Sie gehören nicht zum Kraken-Wasserkühlkreislauf und können hier nicht gesteuert werden.",
   "lighting.mode.off": "Aus",

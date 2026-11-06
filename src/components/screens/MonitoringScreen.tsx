@@ -1,3 +1,4 @@
+import { NO_READING } from '../../shared/display'
 import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useApp } from '../../context/AppContext'
@@ -22,17 +23,17 @@ function Stat({ label, val }: { label: string; val: string }) {
 }
 
 function TempCard({ id, title, sub, value, max, tempUnit, hist }: {
-  id: string; title: string; sub: string; value: number; max: number; tempUnit: string; hist: number[]
+  id: string; title: string; sub: string; value: number | null; max: number; tempUnit: string; hist: number[]
 }) {
   const { t } = useLanguage()
-  const gc = gaugeColor(value, true)
-  const disp = tempUnit === '°F' ? Math.round(value * 9 / 5 + 32) : Math.round(value)
+  const gc = value == null ? 'var(--fg-dim)' : gaugeColor(value, true)
+  const disp = value == null ? NO_READING : tempUnit === '°F' ? Math.round(value * 9 / 5 + 32) : Math.round(value)
   const unit = tempUnit === '°F' ? '°F' : '°C'
   return (
     <Card style={{ padding: 20 }}>
       <div style={{ display: 'flex', gap: 18 }}>
         <div style={{ position: 'relative', width: 130, height: 130, flexShrink: 0 }}>
-          <CircularGauge value={value} max={max} size={130} stroke={10} color={gc}/>
+          <CircularGauge value={value ?? 0} max={max} size={130} stroke={10} color={gc}/>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 12 }}>
             <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 30, fontWeight: 700, color: 'var(--fg)', lineHeight: 1 }}>
               {disp}<span style={{ fontSize: 14, color: 'var(--fg-dim)', fontWeight: 400 }}>{unit}</span>
@@ -56,9 +57,9 @@ function TempCard({ id, title, sub, value, max, tempUnit, hist }: {
   )
 }
 
-function PumpCard({ rpm, hist }: { rpm: number; hist: number[] }) {
+function PumpCard({ rpm, hist }: { rpm: number | null; hist: number[] }) {
   const { t } = useLanguage()
-  const rpmPct = Math.min(100, (rpm / 3000) * 100)
+  const rpmPct = rpm == null ? 0 : Math.min(100, (rpm / 3000) * 100)
   const gc = '#3584e4'
   return (
     <Card style={{ padding: 18 }}>
@@ -67,12 +68,12 @@ function PumpCard({ rpm, hist }: { rpm: number; hist: number[] }) {
         <div style={{ position: 'relative', width: 90, height: 90, flexShrink: 0 }}>
           <CircularGauge value={rpmPct} size={90} stroke={8} color={gc}/>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 8 }}>
-            <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 14, fontWeight: 700, color: 'var(--fg)', lineHeight: 1 }}>{Math.round(rpm)}</div>
+            <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 14, fontWeight: 700, color: 'var(--fg)', lineHeight: 1 }}>{rpm == null ? NO_READING : Math.round(rpm)}</div>
             <div style={{ fontSize: 11, color: 'var(--fg-dim)', marginTop: 4 }}>RPM</div>
           </div>
         </div>
         <div>
-          <Stat label={t('monitoring.speed')} val={`${Math.round(rpm)} RPM`}/>
+          <Stat label={t('monitoring.speed')} val={rpm == null ? NO_READING : `${Math.round(rpm)} RPM`}/>
           <Stat label={t('monitoring.source')} val={t('monitoring.source_liquid')}/>
         </div>
       </div>
@@ -132,16 +133,17 @@ export function MonitoringScreen() {
   const { state } = useApp()
   const { t } = useLanguage()
   const { temperatures, tempUnit } = state
-  const [cpuH, setCpuH] = useState(() => genHist(temperatures.cpu))
-  const [gpuH, setGpuH] = useState(() => genHist(temperatures.gpu))
-  const [liqH, setLiqH] = useState(() => genHist(temperatures.liquid))
-  const [pumpH, setPumpH] = useState(() => genHist((temperatures.pumpRpm / 3000) * 100))
+  const [cpuH, setCpuH] = useState(() => genHist(temperatures.cpu ?? undefined))
+  const [gpuH, setGpuH] = useState(() => genHist(temperatures.gpu ?? undefined))
+  const [liqH, setLiqH] = useState(() => genHist(temperatures.liquid ?? undefined))
+  const [pumpH, setPumpH] = useState(() => genHist(temperatures.pumpRpm == null ? undefined : (temperatures.pumpRpm / 3000) * 100))
 
   useEffect(() => {
-    setCpuH(h => [...h.slice(-51), temperatures.cpu])
-    setGpuH(h => [...h.slice(-51), temperatures.gpu])
-    setLiqH(h => [...h.slice(-51), temperatures.liquid])
-    setPumpH(h => [...h.slice(-51), Math.min(100, (temperatures.pumpRpm / 3000) * 100)])
+    const { cpu, gpu, liquid, pumpRpm } = temperatures
+    if (cpu != null) setCpuH(h => [...h.slice(-51), cpu])
+    if (gpu != null) setGpuH(h => [...h.slice(-51), gpu])
+    if (liquid != null) setLiqH(h => [...h.slice(-51), liquid])
+    if (pumpRpm != null) setPumpH(h => [...h.slice(-51), Math.min(100, (pumpRpm / 3000) * 100)])
   }, [temperatures])
 
   return (
@@ -163,10 +165,10 @@ export function MonitoringScreen() {
 
       <div style={{ padding: '10px 16px', background: 'var(--card)', borderRadius: 12, display: 'flex', gap: 24 }}>
         {[
-          { label: t('metric.cpu'),    val: `${Math.round(temperatures.cpu)}°C`    },
-          { label: t('metric.gpu'),    val: `${Math.round(temperatures.gpu)}°C`    },
-          { label: t('metric.liquid'), val: `${Math.round(temperatures.liquid)}°C` },
-          { label: t('metric.pump'),   val: `${Math.round(temperatures.pumpRpm)} RPM` },
+          { label: t('metric.cpu'),    val: temperatures.cpu == null ? NO_READING : `${Math.round(temperatures.cpu)}°C` },
+          { label: t('metric.gpu'),    val: temperatures.gpu == null ? NO_READING : `${Math.round(temperatures.gpu)}°C` },
+          { label: t('metric.liquid'), val: temperatures.liquid == null ? NO_READING : `${Math.round(temperatures.liquid)}°C` },
+          { label: t('metric.pump'),   val: temperatures.pumpRpm == null ? NO_READING : `${Math.round(temperatures.pumpRpm)} RPM` },
         ].map(({ label, val }) => (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 11, color: 'var(--fg-dim)', fontWeight: 700 }}>{label}</span>

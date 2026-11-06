@@ -153,6 +153,7 @@
   "cooling.pump_title": "{name} - Bomba",
   "cooling.pump_desc": "Refrigeración líquida · control de CPU y líquido",
   "cooling.manual_hint": "Cambia al modo Manual para editar la curva",
+  "cooling.no_cpu_reading": "No hay lectura de temperatura de la CPU, por lo que no se aplicó la curva de ventiladores.",
   "cooling.gpu_independent_title": "GPU - Ventiladores independientes",
   "cooling.gpu_independent_desc": "La GPU tiene sus propios ventiladores, gestionados por el controlador gráfico. No forman parte del circuito de refrigeración líquida del Kraken y no se pueden controlar aquí.",
   "lighting.mode.off": "Apagado",

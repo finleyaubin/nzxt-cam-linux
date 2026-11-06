@@ -29,7 +29,7 @@ sudo apt install -y cargo nodejs npm libwebkit2gtk-4.1-dev build-essential
 ### Install
 
 ```bash
-git clone https://github.com/cypherxdev77/nzxt-cam-linux.git
+git clone https://github.com/finleyaubin/nzxt-cam-linux.git
 cd nzxt-cam-linux
 ./install.sh
 ```
@@ -81,6 +81,7 @@ Saved layouts are stored one per file in `layouts/<name>.json`, profiles in `pro
 | Model | PID | Status |
 |-------|-----|--------|
 | NZXT Kraken Elite V2 (2024) | `0x3012` | Tested |
+| NZXT Kraken Elite 280 | `0x3008` | Untested |
 | NZXT Kraken Elite 360 | `0x3009` | Untested |
 | NZXT Kraken Elite RGB 360 | `0x300e` | Untested |
 | NZXT Kraken 2023 Elite | `0x300c` | Tested |
@@ -186,11 +187,15 @@ sudo pacman -S ttf-dejavu     # or
 
 | Limitation | Detail |
 |---|---|
-| **Liquid temperature** | Fixed at 30 °C — USB read from Kraken not yet implemented |
-| **Pump RPM** | Displayed as 0 — same reason |
-| **"nzxt-cam" preset** | Not ported from the Electron version (used a Chromium canvas for the conic gradient) |
+| **Missing readings** | A sensor that cannot be read (no CPU/GPU sensor found, Kraken not connected, unbound sensor slot) shows `--` on the LCD and in the app instead of a number. Gauges and bars draw empty and graphs draw the gap on the floor of the plot. Fan curves driven by the CPU temperature are not applied while it has no reading. |
 | **Single device** | No simultaneous multi-AIO support |
 | **File drag-drop** | Replaced by a native dialog (Tauri webview blocks `file://` drag-drop) |
+| **Untested models** | Only the Kraken 2023 Elite and the Kraken Elite V2 have been tested on real hardware. The Elite 280 and the 360 models use the same protocol but are untested. |
+| **Secret Service required for API keys** | GIPHY and Home Assistant keys are kept in the system keyring (GNOME Keyring, KWallet, KeePassXC). Without a running Secret Service, saving a key fails with an error. |
+| **Fan control needs the `plugdev` group** | GPU and motherboard fan PWM files are writable by the `plugdev` group only. `install.sh` and the AUR package create the group; add your user to it and log out and back in. `.deb`/`.rpm`/AppImage users must create the group themselves (`sudo groupadd -r plugdev`). |
+| **GPU fan curve is AMD only** | The GPU fan curve drives `amdgpu` hwmon fans. NVIDIA and Intel GPUs are monitored but their fans are not controlled. |
+| **Fan curve safety** | If the GPU temperature becomes unreadable, the GPU fan is forced to 100% until it can be read again. The fan is handed back to the driver (automatic mode) when the app exits normally; a crash or `kill -9` leaves the last manual speed in place. |
+| **Home Assistant over HTTP** | `http://` URLs are accepted (for LAN servers) but send the access token unencrypted; the settings page warns about it. |
 
 ## License
 
