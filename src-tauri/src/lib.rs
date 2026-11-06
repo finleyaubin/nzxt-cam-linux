@@ -1,12 +1,20 @@
 //! Library crate — exposes `run()` which is called from main.rs.
 
+pub mod autostart;
+pub mod cli;
 pub mod commands;
 pub mod config;
+pub mod fan_commands;
 pub mod fans;
 pub mod image_io;
+pub mod layouts;
+pub mod logos;
 pub mod profile;
+pub mod secrets;
 pub mod render;
 pub mod sensors;
+pub mod storage;
+pub mod theme;
 pub mod types;
 pub mod usb;
 
@@ -24,10 +32,26 @@ pub fn run() {
     let log_level = if cfg!(debug_assertions) { "debug" } else { "info" };
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
 
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let cli = match cli::parse(&args, &std::env::current_dir().unwrap_or_default()) {
+        Ok(cli) => cli,
+        Err(e) => {
+            eprintln!("{e}\n\n{}", cli::USAGE);
+            std::process::exit(2);
+        }
+    };
+    if cli.help {
+        println!("{}", cli::USAGE);
+        return;
+    }
+    cli::START_VISIBLE.store(cli.starts_visible(), std::sync::atomic::Ordering::Relaxed);
+
     // Build the driver and seed runtime state from persisted config.
     let driver = usb::KrakenDriver::new();
     let settings = config::load_settings();
     sensors::set_gpu_source(settings.gpu_source.clone());
+    sensors::set_sensor_sources(settings.cpu_source.clone(), settings.sensor_sources());
+    settings.apply_home_assistant();
     driver.set_temp_timing(settings.lcd_poll_ms, settings.lcd_min_push_ms);
 
     // Apply persisted display config (or leave the default).
@@ -37,9 +61,7 @@ pub fn run() {
         }
         driver.set_display_config(dc);
     } else {
-        let mut dc = types::DisplayConfig::default();
-        dc.decimals = settings.decimals;
-        driver.set_display_config(dc);
+        driver.set_display_config(types::DisplayConfig { decimals: settings.decimals, ..Default::default() });
     }
 
     let state = AppState {
@@ -49,24 +71,23 @@ pub fn run() {
     };
 
     tauri::Builder::default()
+        // Must be the first plugin: later launches forward their args here and exit.
+        .plugin(tauri_plugin_single_instance::init(cli::forward))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_fs::init())
         .manage(state)
-        .on_window_event(|window, event| match event {
-            tauri::WindowEvent::CloseRequested { api, .. } => {
-                api.prevent_close();
-                let _ = window.emit("close-requested", ());
-            }
-            _ => {}
+        .on_window_event(|window, event| if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = window.emit("close-requested", ());
         })
         .setup(move |app| {
             // Wire up the driver's callbacks so it can emit Tauri events.
-            commands::setup_callbacks(&app.handle(), &driver);
+            commands::setup_callbacks(app.handle(), &driver);
+            image_io::set_lcd_rotation(config::load().lcd_rotation);
 
             // Tray icon — left click toggles window, right click shows menu.
-            let show_item = MenuItem::with_id(app, "show", "Afficher la fenêtre", true, None::<&str>)?;
-            let quit_item = MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?;
+            let show_item = MenuItem::with_id(app, "show", "Show window", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
             let _tray = TrayIconBuilder::new()
@@ -115,29 +136,19 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Check for --profile <name> CLI argument.
-            let startup_profile = std::env::args()
-                .skip_while(|a| a != "--profile")
-                .nth(1);
-
+            if !cli.starts_visible() {
+                driver.set_window_visible(false);
+            }
+            // Reconnects after unplug or suspend/resume; the first connect below is the startup attempt.
+            tauri::async_runtime::spawn(driver.clone().watch_connection());
             let driver_for_connect = driver.clone();
-            let driver_for_profile = driver.clone();
+            let handle = app.handle().clone();
+            let actions = cli.actions.clone();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = driver_for_connect.connect().await {
-                    log::info!("Connexion auto au démarrage: {}", e);
-                    return;
+                    log::info!("Auto-connect at startup failed: {}", e);
                 }
-                if let Some(pname) = startup_profile {
-                    log::info!("Application du profil au démarrage: {pname}");
-                    match profile::load_profile(&pname) {
-                        Ok(p) => {
-                            if let Err(e) = apply_profile_to_driver(&p, &driver_for_profile).await {
-                                log::warn!("Profil démarrage échoué: {e}");
-                            }
-                        }
-                        Err(e) => log::warn!("Profil introuvable: {e}"),
-                    }
-                }
+                cli::run_actions(handle, actions).await;
             });
             Ok(())
         })
@@ -155,34 +166,54 @@ pub fn run() {
             commands::get_display_config,
             commands::save_display_config,
             commands::render_display_preview,
+            commands::list_fonts,
             commands::list_gpu_sources,
+            commands::list_sensors,
+            commands::list_system_logos,
+            commands::start_visible,
+            commands::save_giphy_gif,
             commands::get_settings,
             commands::save_settings,
             commands::open_external,
             commands::get_config,
-            commands::save_config,
             commands::set_pump_profile,
-            commands::get_gpu_fan_status,
-            commands::set_gpu_fan_curve,
-            commands::set_gpu_fan_auto,
-            commands::list_fan_channels,
-            commands::read_fan_channels,
-            commands::set_fan_duty_cmd,
-            commands::set_fan_auto_cmd,
+            commands::set_lcd_orientation,
+            fan_commands::get_gpu_fan_status,
+            fan_commands::set_gpu_fan_curve,
+            fan_commands::set_gpu_fan_auto,
+            fan_commands::list_fan_channels,
+            fan_commands::list_drives,
+            theme::get_system_theme,
+            fan_commands::read_fan_channels,
+            fan_commands::set_fan_duty_cmd,
+            fan_commands::set_fan_auto_cmd,
             commands::send_ring,
             commands::list_profiles,
             commands::save_profile_cmd,
             commands::delete_profile_cmd,
             commands::get_profile,
             commands::apply_profile,
+            commands::list_layouts,
+            commands::save_layout,
+            commands::delete_layout,
+            commands::get_layout,
+            commands::export_layouts,
+            commands::import_layouts,
             commands::quit_app,
             commands::hide_window,
             commands::show_window,
-            commands::get_autostart,
-            commands::set_autostart,
+            autostart::get_autostart,
+            autostart::set_autostart,
         ])
-        .run(tauri::generate_context!())
-        .expect("erreur lors du démarrage de Tauri");
+        .build(tauri::generate_context!())
+        .expect("error while starting Tauri")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                if let Err(e) = app.state::<AppState>().gpu_fan.release() {
+                    log::warn!("Could not hand the GPU fan back to the driver: {e}");
+                }
+            }
+        });
 }
 
 /// Apply a profile directly via the driver (used at startup, before Tauri State is accessible).
@@ -202,17 +233,17 @@ async fn apply_profile_to_driver(
             driver.send_color(*r, *g, *b).await?;
         }
         ProfileLcd::Image { path } => {
-            let bytes = tokio::fs::read(path).await?;
+            let bytes = image_io::read_image_file_async(path).await?;
             let rgba = image_io::image_to_device_rgba(&bytes)?;
             driver.send_rgba_image(rgba).await?;
         }
         ProfileLcd::Gif { path } => {
-            let bytes = tokio::fs::read(path).await?;
+            let bytes = image_io::read_image_file_async(path).await?;
             let resized = tokio::task::spawn_blocking(move || image_io::resize_gif(&bytes)).await??;
             driver.send_gif(resized).await?;
         }
         ProfileLcd::Temperatures => {
-            driver.start_temp_mode(|cfg, temps| render::render_for_device(cfg, temps))?;
+            driver.start_temp_mode(render::render_for_device)?;
         }
     }
 

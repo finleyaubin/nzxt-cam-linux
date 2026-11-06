@@ -2,6 +2,7 @@
   "name": "nzxtcam-archlinux-rust",
   "version": "1.0.0",
   "description": "NZXT Kraken Elite LCD controller for Arch Linux — Tauri + Rust",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "tauri dev",
@@ -13,24 +14,21 @@
     "install:udev": "sudo cp src-tauri/resources/99-nzxt-kraken.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
-    "@tauri-apps/plugin-fs": "^2.0.0",
-    "@tauri-apps/plugin-shell": "^2.0.0",
-    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
-    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^6.2.1",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "typescript": "^5.6.2",
-    "vite": "^5.4.8"
+    "vite": "^8.3.6"
   }
 }

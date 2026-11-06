@@ -1,13 +1,15 @@
 import { useApp } from '../context/AppContext'
+import { useLanguage } from '../i18n/LangContext'
+import { NO_READING } from '../shared/display'
 
-function TempItem({ label, value, color, max = 100 }: { label: string; value: number; color: string; max?: number }) {
-  const pct = Math.min(100, (value / max) * 100)
-  const isHot = value > 80
+function TempItem({ label, value, color, max = 100 }: { label: string; value: number | null; color: string; max?: number }) {
+  const pct = value == null ? 0 : Math.min(100, (value / max) * 100)
+  const isHot = value != null && value > 80
 
   return (
     <div className="flex items-center gap-3">
       <span className="text-gray-400 text-sm w-12">{label}</span>
-      <div className="flex-1 h-2 bg-[#1e1e2e] rounded-full overflow-hidden">
+      <div className="flex-1 h-2 bg-[#1e1e1e] rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all duration-500"
           style={{ width: `${pct}%`, backgroundColor: isHot ? '#ff4444' : color }}
@@ -17,7 +19,7 @@ function TempItem({ label, value, color, max = 100 }: { label: string; value: nu
         className="text-sm font-mono w-14 text-right"
         style={{ color: isHot ? '#ff4444' : color }}
       >
-        {Math.round(value)}°C
+        {value == null ? NO_READING : `${Math.round(value)}°C`}
       </span>
     </div>
   )
@@ -26,15 +28,16 @@ function TempItem({ label, value, color, max = 100 }: { label: string; value: nu
 export function TemperatureBar() {
   const { state } = useApp()
   const { temperatures } = state
+  const { t } = useLanguage()
 
   return (
-    <div className="bg-[#111118] border border-[#1e1e2e] rounded-xl p-4 space-y-3">
-      <TempItem label="CPU" value={temperatures.cpu} color="#00ff88" />
-      <TempItem label="GPU" value={temperatures.gpu} color="#00ff88" />
-      <TempItem label="Liquide" value={temperatures.liquid} color="#00d4ff" max={50} />
-      {temperatures.pumpRpm > 0 && (
-        <div className="flex items-center gap-3 pt-1 border-t border-[#1e1e2e]">
-          <span className="text-gray-400 text-sm w-12">Pompe</span>
+    <div className="bg-[#111111] border border-[#1e1e1e] rounded-xl p-4 space-y-3">
+      <TempItem label={t('metric.cpu')} value={temperatures.cpu} color="#00ff88" />
+      <TempItem label={t('metric.gpu')} value={temperatures.gpu} color="#00ff88" />
+      <TempItem label={t('metric.liquid')} value={temperatures.liquid} color="#00d4ff" max={50} />
+      {temperatures.pumpRpm != null && temperatures.pumpRpm > 0 && (
+        <div className="flex items-center gap-3 pt-1 border-t border-[#1e1e1e]">
+          <span className="text-gray-400 text-sm w-12">{t('metric.pump')}</span>
           <span className="text-gray-300 text-sm font-mono">{temperatures.pumpRpm} RPM</span>
         </div>
       )}

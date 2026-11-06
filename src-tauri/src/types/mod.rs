@@ -21,7 +21,14 @@ pub struct Temperatures {
     pub gpu: f64,
     pub liquid: f64,
     pub pump_rpm: f64,
+    pub sensors: [f64; MAX_SENSORS],
 }
+
+/// Value of a metric whose sensor is missing or unreadable; shown as "--" and sent to the UI as null.
+pub const NO_READING: f64 = f64::NAN;
+
+/// User-bound sensor slots (`sensor1`..`sensorN` metrics).
+pub const MAX_SENSORS: usize = 8;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -37,7 +44,7 @@ impl DeviceStatus {
     pub fn disconnected() -> Self {
         Self {
             connected: false,
-            product_name: "Non détecté".into(),
+            product_name: "Not detected".into(),
             pid: None,
             error: None,
             lcd_controllable: false,
@@ -64,9 +71,19 @@ pub struct GpuSource {
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
     pub gpu_source: Option<String>,
+    pub cpu_source: Option<String>,
+    /// Slot i is metric `sensor{i+1}`; removed slots keep their place (source = None) so layouts never shift.
+    pub sensors: Vec<SensorSlot>,
+    /// Pre-slot format, read once for migration.
+    #[serde(skip_serializing)]
+    sensor_sources: Vec<Option<String>>,
+    /// Third-party API keys by service name, e.g. "giphy".
+    pub api_keys: std::collections::BTreeMap<String, String>,
+    /// Base URL of a Home Assistant server; its access token is `api_keys["homeassistant"]`.
+    pub home_assistant_url: String,
     pub selected_device: String,
     pub poll_interval_ms: u64,
     pub lcd_poll_ms: u64,
@@ -78,6 +95,11 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             gpu_source: None,
+            cpu_source: None,
+            sensors: Vec::new(),
+            sensor_sources: Vec::new(),
+            api_keys: Default::default(),
+            home_assistant_url: String::new(),
             selected_device: "nzxt-kraken-elite-v2".into(),
             poll_interval_ms: 1000,
             lcd_poll_ms: 500,
@@ -93,142 +115,35 @@ impl AppSettings {
         self.lcd_poll_ms = self.lcd_poll_ms.clamp(50, 60_000);
         self.lcd_min_push_ms = self.lcd_min_push_ms.clamp(0, 10_000);
         self.decimals = self.decimals.min(2);
-    }
-}
-
-// ============================================================================
-// Display "scene" — 1:1 with TypeScript shared/display.ts
-// ============================================================================
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
-#[serde(rename_all = "lowercase")]
-pub enum MetricId {
-    Cpu,
-    Gpu,
-    Liquid,
-    Pump,
-}
-
-impl MetricId {
-    pub fn label(&self) -> &'static str {
-        match self {
-            MetricId::Cpu => "CPU",
-            MetricId::Gpu => "GPU",
-            MetricId::Liquid => "Liquide",
-            MetricId::Pump => "Pompe",
+        if self.sensors.is_empty() {
+            let old = std::mem::take(&mut self.sensor_sources);
+            self.sensors = old.into_iter().map(|source| SensorSlot { source, max: None }).collect();
+        }
+        self.sensors.truncate(MAX_SENSORS);
+        while self.sensors.last().is_some_and(|s| s.source.is_none()) {
+            self.sensors.pop();
         }
     }
-    pub fn unit(&self) -> &'static str {
-        match self {
-            MetricId::Cpu | MetricId::Gpu | MetricId::Liquid => "°",
-            MetricId::Pump => "",
-        }
+
+    pub fn apply_home_assistant(&self) {
+        crate::sensors::ha::configure(&self.home_assistant_url, self.api_keys.get("homeassistant").map_or("", String::as_str));
     }
-    pub fn value_from(&self, t: Temperatures) -> f64 {
-        match self {
-            MetricId::Cpu => t.cpu,
-            MetricId::Gpu => t.gpu,
-            MetricId::Liquid => t.liquid,
-            MetricId::Pump => t.pump_rpm,
-        }
+
+    pub fn sensor_sources(&self) -> Vec<Option<String>> {
+        self.sensors.iter().map(|s| s.source.clone()).collect()
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GaugeElement {
-    pub id: String,
-    pub x: f32,
-    pub y: f32,
-    pub metric: MetricId,
-    pub radius: f32,
-    pub thickness: f32,
-    pub max: f64,
-    pub color: String,
-    pub track_color: String,
-    pub start_angle: f32,
-    pub sweep: f32,
-    pub warn_color: String,
-    pub warn_at: f64,
-    pub show_value: bool,
-    pub show_label: bool,
-    pub label: String,
-    pub value_size: f32,
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SensorSlot {
+    pub source: Option<String>,
+    /// Value shown as 100% on gauges and bars; None = default for the unit.
+    pub max: Option<f64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BarElement {
-    pub id: String,
-    pub x: f32,
-    pub y: f32,
-    pub metric: MetricId,
-    pub width: f32,
-    pub height: f32,
-    pub max: f64,
-    pub color: String,
-    pub track_color: String,
-    pub warn_color: String,
-    pub warn_at: f64,
-    pub show_value: bool,
-    pub show_label: bool,
-    pub label: String,
-    pub value_size: f32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TextElement {
-    pub id: String,
-    pub x: f32,
-    pub y: f32,
-    pub text: String,
-    pub color: String,
-    pub size: f32,
-    pub align: TextAlign,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum TextAlign {
-    Left,
-    Center,
-    Right,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum DisplayElement {
-    Gauge(GaugeElement),
-    Bar(BarElement),
-    Text(TextElement),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DisplayConfig {
-    pub background: String,
-    pub elements: Vec<DisplayElement>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub variant: Option<String>,
-    #[serde(default)]
-    pub decimals: u8,
-}
-
-impl Default for DisplayConfig {
-    fn default() -> Self {
-        // The "triple-rings" preset is the default in the TS code.
-        // We can't easily call frontend code from Rust, so we provide a sane
-        // server-side default; the frontend will overwrite with its preset
-        // on first run via save_display_config.
-        Self {
-            background: "#0a0a0f".into(),
-            elements: Vec::new(),
-            variant: None,
-            decimals: 0,
-        }
-    }
-}
+mod display;
+pub use display::*;
 
 // ============================================================================
 // Ring LED lighting
@@ -327,12 +242,16 @@ pub struct FileFilter {
 
 /// Format a metric value with N decimals (0..=2).
 pub fn format_metric(v: f64, decimals: u8) -> String {
+    if !v.is_finite() {
+        return "--".into();
+    }
     let d = decimals.min(2) as usize;
     format!("{:.*}", d, v)
 }
 
-/// Resolve {cpu}/{gpu}/{liquid}/{pump} tokens in a free-form string.
-/// Supports per-token precision override via `{cpu:1}` syntax.
+/// Resolve `{variable}` tokens in a free-form string: any metric (`{cpu}`, `{gpu}`, `{liquid}`,
+/// `{pump}`, `{sensor1}`..) plus `{time}` and `{date}`. Metrics take a per-token precision
+/// override via `{cpu:1}`; unknown tokens are left as typed.
 pub fn resolve_text(text: &str, t: Temperatures, decimals: u8) -> String {
     let mut out = String::with_capacity(text.len() + 8);
     let bytes = text.as_bytes();
@@ -346,13 +265,17 @@ pub fn resolve_text(text: &str, t: Temperatures, decimals: u8) -> String {
                     Some((k, d)) => (k, d.parse::<u8>().ok()),
                     None => (inner, None),
                 };
-                let metric = match key.to_ascii_lowercase().as_str() {
-                    "cpu" => Some(MetricId::Cpu),
-                    "gpu" => Some(MetricId::Gpu),
-                    "liquid" => Some(MetricId::Liquid),
-                    "pump" => Some(MetricId::Pump),
+                let clock = match key.to_ascii_lowercase().as_str() {
+                    "time" => Some("%H:%M"),
+                    "date" => Some("%a %d %b"),
                     _ => None,
                 };
+                if let Some(fmt) = clock.filter(|_| dec_override.is_none()) {
+                    out.push_str(&chrono::Local::now().format(fmt).to_string());
+                    i = end + 1;
+                    continue;
+                }
+                let metric = key.parse::<MetricId>().ok();
                 if let Some(m) = metric {
                     let d = dec_override.unwrap_or(decimals).min(2);
                     out.push_str(&format_metric(m.value_from(t), d));
@@ -381,4 +304,80 @@ pub fn hex_to_rgb(hex: &str) -> (u8, u8, u8) {
     };
     let n = u32::from_str_radix(&normalized, 16).unwrap_or(0);
     (((n >> 16) & 0xff) as u8, ((n >> 8) & 0xff) as u8, (n & 0xff) as u8)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_readings_show_dashes_and_reach_the_ui_as_null() {
+        assert_eq!(format_metric(NO_READING, 1), "--");
+        assert_eq!(format_metric(f64::INFINITY, 0), "--");
+        assert_eq!(format_metric(21.46, 1), "21.5");
+        let t = Temperatures { cpu: NO_READING, ..Temperatures::default() };
+        assert_eq!(resolve_text("{cpu}|{gpu}", t, 0), "--|0");
+        assert!(serde_json::to_value(t).unwrap()["cpu"].is_null());
+        assert!(MetricId::Sensor(7).value_from(Temperatures { sensors: [NO_READING; MAX_SENSORS], ..t }).is_nan());
+    }
+
+    #[test]
+    fn metric_ids_round_trip() {
+        for s in ["cpu", "pump", "sensor1", "sensor8"] {
+            let m: MetricId = serde_json::from_value(serde_json::json!(s)).unwrap();
+            assert_eq!(serde_json::to_value(m).unwrap(), serde_json::json!(s));
+        }
+        assert_eq!("sensor3".parse::<MetricId>(), Ok(MetricId::Sensor(2)));
+        assert!("sensor0".parse::<MetricId>().is_err());
+        assert!("sensor9".parse::<MetricId>().is_err());
+    }
+
+    #[test]
+    fn old_sensor_sources_migrate_to_slots() {
+        let mut s: AppSettings = serde_json::from_str(r#"{"sensorSources": ["a", null, "c", null]}"#).unwrap();
+        s.clamp();
+        assert_eq!(s.sensor_sources(), vec![Some("a".into()), None, Some("c".into())]);
+        assert!(!serde_json::to_string(&s).unwrap().contains("sensorSources"));
+    }
+
+    #[test]
+    fn sensor_tokens_resolve() {
+        let mut t = Temperatures::default();
+        t.sensors[4] = 42.0;
+        assert_eq!(resolve_text("{sensor5}%", t, 0), "42%");
+    }
+
+    #[test]
+    fn clock_tokens_resolve_and_unknown_tokens_survive() {
+        let t = Temperatures::default();
+        let time = resolve_text("{time}", t, 0);
+        assert_eq!(time.len(), 5);
+        assert_eq!(time.as_bytes()[2], b':');
+        assert!(!resolve_text("{date}", t, 0).contains('{'));
+        assert_eq!(resolve_text("{nope} {cpu:1}", t, 0), "{nope} 0.0");
+    }
+
+    #[test]
+    fn graph_elements_round_trip_with_defaults() {
+        let json = r##"{"type":"graph","id":"g","x":1,"y":2,"metric":"gpu","width":300,"height":120,"max":100,
+            "color":"#fff","trackColor":"#000","warnColor":"#f00","warnAt":90,"showValue":true,"showLabel":true,
+            "label":"GPU","valueSize":20}"##;
+        let el: DisplayElement = serde_json::from_str(json).unwrap();
+        let DisplayElement::Graph(g) = el else { panic!("expected graph") };
+        assert_eq!((g.window_secs, g.fill, g.line_width), (60, false, 3.0));
+    }
+
+    #[test]
+    fn fonts_are_optional_and_survive_a_round_trip() {
+        let old: DisplayConfig = serde_json::from_str(r##"{"background":"#000","elements":[]}"##).unwrap();
+        assert_eq!(old.font, None);
+        let json = r##"{"background":"#000","font":"Fira Sans","elements":[
+            {"type":"text","id":"t","x":1,"y":2,"text":"hi","color":"#fff","size":20,"align":"left","font":"Lato"}]}"##;
+        let cfg: DisplayConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.font.as_deref(), Some("Fira Sans"));
+        let DisplayElement::Text(t) = &cfg.elements[0] else { panic!("expected text") };
+        assert_eq!(t.font.as_deref(), Some("Lato"));
+        let back = serde_json::to_string(&DisplayConfig { font: None, ..cfg }).unwrap();
+        assert!(!back.contains("Fira Sans") && back.contains("Lato"));
+    }
 }

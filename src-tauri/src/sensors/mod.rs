@@ -1,19 +1,45 @@
 //! /sys/class/hwmon-based sensor readings — port of temperatures.ts + gpu.ts.
 
+pub mod all;
 pub mod cpu;
 pub mod gpu;
+pub mod ha;
+pub mod history;
 
-use crate::types::Temperatures;
-use once_cell::sync::Lazy;
+use crate::types::{Temperatures, NO_READING};
 use parking_lot::RwLock;
 
 static SELECTED_GPU: RwLock<Option<String>> = RwLock::new(None);
+static SELECTED_CPU: RwLock<Option<String>> = RwLock::new(None);
+static SENSOR_SOURCES: RwLock<Vec<Option<String>>> = RwLock::new(Vec::new());
 
 /// Device-provided liquid temp (°C) and pump RPM, updated from USB status packets.
-static DEVICE_TEMPS: Lazy<RwLock<Option<(f64, f64)>>> = Lazy::new(|| RwLock::new(None));
+static DEVICE_TEMPS: RwLock<Option<(f64, f64)>> = RwLock::new(None);
 
 pub fn set_gpu_source(id: Option<String>) {
     *SELECTED_GPU.write() = id;
+}
+
+pub fn set_sensor_sources(cpu: Option<String>, slots: Vec<Option<String>>) {
+    *SELECTED_CPU.write() = cpu;
+    *SENSOR_SOURCES.write() = slots;
+    ha::wake();
+}
+
+/// Whether any bound sensor (or the CPU source) reads from Home Assistant.
+fn uses_home_assistant() -> bool {
+    let is_ha = |id: &String| id.starts_with(ha::PREFIX);
+    SELECTED_CPU.read().iter().any(is_ha) || SENSOR_SOURCES.read().iter().flatten().any(is_ha)
+}
+
+fn read_slot(slot: usize) -> f64 {
+    SENSOR_SOURCES.read().get(slot).cloned().flatten()
+        .and_then(|id| all::read_sensor(&id))
+        .unwrap_or(NO_READING)
+}
+
+pub fn slot_unit(slot: usize) -> &'static str {
+    SENSOR_SOURCES.read().get(slot).cloned().flatten().map_or("", |id| all::unit_of(&id))
 }
 
 pub fn get_gpu_source() -> Option<String> {
@@ -31,9 +57,14 @@ pub fn clear_device_temps() {
 }
 
 pub fn read_temperatures() -> Temperatures {
-    let cpu = cpu::read_cpu_temp().unwrap_or(0.0);
-    let gpu = gpu::read_gpu_temp(get_gpu_source().as_deref()).unwrap_or(0.0);
-    let (liquid, pump_rpm) = DEVICE_TEMPS.read()
-        .unwrap_or((0.0, 0.0));
-    Temperatures { cpu, gpu, liquid, pump_rpm }
+    let cpu = match SELECTED_CPU.read().clone() {
+        Some(id) => all::read_sensor(&id),
+        None => cpu::read_cpu_temp(),
+    }
+    .unwrap_or(NO_READING);
+    let gpu = gpu::read_gpu_temp(get_gpu_source().as_deref()).unwrap_or(NO_READING);
+    let (liquid, pump_rpm) = DEVICE_TEMPS.read().unwrap_or((NO_READING, NO_READING));
+    let temps = Temperatures { cpu, gpu, liquid, pump_rpm, sensors: std::array::from_fn(read_slot) };
+    history::record(temps);
+    temps
 }

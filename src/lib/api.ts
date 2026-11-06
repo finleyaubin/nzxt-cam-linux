@@ -14,6 +14,9 @@ import { DisplayConfig } from '@shared/display'
 // ============================================================================
 // Types — mirror Rust types
 // ============================================================================
+export type FontCategory = 'sans' | 'serif' | 'monospace' | 'handwriting' | 'display' | 'other'
+export interface FontEntry { family: string; category: FontCategory }
+
 export interface DeviceStatus {
   connected: boolean
   productName: string
@@ -23,10 +26,24 @@ export interface DeviceStatus {
 }
 
 export interface Temperatures {
-  cpu: number
-  gpu: number
-  liquid: number
-  pumpRpm: number
+  cpu: number | null
+  gpu: number | null
+  liquid: number | null
+  pumpRpm: number | null
+  /** Indexed by sensor slot; `sensor{i+1}` metric. */
+  sensors: (number | null)[]
+}
+
+export interface SensorSlot {
+  source: string | null
+  /** Value shown as 100% on gauges and bars; null = default for the unit. */
+  max: number | null
+}
+
+export interface Sensor {
+  id: string
+  label: string
+  unit: string
 }
 
 export interface GpuSource {
@@ -37,8 +54,20 @@ export interface GpuSource {
   discrete: boolean
 }
 
+export interface SystemLogo {
+  label: string
+  group: string
+  path: string
+  /** Small PNG preview as a data URL. */
+  thumb: string
+}
+
 export interface AppSettings {
   gpuSource: string | null
+  cpuSource: string | null
+  sensors: SensorSlot[]
+  apiKeys: Record<string, string>
+  homeAssistantUrl: string
   selectedDevice: string
   pollIntervalMs: number
   lcdPollMs: number
@@ -116,8 +145,13 @@ export const api = {
     invoke<CommandResult>('save_display_config', { configIn: config }),
   renderDisplayPreview: (config: DisplayConfig) =>
     invoke<PreviewResult>('render_display_preview', { configIn: config }),
+  listFonts: () => invoke<FontEntry[]>('list_fonts'),
 
   // --- Settings ---
+  saveGiphyGif: (id: string, bytes: ArrayBuffer) =>
+    invoke<string>('save_giphy_gif', new Uint8Array(bytes), { headers: { 'x-giphy-id': id } }),
+  listSensors: () => invoke<Sensor[]>('list_sensors'),
+  listSystemLogos: () => invoke<SystemLogo[]>('list_system_logos'),
   listGpuSources: () => invoke<GpuSource[]>('list_gpu_sources'),
   getSettings: () => invoke<AppSettings>('get_settings'),
   saveSettings: async (patch: Partial<AppSettings>): Promise<SaveSettingsResult> => {
@@ -128,6 +162,10 @@ export const api = {
   },
 
   // --- Ring LED ---
+  getLcdOrientation: () =>
+    invoke<{ lcdRotation?: number }>('get_config').then(c => c.lcdRotation ?? 0),
+  setLcdOrientation: (degrees: number) =>
+    invoke<CommandResult>('set_lcd_orientation', { degrees }),
   sendRing: (mode: RingMode, channel: RingChannel) =>
     invoke<CommandResult>('send_ring', { mode, channel }),
 
@@ -137,6 +175,17 @@ export const api = {
   deleteProfile: (name: string) => invoke<CommandResult>('delete_profile_cmd', { name }),
   getProfile: (name: string) => invoke<Profile>('get_profile', { name }),
   applyProfile: (name: string) => invoke<CommandResult>('apply_profile', { name }),
+
+  // --- Saved layouts (named DisplayConfigs) ---
+  listLayouts: () => invoke<SavedLayout[]>('list_layouts'),
+  saveLayout: (name: string, config: DisplayConfig) =>
+    invoke<CommandResult>('save_layout', { name, configIn: config }),
+  deleteLayout: (name: string) => invoke<CommandResult>('delete_layout', { name }),
+  getLayout: (name: string) => invoke<SavedLayout>('get_layout', { name }),
+  /** Write all saved layouts to one file; resolves to the count. */
+  exportLayouts: (path: string) => invoke<number>('export_layouts', { path }),
+  /** Import layouts from a file made by exportLayouts; resolves to the count. */
+  importLayouts: (path: string) => invoke<number>('import_layouts', { path }),
 
   // --- Window ---
   hideWindow:   () => invoke<void>('hide_window'),
@@ -165,6 +214,11 @@ export const api = {
 }
 
 // ============================================================================
+export interface SavedLayout {
+  name: string
+  config: DisplayConfig
+}
+
 // Profile types
 // ============================================================================
 export type ProfileLcd =

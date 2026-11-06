@@ -1,76 +1,36 @@
 import { useApp } from '../context/AppContext'
 import { api } from '../lib/api'
+import { Minus, X } from '@phosphor-icons/react'
+import { useLanguage } from '../i18n/LangContext'
 
 const drag = { WebkitAppRegion: 'drag' } as React.CSSProperties
 const noDrag = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
 
 export function AppHeader() {
   const { state } = useApp()
-  const { accent, deviceStatus } = state
+  const { t } = useLanguage()
+  const { deviceStatus } = state
 
   return (
-    <div style={{
-      height: 42, minHeight: 42,
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '0 16px 0 14px',
-      background: '#090909',
-      borderBottom: '1px solid #161616',
-      ...drag,
+    <header style={{
+      height: 46, minHeight: 46, display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center',
+      padding: '0 6px 0 12px', background: 'var(--headerbar)', boxShadow: '0 1px 0 var(--border)', ...drag,
     }}>
-      {/* Left: device pill */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, ...noDrag }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '3px 10px', borderRadius: 20,
-          background: deviceStatus.connected ? `${accent}14` : '#1a1a1a',
-          border: `1px solid ${deviceStatus.connected ? `${accent}33` : '#252525'}`,
-        }}>
-          <div style={{
-            width: 6, height: 6, borderRadius: '50%',
-            background: deviceStatus.connected ? accent : '#3a3a3a',
-            boxShadow: deviceStatus.connected ? `0 0 6px ${accent}` : 'none',
-          }}/>
-          <span style={{ fontSize: 11, color: deviceStatus.connected ? '#c0c0c0' : '#3a3a3a', fontWeight: 600 }}>
-            {deviceStatus.connected ? deviceStatus.productName : 'Not connected'}
-          </span>
+      <div/>
+      <div style={{ textAlign: 'center', lineHeight: 1.15 }}>
+        <div style={{ fontWeight: 700 }}>NZXT CAM</div>
+        <div style={{ fontSize: 11, color: 'var(--fg-dim)' }}>
+          {deviceStatus.connected ? deviceStatus.productName : t('common.not_connected')}
         </div>
       </div>
-
-      {/* Right: window controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, ...noDrag }}>
-        <WinBtn title="Minimize" onClick={() => api.hideWindow()}>
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-        </WinBtn>
-        <WinBtn title="Quit" onClick={() => api.quitApp()} danger>
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </WinBtn>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, ...noDrag }}>
+        <WinBtn title={t('window.minimize')} onClick={() => api.hideWindow()}><Minus size={14} weight="bold"/></WinBtn>
+        <WinBtn title={t('window.quit')} onClick={() => api.quitApp()}><X size={14} weight="bold"/></WinBtn>
       </div>
-    </div>
+    </header>
   )
 }
 
-function WinBtn({ onClick, title, children, danger }: { onClick: () => void; title: string; children: React.ReactNode; danger?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      style={{ width: 28, height: 28, borderRadius: 7, border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3a3a3a', transition: 'all 130ms' }}
-      onMouseEnter={e => {
-        const b = e.currentTarget as HTMLButtonElement
-        b.style.background = danger ? '#ff475720' : '#1e1e1e'
-        b.style.color = danger ? '#ff4757' : '#888'
-      }}
-      onMouseLeave={e => {
-        const b = e.currentTarget as HTMLButtonElement
-        b.style.background = 'transparent'
-        b.style.color = '#3a3a3a'
-      }}
-    >
-      {children}
-    </button>
-  )
+function WinBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
+  return <button className="adw-btn circular flat" onClick={onClick} title={title} aria-label={title} style={{ width: 28, minHeight: 28 }}>{children}</button>
 }

@@ -1,202 +1,287 @@
-import { DisplayElement, MetricId, METRIC_LABELS } from '@shared/display'
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-2 justify-between">
-      <span className="text-xs text-gray-400 shrink-0">{label}</span>
-      <div className="flex items-center gap-2">{children}</div>
-    </div>
-  )
-}
-
-function NumberField({
-  label, value, onChange, min = 0, max = 640, step = 1
-}: { label: string; value: number; onChange: (v: number) => void; min?: number; max?: number; step?: number }) {
-  return (
-    <Row label={label}>
-      <input
-        type="range"
-        min={min} max={max} step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-28 accent-[#00d4ff]"
-      />
-      <input
-        type="number"
-        min={min} max={max} step={step}
-        value={Math.round(value)}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-14 bg-[#0a0a0f] border border-[#2a2a3e] rounded px-1 py-0.5 text-xs text-gray-200"
-      />
-    </Row>
-  )
-}
-
-function TextField({
-  label, value, onChange, placeholder
-}: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
-  return (
-    <Row label={label}>
-      <input
-        type="text"
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-44 bg-[#0a0a0f] border border-[#2a2a3e] rounded px-2 py-1 text-xs text-gray-200"
-      />
-    </Row>
-  )
-}
-
-function ColorField({
-  label, value, onChange
-}: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <Row label={label}>
-      <input
-        type="color"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-9 h-7 bg-transparent border border-[#2a2a3e] rounded cursor-pointer"
-      />
-      <span className="text-xs text-gray-500 font-mono w-16">{value}</span>
-    </Row>
-  )
-}
-
-function SelectField<T extends string>({
-  label, value, options, onChange
-}: { label: string; value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
-  return (
-    <Row label={label}>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value as T)}
-        className="w-44 bg-[#0a0a0f] border border-[#2a2a3e] rounded px-2 py-1 text-xs text-gray-200"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
-      </select>
-    </Row>
-  )
-}
-
-function ToggleField({
-  label, value, onChange
-}: { label: string; value: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <Row label={label}>
-      <button
-        onClick={() => onChange(!value)}
-        className={`w-10 h-5 rounded-full transition-colors relative ${value ? 'bg-[#00d4ff]' : 'bg-[#2a2a3e]'}`}
-      >
-        <span
-          className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${value ? 'left-5' : 'left-0.5'}`}
-        />
-      </button>
-    </Row>
-  )
-}
-
-const METRIC_OPTIONS: { value: MetricId; label: string }[] = [
-  { value: 'cpu', label: METRIC_LABELS.cpu },
-  { value: 'gpu', label: METRIC_LABELS.gpu },
-  { value: 'liquid', label: METRIC_LABELS.liquid },
-  { value: 'pump', label: METRIC_LABELS.pump }
-]
+import type { TranslationKey } from '../../i18n/languages'
+import { useLanguage } from '../../i18n/LangContext'
+import { BarElement, DisplayElement, GaugeElement, GraphElement, IMAGE_EXTENSIONS, ImageElement, MAX_SENSORS, MetricId, TEXT_VARIABLES, TextElement, defaultWarnAt } from '@shared/display'
+import { CheckField, ColorField, Field, NumField, Pill, SectionTitle, SelectField, TextField } from './fields'
+import { api } from '../../lib/api'
+import { LogoDialog } from './LogoDialog'
+import { MetricOption, optionFor } from './metrics'
+import { InsertSensor, SensorPicker } from './SensorPicker'
+import { FontPicker } from './FontPicker'
+import { CenterAxis } from './geometry'
+import { useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, Copy, ImageSquare, Trash } from '@phosphor-icons/react'
 
 interface Props {
-  element: DisplayElement | null
+  element: DisplayElement
+  metrics: MetricOption[]
+  accent: string
   onChange: (patch: Partial<DisplayElement>) => void
   onRemove: () => void
+  onDuplicate: () => void
+  onCenter: (axis: CenterAxis) => void
+  onReorder: (direction: 1 | -1) => void
 }
 
-export function ElementInspector({ element, onChange, onRemove }: Props) {
-  if (!element) {
-    return (
-      <div className="text-sm text-gray-600 p-4 text-center border border-dashed border-[#2a2a3e] rounded-xl">
-        Select an element (handle on preview or list on the left) to edit it.
-      </div>
-    )
-  }
+type Reading = GaugeElement | BarElement | GraphElement
 
-  const c = onChange as (p: Record<string, unknown>) => void
+const TYPE_NAME: Record<DisplayElement['type'], TranslationKey> = {
+  gauge: 'inspector.type.gauge', bar: 'inspector.type.bar', graph: 'inspector.type.graph', text: 'inspector.type.text', image: 'inspector.type.image',
+}
+
+function IconButton({ title, onClick, danger, children }: { title: string; onClick: () => void; danger?: boolean; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} title={title} aria-label={title} style={{
+      display: 'flex', padding: 7, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--card)', cursor: 'pointer',
+      color: 'var(--fg-dim)',
+    }}
+    onMouseEnter={e => { e.currentTarget.style.color = danger ? '#f66151' : '#fff' }}
+    onMouseLeave={e => { e.currentTarget.style.color = 'var(--fg-dim)' }}>{children}</button>
+  )
+}
+
+/** Controls every metric-driven element (gauge, bar, graph) shares. */
+function ReadingFields({ el, metrics, accent, set }: { el: Reading; metrics: MetricOption[]; accent: string; set: (p: Partial<Reading>) => void }) {
+  const { t } = useLanguage()
+  const current = optionFor(metrics, el.metric, t)
+  const pickMetric = (m: { id: MetricId; label: string; max: number }) =>
+    set({ metric: m.id, max: m.max, label: m.label, warnAt: defaultWarnAt(m.id, m.max) })
+  return (
+    <>
+      <SensorPicker value={el.metric} currentLabel={current.label} accent={accent} onPick={pickMetric}
+        builtins={metrics.filter(m => !m.id.startsWith('sensor'))}/>
+      <TextField label={t('inspector.label')} value={el.label} onChange={label => set({ label })} maxLength={24}/>
+      <CheckField label={t('inspector.show_label')} checked={el.showLabel} accent={accent} onChange={showLabel => set({ showLabel })}/>
+      <CheckField label={t('inspector.show_value')} checked={el.showValue} accent={accent} onChange={showValue => set({ showValue })}/>
+      {el.type === 'gauge' && (
+        <SelectField label={t('inspector.text_position')} value={el.textPosition ?? 'center'} accent={accent}
+          onChange={v => set({ textPosition: v as 'center' | 'bottom' })}
+          options={[{ value: 'center', label: t('inspector.text_position_center') }, { value: 'bottom', label: t('inspector.text_position_bottom') }]}/>
+      )}
+    </>
+  )
+}
+
+function ScaleFields({ el, defaultMax, accent, set }: { el: Reading; defaultMax: number; accent: string; set: (p: Partial<Reading>) => void }) {
+  const { t } = useLanguage()
+  return (
+    <>
+      <NumField label={t('inspector.full_scale')} value={el.max} min={1} max={10000} sliderMax={Math.max(defaultMax * 2, el.max)} accent={accent} onChange={max => set({ max })}/>
+      <NumField label={t('inspector.alert_at')} value={el.warnAt} min={0} max={10000} sliderMax={Math.max(el.max, el.warnAt)} accent={accent} onChange={warnAt => set({ warnAt })}/>
+      <ColorField label={t('inspector.alert_colour')} value={el.warnColor} onChange={warnColor => set({ warnColor })}/>
+      <ColorField label={el.type === 'graph' ? t('inspector.panel') : t('inspector.track')} value={el.trackColor} onChange={trackColor => set({ trackColor })}/>
+    </>
+  )
+}
+
+function GradientField({ el, accent, set }: { el: GaugeElement | BarElement; accent: string; set: (p: Partial<Reading>) => void }) {
+  const { t } = useLanguage()
+  const on = !!el.gradientTo
+  return (
+    <CheckField label={t('inspector.gradient')} checked={on} accent={accent} onChange={v => set({ gradientTo: v ? '#00bcd4' : null })}>
+      {on && (
+        <label style={{ position: 'relative', width: 22, height: 22, cursor: 'pointer' }} title={t('inspector.gradient_end')}>
+          <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: el.gradientTo ?? '#00bcd4', boxShadow: '0 0 0 2px var(--window), 0 0 0 3px var(--border)' }}/>
+          <input type="color" value={el.gradientTo ?? '#00bcd4'} onChange={e => set({ gradientTo: e.target.value })}
+            aria-label={t('inspector.gradient_end')} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}/>
+        </label>
+      )}
+    </CheckField>
+  )
+}
+
+function TextFields({ el, metrics, accent, set }: { el: TextElement; metrics: MetricOption[]; accent: string; set: (p: Partial<TextElement>) => void }) {
+  const { t } = useLanguage()
+  const input = useRef<HTMLInputElement>(null)
+  const insert = (token: string) => {
+    const start = input.current?.selectionStart ?? el.text.length
+    const end = input.current?.selectionEnd ?? start
+    set({ text: el.text.slice(0, start) + token + el.text.slice(end) })
+    requestAnimationFrame(() => {
+      input.current?.focus()
+      input.current?.setSelectionRange(start + token.length, start + token.length)
+    })
+  }
+  const usedSensors = [...new Set([...el.text.matchAll(/\{(sensor\d+)(?::\d)?\}/g)].map(m => m[1]))]
+  return (
+    <>
+      <TextField label={t('inspector.text')} value={el.text} onChange={text => set({ text })} placeholder={t('inspector.text_placeholder')} inputRef={input}/>
+      <InsertSensor accent={accent} builtins={metrics.filter(m => !m.id.startsWith('sensor'))} onInsert={insert}/>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, paddingLeft: 102 }}>
+        {TEXT_VARIABLES.map(v => (
+          <Pill key={v.token} accent={accent} title={t('variable.insert', { token: v.token, label: t(v.label) })} onClick={() => insert(v.token)}>{t(v.short)}</Pill>
+        ))}
+      </div>
+      {usedSensors.length > 0 && (
+        <div style={{ fontSize: 11, color: 'var(--fg-dim)', paddingLeft: 102, lineHeight: 1.6 }}>
+          {usedSensors.map(id => <div key={id}><code>{`{${id}}`}</code> {t('inspector.sensor_is', { label: metrics.find(m => m.id === id)?.label ?? t('inspector.not_set') })}</div>)}
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: 'var(--fg-dim)', paddingLeft: 102, lineHeight: 1.5 }}>
+        {t('inspector.variables_help', { max: MAX_SENSORS })}
+      </div>
+      <FontPicker value={el.font} defaultLabel={t('inspector.scene_font')} accent={accent} onChange={font => set({ font })}/>
+      <NumField label={t('inspector.size')} value={el.size} min={8} max={200} unit="px" accent={accent} onChange={size => set({ size })}/>
+      <SelectField label={t('inspector.align')} value={el.align} accent={accent} onChange={align => set({ align: align as TextElement['align'] })}
+        options={[{ value: 'left', label: t('inspector.align_left') }, { value: 'center', label: t('inspector.align_centre') }, { value: 'right', label: t('inspector.align_right') }]}/>
+      <ColorField label={t('inspector.colour')} value={el.color} onChange={color => set({ color })}/>
+    </>
+  )
+}
+
+function ImageFields({ el, accent, set }: { el: ImageElement; accent: string; set: (p: Partial<ImageElement>) => void }) {
+  const { t } = useLanguage()
+  const [picking, setPicking] = useState(false)
+  const choose = async () => {
+    const path = await api.openFileDialog([{ name: t('inspector.image_filter'), extensions: IMAGE_EXTENSIONS }])
+    if (path) set({ path })
+  }
+  return (
+    <>
+      <Field label={t('inspector.file')}>
+        <Pill accent={accent} onClick={choose}>
+          <ImageSquare size={13}/>
+          <span style={{ maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{el.path.split(/[\\/]/).pop() || t('inspector.choose')}</span>
+        </Pill>
+        <Pill accent={accent} onClick={() => setPicking(true)} title={t('inspector.logos_tip')}>{t('inspector.logos')}</Pill>
+      </Field>
+      {picking && <LogoDialog accent={accent} onClose={() => setPicking(false)} onPick={path => { set({ path }); setPicking(false) }}/>}
+      <NumField label={t('inspector.opacity')} value={el.opacity} min={0} max={100} unit="%" accent={accent} onChange={opacity => set({ opacity: Math.round(opacity) })}/>
+      <div style={{ fontSize: 11, color: 'var(--fg-dim)', paddingLeft: 102, lineHeight: 1.5 }}>
+        {t('inspector.image_note')}
+      </div>
+    </>
+  )
+}
+
+const ADV_KEY = 'inspector.advancedOpen'
+
+/** Collapsible section for rarely-changed options; open state is remembered. */
+function Advanced({ children }: { children: React.ReactNode }) {
+  const { t } = useLanguage()
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem(ADV_KEY) === '1' } catch { return false } })
+  const toggle = () => {
+    setOpen(!open)
+    try { localStorage.setItem(ADV_KEY, open ? '0' : '1') } catch { /* storage unavailable */ }
+  }
+  return (
+    <>
+      <button onClick={toggle} aria-expanded={open} style={{
+        display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+        fontSize: 11, color: 'var(--fg-dim)', fontWeight: 700,
+      }}>{open ? '▾' : '▸'} {t('inspector.advanced')}</button>
+      {open && children}
+    </>
+  )
+}
+
+export function ElementInspector({ element, metrics, accent, onChange, onRemove, onDuplicate, onCenter, onReorder }: Props) {
+  const { t } = useLanguage()
+  const set = onChange as (p: Record<string, unknown>) => void
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-gray-200 capitalize">{element.type}</span>
-        <button
-          onClick={onRemove}
-          className="text-xs text-red-400 hover:text-red-300 border border-red-900/50 hover:border-red-700 rounded px-2 py-1"
-        >
-          Supprimer
-        </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ flex: 1, fontSize: 13, fontWeight: 700 }}>
+          {t(element.type === 'gauge' ? (element.sweep >= 360 ? 'inspector.type.ring' : element.textPosition === 'bottom' ? 'inspector.type.split_ring' : 'inspector.type.gauge') : TYPE_NAME[element.type])}
+        </div>
+        <IconButton title={t('inspector.bring_forward')} onClick={() => onReorder(1)}><ArrowUp size={13}/></IconButton>
+        <IconButton title={t('inspector.send_backward')} onClick={() => onReorder(-1)}><ArrowDown size={13}/></IconButton>
+        <IconButton title={t('inspector.duplicate')} onClick={onDuplicate}><Copy size={13}/></IconButton>
+        <IconButton title={t('inspector.delete')} onClick={onRemove} danger><Trash size={13}/></IconButton>
       </div>
 
-      <NumberField label="Position X" value={element.x} onChange={(v) => c({ x: v })} min={0} max={640} />
-      <NumberField label="Position Y" value={element.y} onChange={(v) => c({ y: v })} min={0} max={640} />
+      {element.type !== 'text' && element.type !== 'image' && (
+        <>
+          <SectionTitle>{t('inspector.reading')}</SectionTitle>
+          <ReadingFields el={element} metrics={metrics} accent={accent} set={set}/>
+          {element.type === 'gauge' && (
+            <CheckField label={t('inspector.value_in_pill')} checked={!!element.valuePill} accent={accent} onChange={valuePill => set({ valuePill })}/>
+          )}
+          {element.type === 'gauge' && element.sweep < 360 && (
+            <CheckField label={t('inspector.min_max')} checked={!!element.showRange} accent={accent} onChange={showRange => set({ showRange, ...(showRange && !element.rangeOffset && { rangeOffset: Math.round(element.thickness / 2 + 14) }) })}/>
+          )}
+          {element.type === 'gauge' && element.sweep < 360 && element.showRange && (
+            <>
+              <NumField label={t('inspector.label_angle')} value={element.rangeAngle ?? 0} min={-180} max={180} unit="°" accent={accent} onChange={rangeAngle => set({ rangeAngle })}/>
+              <NumField label={t('inspector.label_offset')} value={element.rangeOffset ?? 0} min={0} max={200} unit="px" accent={accent} onChange={rangeOffset => set({ rangeOffset })}/>
+            </>
+          )}
+          <ColorField label={t('inspector.colour')} value={element.color} onChange={color => set({ color })}/>
+        </>
+      )}
 
+      <SectionTitle>{t('inspector.size_position')}</SectionTitle>
+      <NumField label="X" value={element.x} min={0} max={640} accent={accent} onChange={x => set({ x })}/>
+      <NumField label="Y" value={element.y} min={0} max={640} accent={accent} onChange={y => set({ y })}/>
+      <div style={{ display: 'flex', gap: 5, paddingLeft: 102 }}>
+        <Pill accent={accent} onClick={() => onCenter('x')} title={t('inspector.centre_h_tip')}>{t('inspector.centre_h')}</Pill>
+        <Pill accent={accent} onClick={() => onCenter('y')} title={t('inspector.centre_v_tip')}>{t('inspector.centre_v')}</Pill>
+      </div>
       {element.type === 'gauge' && (
         <>
-          <SelectField label="Metric" value={element.metric} options={METRIC_OPTIONS} onChange={(v) => c({ metric: v })} />
-          <TextField label="Label" value={element.label} onChange={(v) => c({ label: v })} />
-          <ToggleField label="Afficher label" value={element.showLabel} onChange={(v) => c({ showLabel: v })} />
-          <ToggleField label="Afficher valeur" value={element.showValue} onChange={(v) => c({ showValue: v })} />
-          <NumberField label="Rayon" value={element.radius} onChange={(v) => c({ radius: v })} min={20} max={320} />
-          <NumberField label="Épaisseur" value={element.thickness} onChange={(v) => c({ thickness: v })} min={4} max={160} />
-          <NumberField label="Taille valeur" value={element.valueSize} onChange={(v) => c({ valueSize: v })} min={8} max={128} />
-          <NumberField label="Max (jauge pleine)" value={element.max} onChange={(v) => c({ max: v })} min={1} max={5000} />
-          <NumberField label="Start angle" value={element.startAngle} onChange={(v) => c({ startAngle: v })} min={0} max={360} />
-          <NumberField label="Balayage" value={element.sweep} onChange={(v) => c({ sweep: v })} min={30} max={360} />
-          <NumberField label="Seuil alerte" value={element.warnAt} onChange={(v) => c({ warnAt: v })} min={0} max={5000} />
-          <ColorField label="Color" value={element.color} onChange={(v) => c({ color: v })} />
-          <ColorField label="Alert color" value={element.warnColor} onChange={(v) => c({ warnColor: v })} />
-          <ColorField label="Track color" value={element.trackColor} onChange={(v) => c({ trackColor: v })} />
+          <NumField label={t('inspector.radius')} value={element.radius} min={20} max={320} unit="px" accent={accent} onChange={radius => set({ radius })}/>
+          <NumField label={t('inspector.thickness')} value={element.thickness} min={4} max={160} unit="px" accent={accent} onChange={thickness => set({ thickness })}/>
+          <NumField label={t('inspector.text_size')} value={element.valueSize} min={8} max={160} unit="px" accent={accent} onChange={valueSize => set({ valueSize })}/>
         </>
       )}
-
+      {element.type === 'image' && (
+        <>
+          <NumField label={t('inspector.width')} value={element.width} min={16} max={640} unit="px" accent={accent} onChange={width => set({ width })}/>
+          <NumField label={t('inspector.height')} value={element.height} min={16} max={640} unit="px" accent={accent} onChange={height => set({ height })}/>
+        </>
+      )}
       {element.type === 'bar' && (
         <>
-          <SelectField label="Metric" value={element.metric} options={METRIC_OPTIONS} onChange={(v) => c({ metric: v })} />
-          <TextField label="Label" value={element.label} onChange={(v) => c({ label: v })} />
-          <ToggleField label="Afficher label" value={element.showLabel} onChange={(v) => c({ showLabel: v })} />
-          <ToggleField label="Afficher valeur" value={element.showValue} onChange={(v) => c({ showValue: v })} />
-          <NumberField label="Largeur" value={element.width} onChange={(v) => c({ width: v })} min={20} max={620} />
-          <NumberField label="Hauteur" value={element.height} onChange={(v) => c({ height: v })} min={6} max={120} />
-          <NumberField label="Taille texte" value={element.valueSize} onChange={(v) => c({ valueSize: v })} min={8} max={128} />
-          <NumberField label="Max (barre pleine)" value={element.max} onChange={(v) => c({ max: v })} min={1} max={5000} />
-          <NumberField label="Seuil alerte" value={element.warnAt} onChange={(v) => c({ warnAt: v })} min={0} max={5000} />
-          <ColorField label="Color" value={element.color} onChange={(v) => c({ color: v })} />
-          <ColorField label="Alert color" value={element.warnColor} onChange={(v) => c({ warnColor: v })} />
-          <ColorField label="Track color" value={element.trackColor} onChange={(v) => c({ trackColor: v })} />
+          <NumField label={t('inspector.width')} value={element.width} min={40} max={640} unit="px" accent={accent} onChange={width => set({ width })}/>
+          <NumField label={t('inspector.height')} value={element.height} min={6} max={160} unit="px" accent={accent} onChange={height => set({ height })}/>
+          <NumField label={t('inspector.text_size')} value={element.valueSize} min={8} max={160} unit="px" accent={accent} onChange={valueSize => set({ valueSize })}/>
+        </>
+      )}
+      {element.type === 'graph' && (
+        <>
+          <NumField label={t('inspector.width')} value={element.width} min={90} max={640} unit="px" accent={accent} onChange={width => set({ width })}/>
+          <NumField label={t('inspector.height')} value={element.height} min={60} max={640} unit="px" accent={accent} onChange={height => set({ height })}/>
+          <NumField label={t('inspector.text_size')} value={element.valueSize} min={8} max={80} unit="px" accent={accent} onChange={valueSize => set({ valueSize })}/>
         </>
       )}
 
+      {element.type !== 'text' && element.type !== 'image' && (
+        <Advanced>
+          {element.type === 'gauge' && (
+            <>
+              <NumField label={t('inspector.start_angle')} value={element.startAngle} min={-180} max={180} unit="°" accent={accent} onChange={startAngle => set({ startAngle })}/>
+              <NumField label={t('inspector.sweep')} value={element.sweep} min={30} max={360} unit="°" accent={accent} onChange={sweep => set({ sweep })}/>
+              <NumField label={t('inspector.corners')} value={element.cornerRadius ?? 0} min={0} max={80} unit="px" accent={accent} onChange={cornerRadius => set({ cornerRadius })}/>
+            </>
+          )}
+          {element.type === 'bar' && (
+            <>
+              <NumField label={t('inspector.corners')} value={element.cornerRadius ?? element.height / 2} min={0} max={80} unit="px" accent={accent} onChange={cornerRadius => set({ cornerRadius })}/>
+              <NumField label={t('inspector.segments')} value={element.segments ?? 0} min={0} max={30} accent={accent} onChange={segments => set({ segments })}/>
+            </>
+          )}
+          {element.type === 'graph' && (
+            <>
+              <NumField label={t('inspector.history')} value={element.windowSecs} min={10} max={600} unit="s" accent={accent} onChange={windowSecs => set({ windowSecs: Math.round(windowSecs) })}/>
+              <NumField label={t('inspector.line_width')} value={element.lineWidth} min={1} max={12} unit="px" accent={accent} onChange={lineWidth => set({ lineWidth })}/>
+              <NumField label={t('inspector.corners')} value={element.cornerRadius} min={0} max={80} unit="px" accent={accent} onChange={cornerRadius => set({ cornerRadius })}/>
+              <CheckField label={t('inspector.fill')} checked={element.fill} accent={accent} onChange={fill => set({ fill })}/>
+            </>
+          )}
+          <ScaleFields el={element} defaultMax={optionFor(metrics, element.metric, t).max} accent={accent} set={set}/>
+          {element.type !== 'graph' && <GradientField el={element} accent={accent} set={set}/>}
+        </Advanced>
+      )}
+      {element.type === 'image' && (
+        <>
+          <SectionTitle>{t('inspector.picture')}</SectionTitle>
+          <ImageFields el={element} accent={accent} set={set}/>
+        </>
+      )}
       {element.type === 'text' && (
         <>
-          <TextField
-            label="Texte"
-            value={element.text}
-            onChange={(v) => c({ text: v })}
-            placeholder="Texte ou {cpu} {gpu} {liquid}"
-          />
-          <p className="text-[10px] text-gray-600 -mt-1">
-            Tokens : <span className="font-mono text-gray-500">{'{cpu} {gpu} {liquid} {pump}'}</span>
-          </p>
-          <NumberField label="Taille" value={element.size} onChange={(v) => c({ size: v })} min={8} max={128} />
-          <SelectField
-            label="Alignement"
-            value={element.align}
-            options={[
-              { value: 'left', label: 'Gauche' },
-              { value: 'center', label: 'Centered' },
-              { value: 'right', label: 'Droite' }
-            ]}
-            onChange={(v) => c({ align: v })}
-          />
-          <ColorField label="Color" value={element.color} onChange={(v) => c({ color: v })} />
+          <SectionTitle>{t('inspector.content')}</SectionTitle>
+          <TextFields el={element} metrics={metrics} accent={accent} set={set}/>
         </>
       )}
     </div>

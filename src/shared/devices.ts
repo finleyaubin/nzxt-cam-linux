@@ -6,6 +6,8 @@
  *                 « demander l'accès » pour qu'il soit priorisé.
  */
 
+import type { TranslationKey } from '../i18n/languages'
+
 export type DeviceStatus = 'supported' | 'draft'
 
 export interface AioDevice {
@@ -16,7 +18,7 @@ export interface AioDevice {
   pid: number | null
   lcd: string
   status: DeviceStatus
-  note?: string
+  noteKey?: TranslationKey
 }
 
 export const AIO_DEVICES: AioDevice[] = [
@@ -28,7 +30,7 @@ export const AIO_DEVICES: AioDevice[] = [
     pid: 0x3012,
     lcd: '640×640',
     status: 'supported',
-    note: 'Tested — GIF, image, color and Temperatures mode working.'
+    noteKey: 'settings.aio.note.tested_modes'
   },
   {
     id: 'nzxt-kraken-2024-plus',
@@ -46,7 +48,8 @@ export const AIO_DEVICES: AioDevice[] = [
     vid: 0x1e71,
     pid: 0x300c,
     lcd: '640×640',
-    status: 'draft'
+    status: 'supported',
+    noteKey: 'settings.aio.note.tested_modes'
   },
   {
     id: 'nzxt-kraken-2023',
@@ -99,7 +102,7 @@ export const AIO_DEVICES: AioDevice[] = [
     name: 'Galahad II LCD',
     vid: null as unknown as number,
     pid: null,
-    lcd: '—',
+    lcd: '-',
     status: 'draft'
   }
 ]

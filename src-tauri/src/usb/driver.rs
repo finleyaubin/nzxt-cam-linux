@@ -14,14 +14,17 @@
 use crate::types::{DeviceStatus, DisplayConfig, Temperatures, LCD_HEIGHT, LCD_WIDTH};
 use crate::usb::protocol::*;
 use anyhow::{anyhow, bail, Result};
-use nusb::transfer::{Buffer, Bulk, In, Interrupt, Out, TransferError};
+use nusb::transfer::{Buffer, Bulk, BulkOrInterrupt, EndpointDirection, In, Interrupt, Out, TransferError};
 use nusb::{Device, Endpoint, Interface};
 use parking_lot::{Mutex as PlMutex, RwLock};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::{mpsc, oneshot, Mutex as AsyncMutex};
+
+mod transport;
+use transport::*;
 
 // ============================================================================
 // Hardware bundle — populated on connect, dropped on disconnect
@@ -36,6 +39,96 @@ struct Hardware {
     poll_shutdown: Option<oneshot::Sender<()>>,
     /// Receiver fed by the polling task with raw interrupt-in packets.
     intr_rx: mpsc::UnboundedReceiver<Vec<u8>>,
+    /// Bucket currently shown on the LCD, so a full memory can be reclaimed without blanking it.
+    active_bucket: Option<u8>,
+    /// Which connection these handles belong to (see `Inner::conn_id`).
+    conn_id: u32,
+    /// Cleared by the interrupt poller when the USB link dies, so I/O can bail out instead of waiting on timeouts.
+    alive: Arc<AtomicBool>,
+}
+
+impl Hardware {
+    fn ensure_alive(&self) -> Result<()> {
+        if self.alive.load(Ordering::Acquire) {
+            Ok(())
+        } else {
+            bail!("USB link to the Kraken was lost")
+        }
+    }
+}
+
+// ============================================================================
+// Link health tuning
+// ============================================================================
+
+/// How often the watcher looks for a missing device.
+const WATCH_EVERY: Duration = Duration::from_secs(3);
+/// A watcher tick this far apart (wall clock) means the machine slept in between.
+const RESUME_GAP: Duration = Duration::from_secs(15);
+/// Consecutive transfer errors the interrupt poller tolerates before giving up on the link.
+const MAX_POLL_ERRORS: u32 = 5;
+/// Consecutive failed LCD uploads before the link is declared lost.
+const MAX_PUSH_FAILURES: u32 = 3;
+/// A whole LCD upload (every protocol step plus the bulk transfer) must finish within this.
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(60);
+const INTERRUPT_WRITE_TIMEOUT: Duration = Duration::from_secs(3);
+const BULK_WRITE_TIMEOUT: Duration = Duration::from_secs(15);
+
+fn woke_from_sleep(prev: SystemTime, now: SystemTime) -> bool {
+    now.duration_since(prev).is_ok_and(|gap| gap > RESUME_GAP)
+}
+
+/// Minimum wait before the next upload attempt after `failures` consecutive failures.
+fn push_backoff(failures: u32) -> Duration {
+    if failures == 0 {
+        return Duration::ZERO;
+    }
+    Duration::from_millis(500u64 << failures.min(5)).min(Duration::from_secs(10))
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum PollAction {
+    LinkLost,
+    ClearHalt,
+    Retry(Duration),
+}
+
+/// What the interrupt poller should do after a failed transfer (`consecutive` counts this one).
+fn classify_poll_error(err: TransferError, consecutive: u32) -> PollAction {
+    match err {
+        TransferError::Disconnected => PollAction::LinkLost,
+        _ if consecutive >= MAX_POLL_ERRORS => PollAction::LinkLost,
+        TransferError::Stall => PollAction::ClearHalt,
+        _ => PollAction::Retry(Duration::from_millis(50 * consecutive as u64).min(Duration::from_millis(500))),
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum PollEnd {
+    /// We asked it to stop (disconnect, or the receiver went away).
+    Shutdown,
+    /// The device stopped answering: unplugged, reset or re-enumerated (e.g. after suspend).
+    LinkLost,
+}
+
+#[derive(Debug)]
+struct UploadTimeout;
+
+impl std::fmt::Display for UploadTimeout {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "LCD upload timed out")
+    }
+}
+
+impl std::error::Error for UploadTimeout {}
+
+enum Push {
+    Sent,
+    Failed,
+    /// The upload hung rather than failing; the device is not coming back without a reconnect.
+    Wedged,
+    /// The loop was replaced while we waited for the device.
+    Stale,
 }
 
 // ============================================================================
@@ -43,11 +136,15 @@ struct Hardware {
 // ============================================================================
 pub type StatusCallback = Arc<dyn Fn(&DeviceStatus) + Send + Sync>;
 pub type TempsCallback = Arc<dyn Fn(&Temperatures) + Send + Sync>;
+pub type RenderFn = dyn Fn(&DisplayConfig, Temperatures) -> Result<crate::render::LcdFrame> + Send + Sync;
 
 struct Inner {
     status: RwLock<DeviceStatus>,
     display_config: RwLock<DisplayConfig>,
     config_version: AtomicU32,
+
+    /// Bumped on every successful connect so late reports about an old connection can be ignored.
+    conn_id: AtomicU32,
 
     temp_loop_active: AtomicBool,
     temp_gen: AtomicU32,
@@ -74,6 +171,7 @@ impl KrakenDriver {
             status: RwLock::new(DeviceStatus::disconnected()),
             display_config: RwLock::new(DisplayConfig::default()),
             config_version: AtomicU32::new(0),
+            conn_id: AtomicU32::new(0),
             temp_loop_active: AtomicBool::new(false),
             temp_gen: AtomicU32::new(0),
             temp_poll_ms: AtomicU64::new(500),
@@ -139,8 +237,15 @@ impl KrakenDriver {
 
     pub async fn connect(&self) -> Result<()> {
         let mut hw_guard = self.0.hw.lock().await;
-        if hw_guard.is_some() {
-            return Ok(());
+        if let Some(old) = hw_guard.as_mut() {
+            if self.0.status.read().connected && old.alive.load(Ordering::Acquire) {
+                return Ok(());
+            }
+            // Handles left over from a lost link (suspend/resume, replug): release them before reopening.
+            if let Some(sd) = old.poll_shutdown.take() {
+                let _ = sd.send(());
+            }
+            *hw_guard = None;
         }
 
         // Find a Kraken device by VID + any known PID.
@@ -150,7 +255,7 @@ impl KrakenDriver {
         let info = devices
             .into_iter()
             .find(|d| d.vendor_id() == NZXT_VID && KRAKEN_PIDS.contains(&d.product_id()))
-            .ok_or_else(|| anyhow!("Aucun Kraken Elite trouvé"))?;
+            .ok_or_else(|| anyhow!("No Kraken Elite found"))?;
         let pid = info.product_id();
 
         let device = info.open().await.map_err(|e| anyhow!("Open USB: {e}"))?;
@@ -177,14 +282,21 @@ impl KrakenDriver {
             .endpoint::<Interrupt, In>(INTR_IN_EP)
             .map_err(|e| anyhow!("Open intr IN {:#x}: {e}", INTR_IN_EP))?;
 
-        // Always use PKT_SIZE (512 bytes) — the NZXT firmware expects full 512-byte
-        // interrupt frames (Electron version uses Buffer.alloc(512) for every write).
-        let in_packet_size = PKT_SIZE;
+        let in_packet_size = intr_in.max_packet_size();
 
         // Start the interrupt-in polling task.
         let (intr_tx, intr_rx) = mpsc::unbounded_channel::<Vec<u8>>();
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-        tokio::spawn(poll_interrupt_in(intr_in, in_packet_size, intr_tx, shutdown_rx));
+        let conn_id = self.0.conn_id.fetch_add(1, Ordering::AcqRel) + 1;
+        let alive = Arc::new(AtomicBool::new(true));
+        let driver = self.clone();
+        let poller_alive = alive.clone();
+        tokio::spawn(async move {
+            if poll_interrupt_in(intr_in, in_packet_size, intr_tx, shutdown_rx).await == PollEnd::LinkLost {
+                poller_alive.store(false, Ordering::Release);
+                driver.link_lost(conn_id);
+            }
+        });
 
         // Brief settle, then drain pre-existing packets.
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -196,8 +308,12 @@ impl KrakenDriver {
             intr_out,
             poll_shutdown: Some(shutdown_tx),
             intr_rx,
+            active_bucket: None,
+            conn_id,
+            alive,
         };
         drain_rx(&mut hw.intr_rx, Duration::from_millis(300)).await;
+        hw.ensure_alive().map_err(|_| anyhow!("Kraken went away while connecting"))?;
         *hw_guard = Some(hw);
 
         self.update_status(|s| {
@@ -226,6 +342,68 @@ impl KrakenDriver {
         crate::sensors::clear_device_temps();
     }
 
+    /// The USB link died underneath us (the interrupt poller or an upload noticed). Report it right away,
+    /// without waiting for the hardware lock, and let `watch_connection` bring the device back.
+    /// The temperature loop keeps running and repaints once the device returns.
+    fn link_lost(&self, conn_id: u32) {
+        if self.0.conn_id.load(Ordering::Acquire) != conn_id || !self.0.status.read().connected {
+            return;
+        }
+        log::warn!("USB link to the Kraken was lost (unplugged, or the system suspended); waiting for it to come back");
+        self.update_status(|s| *s = DeviceStatus::disconnected());
+        crate::sensors::clear_device_temps();
+        let driver = self.clone();
+        tokio::spawn(async move { driver.drop_hardware(conn_id).await });
+    }
+
+    async fn drop_hardware(&self, conn_id: u32) {
+        let mut g = self.0.hw.lock().await;
+        if g.as_ref().is_some_and(|hw| hw.conn_id == conn_id) {
+            if let Some(mut hw) = g.take() {
+                if let Some(sd) = hw.poll_shutdown.take() {
+                    let _ = sd.send(());
+                }
+            }
+        }
+    }
+
+    /// Keep the connection alive for the life of the app: reconnect whenever the device is missing
+    /// (unplug, or re-enumeration after suspend) and repaint the LCD after the machine wakes up.
+    pub async fn watch_connection(self) {
+        let mut tick = tokio::time::interval(WATCH_EVERY);
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        let mut last_wall = SystemTime::now();
+        let mut last_error: Option<String> = None;
+        loop {
+            tick.tick().await;
+            let now = SystemTime::now();
+            if woke_from_sleep(last_wall, now) {
+                log::info!("System resumed from sleep; refreshing the LCD");
+                self.refresh_display();
+            }
+            last_wall = now;
+
+            if self.0.status.read().connected {
+                last_error = None;
+                continue;
+            }
+            match self.connect().await {
+                Ok(()) => {
+                    log::info!("Kraken connected");
+                    last_error = None;
+                }
+                Err(e) => {
+                    // Log a given failure once, not every few seconds.
+                    let msg = e.to_string();
+                    if last_error.as_deref() != Some(msg.as_str()) {
+                        log::info!("Kraken not available: {msg}");
+                        last_error = Some(msg);
+                    }
+                }
+            }
+        }
+    }
+
     pub fn stop_current_mode(&self) {
         self.0.temp_loop_active.store(false, Ordering::Release);
         self.0.temp_gen.fetch_add(1, Ordering::Release);
@@ -236,7 +414,7 @@ impl KrakenDriver {
     /// The firmware expects 40 duty values for temps 20°C..=59°C interpolated linearly.
     pub async fn set_pump_speed_profile(&self, points: Vec<(u8, u8)>) -> Result<()> {
         let mut hw_guard = self.0.hw.lock().await;
-        let hw = hw_guard.as_mut().ok_or_else(|| anyhow!("Non connecté"))?;
+        let hw = hw_guard.as_mut().ok_or_else(|| anyhow!("Not connected"))?;
 
         // Interpolate duty for each integer temp 20..=59 (40 values).
         let mut duties = [20u8; 40];
@@ -252,11 +430,16 @@ impl KrakenDriver {
         pkt[3] = 0x00;
         pkt[4..44].copy_from_slice(&duties);
 
+        hw.ensure_alive()?;
         hw.intr_out.submit(Buffer::from(pkt));
-        let comp = hw.intr_out.next_complete().await;
-        comp.status.map_err(|e| anyhow!("pump profile write failed: {e:?}"))?;
+        finish(&mut hw.intr_out, "pump profile write", INTERRUPT_WRITE_TIMEOUT).await?;
         log::info!("Pump speed profile envoyé ({} points)", points.len());
         Ok(())
+    }
+
+    /// Force the temperature loop to re-render on its next tick.
+    pub fn refresh_display(&self) {
+        self.0.config_version.fetch_add(1, Ordering::Release);
     }
 
     // ========================================================================
@@ -275,15 +458,16 @@ impl KrakenDriver {
         }
         let bulk_info = bulk_info_rgba(rgba.len() as u32);
         let mut g = self.0.hw.lock().await;
-        let hw = g.as_mut().ok_or_else(|| anyhow!("Pas connecté"))?;
+        let hw = g.as_mut().ok_or_else(|| anyhow!("Not connected"))?;
         send_data_native(hw, &rgba, &bulk_info).await
     }
 
     pub async fn send_rgba_image(&self, rgba: Vec<u8>) -> Result<()> {
         self.stop_current_mode();
+        let rgba = crate::image_io::rotate_for_lcd(rgba);
         let bulk_info = bulk_info_rgba(rgba.len() as u32);
         let mut g = self.0.hw.lock().await;
-        let hw = g.as_mut().ok_or_else(|| anyhow!("Pas connecté"))?;
+        let hw = g.as_mut().ok_or_else(|| anyhow!("Not connected"))?;
         send_data_native(hw, &rgba, &bulk_info).await
     }
 
@@ -291,7 +475,7 @@ impl KrakenDriver {
         self.stop_current_mode();
         let bulk_info = bulk_info_gif(gif_bytes.len() as u32);
         let mut g = self.0.hw.lock().await;
-        let hw = g.as_mut().ok_or_else(|| anyhow!("Pas connecté"))?;
+        let hw = g.as_mut().ok_or_else(|| anyhow!("Not connected"))?;
         send_data_native(hw, &gif_bytes, &bulk_info).await
     }
 
@@ -305,7 +489,7 @@ impl KrakenDriver {
         mode: crate::types::RingMode,
     ) -> Result<()> {
         let mut g = self.0.hw.lock().await;
-        let hw = g.as_mut().ok_or_else(|| anyhow!("Pas connecté"))?;
+        let hw = g.as_mut().ok_or_else(|| anyhow!("Not connected"))?;
         let cmd = build_ring_cmd(channel, mode);
         write_cmd(hw, &cmd).await
     }
@@ -316,7 +500,7 @@ impl KrakenDriver {
 
     pub fn start_temp_mode<F>(&self, render_fn: F) -> Result<()>
     where
-        F: Fn(&DisplayConfig, Temperatures) -> Result<Vec<u8>> + Send + Sync + 'static,
+        F: Fn(&DisplayConfig, Temperatures) -> Result<crate::render::LcdFrame> + Send + Sync + 'static,
     {
         self.stop_current_mode();
         let my_gen = self.0.temp_gen.load(Ordering::Acquire);
@@ -333,10 +517,15 @@ impl KrakenDriver {
     async fn temp_loop(
         &self,
         my_gen: u32,
-        render_fn: Arc<dyn Fn(&DisplayConfig, Temperatures) -> Result<Vec<u8>> + Send + Sync>,
+        render_fn: Arc<RenderFn>,
     ) {
         let mut last_visual_key: Option<String> = None;
         let mut last_push_at: Option<Instant> = None;
+        let mut gif_cost = Duration::from_secs(1);
+        let mut failures = 0u32;
+        // Extra wait after a render error, so a persistent one (missing font or image) doesn't re-render every tick.
+        let mut render_retry = Duration::ZERO;
+        let mut seen_conn = self.0.conn_id.load(Ordering::Acquire);
 
         loop {
             if !self.0.temp_loop_active.load(Ordering::Acquire)
@@ -355,37 +544,76 @@ impl KrakenDriver {
                 }
             }
 
-            let cfg_snapshot = self.0.display_config.read().clone();
-            let decimals = cfg_snapshot.decimals.min(2);
-            let config_version = self.0.config_version.load(Ordering::Acquire);
-            let key = visual_key(temps, decimals, config_version);
+            // Without a device there is nothing to draw on. A new connection (after replug or resume)
+            // has lost whatever the LCD showed, so the next frame must be pushed even if nothing changed.
+            let conn_id = self.0.conn_id.load(Ordering::Acquire);
+            let connected = self.0.status.read().connected;
+            if !connected || conn_id != seen_conn {
+                last_visual_key = None;
+                last_push_at = None;
+                failures = 0;
+                seen_conn = conn_id;
+            }
 
-            let cooldown_ok = last_push_at
-                .map(|t| {
-                    Instant::now().duration_since(t)
-                        >= Duration::from_millis(self.0.temp_min_push_ms.load(Ordering::Relaxed))
-                })
-                .unwrap_or(true);
+            if connected {
+                let cfg_snapshot = self.0.display_config.read().clone();
+                let decimals = cfg_snapshot.decimals.min(2);
+                let config_version = self.0.config_version.load(Ordering::Acquire);
+                let key = visual_key(&cfg_snapshot, temps, decimals, config_version);
 
-            if Some(&key) != last_visual_key.as_ref() && cooldown_ok {
-                match render_fn(&cfg_snapshot, temps) {
-                    Ok(rgba) => {
-                        let bulk_info = bulk_info_rgba(rgba.len() as u32);
-                        let mut g = self.0.hw.lock().await;
-                        if let Some(hw) = g.as_mut() {
-                            if self.0.temp_loop_active.load(Ordering::Acquire)
-                                && self.0.temp_gen.load(Ordering::Acquire) == my_gen
-                            {
-                                if let Err(e) = send_data_native(hw, &rgba, &bulk_info).await {
-                                    log::warn!("temp push failed: {e}");
-                                } else {
+                let min_push = Duration::from_millis(self.0.temp_min_push_ms.load(Ordering::Relaxed));
+                // A GIF background is re-encoded per update; keep that under ~20% of a core (1-5s between updates).
+                let min_push = if crate::render::has_gif_background(&cfg_snapshot) {
+                    min_push.max((gif_cost * 5).clamp(Duration::from_secs(1), Duration::from_secs(5)))
+                } else {
+                    min_push
+                };
+                let min_push = min_push.max(push_backoff(failures)).max(render_retry);
+                let cooldown_ok = last_push_at.is_none_or(|t| t.elapsed() >= min_push);
+
+                if Some(&key) != last_visual_key.as_ref() && cooldown_ok {
+                    let render_start = Instant::now();
+                    let rendered = render_fn(&cfg_snapshot, temps);
+                    if matches!(rendered, Ok(crate::render::LcdFrame::Gif(_))) {
+                        gif_cost = render_start.elapsed();
+                    }
+                    match rendered {
+                        Ok(frame) => {
+                            render_retry = Duration::ZERO;
+                            let (data, bulk_info) = match frame {
+                                crate::render::LcdFrame::Rgba(rgba) => {
+                                    let rgba = crate::image_io::rotate_for_lcd(rgba);
+                                    let info = bulk_info_rgba(rgba.len() as u32);
+                                    (rgba, info)
+                                }
+                                crate::render::LcdFrame::Gif(gif) => {
+                                    let info = bulk_info_gif(gif.len() as u32);
+                                    (gif, info)
+                                }
+                            };
+                            match self.push_frame(my_gen, &data, &bulk_info).await {
+                                Push::Sent => {
                                     last_visual_key = Some(key);
                                     last_push_at = Some(Instant::now());
+                                    failures = 0;
                                 }
+                                Push::Stale => {}
+                                Push::Failed => {
+                                    failures += 1;
+                                    last_push_at = Some(Instant::now());
+                                    if failures >= MAX_PUSH_FAILURES {
+                                        self.link_lost(conn_id);
+                                    }
+                                }
+                                Push::Wedged => self.link_lost(conn_id),
                             }
                         }
+                        Err(e) => {
+                            log::warn!("render error: {e}");
+                            render_retry = Duration::from_secs(5);
+                            last_push_at = Some(Instant::now());
+                        }
                     }
-                    Err(e) => log::warn!("render error: {e}"),
                 }
             }
 
@@ -407,578 +635,169 @@ impl KrakenDriver {
         }
         log::debug!("temp loop {} terminé", my_gen);
     }
+
+    async fn push_frame(&self, my_gen: u32, data: &[u8], bulk_info: &[u8]) -> Push {
+        let mut g = self.0.hw.lock().await;
+        let Some(hw) = g.as_mut() else {
+            return Push::Failed;
+        };
+        if !self.0.temp_loop_active.load(Ordering::Acquire) || self.0.temp_gen.load(Ordering::Acquire) != my_gen {
+            return Push::Stale;
+        }
+        match send_data_native(hw, data, bulk_info).await {
+            Ok(()) => Push::Sent,
+            Err(e) if e.downcast_ref::<UploadTimeout>().is_some() => {
+                log::warn!("temp push hung: {e}");
+                Push::Wedged
+            }
+            Err(e) => {
+                log::warn!("temp push failed: {e}");
+                Push::Failed
+            }
+        }
+    }
+}
+
+impl Default for KrakenDriver {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ============================================================================
 // Visual key — stable representation of what the LCD will display
 // ============================================================================
-fn visual_key(t: Temperatures, decimals: u8, config_version: u32) -> String {
-    let d = decimals.min(2) as usize;
-    format!(
-        "{}|{:.*}|{:.*}|{:.*}|{}",
-        config_version,
-        d,
-        t.cpu,
-        d,
-        t.gpu,
-        d,
-        t.liquid,
-        t.pump_rpm.round() as i64
-    )
-}
-
-// ============================================================================
-// Interrupt IN polling task
-// ============================================================================
-async fn poll_interrupt_in(
-    mut ep: Endpoint<Interrupt, In>,
-    pkt_size: usize,
-    tx: mpsc::UnboundedSender<Vec<u8>>,
-    mut shutdown: oneshot::Receiver<()>,
-) {
-    // Pre-submit 2 reads so we never miss a packet.
-    for _ in 0..2 {
-        ep.submit(Buffer::new(pkt_size));
-    }
-    loop {
-        tokio::select! {
-            _ = &mut shutdown => break,
-            comp = ep.next_complete() => {
-                match comp.status {
-                    Ok(()) => {
-                        let data: Vec<u8> = comp.buffer.into_vec();
-                        parse_device_status(&data);
-                        if tx.send(data).is_err() {
-                            break;
-                        }
-                    }
-                    Err(TransferError::Cancelled) => break,
-                    Err(e) => {
-                        log::warn!("intr_in poll error: {e:?}");
-                    }
-                }
-                ep.submit(Buffer::new(pkt_size));
+/// Only what is actually drawn, so off-screen readings (e.g. pump RPM) don't trigger a bucket switch.
+fn visual_key(cfg: &DisplayConfig, t: Temperatures, decimals: u8, config_version: u32) -> String {
+    use crate::types::{format_metric, resolve_text, DisplayElement};
+    let mut key = config_version.to_string();
+    for el in &cfg.elements {
+        key.push('|');
+        match el {
+            DisplayElement::Gauge(g) => key.push_str(&format_metric(g.metric.value_from(t), decimals)),
+            DisplayElement::Bar(b) => key.push_str(&format_metric(b.metric.value_from(t), decimals)),
+            // A graph scrolls with every new history sample, not only when its number changes.
+            DisplayElement::Graph(g) => {
+                key.push_str(&format_metric(g.metric.value_from(t), decimals));
+                key.push(':');
+                key.push_str(&crate::sensors::history::version().to_string());
             }
+            DisplayElement::Text(x) => key.push_str(&resolve_text(&x.text, t, decimals)),
+            // Pictures only change with the config itself, which `config_version` already covers.
+            DisplayElement::Image(_) => {}
         }
     }
-    ep.cancel_all();
-    log::debug!("interrupt-in poller stopped");
+    key
 }
 
-/// Parse NZXT Kraken status packets (byte[0] = 0x75).
-/// Format (Kraken Elite / KrakenX3 firmware):
-///   [0]     = 0x75  (status message ID)
-///   [15]    = liquid temp integer part (°C)
-///   [16]    = liquid temp fractional part (tenths, 0–9)
-///   [17:19] = pump speed big-endian u16 (RPM)
-fn parse_device_status(data: &[u8]) {
-    if data.len() < 20 || data[0] != 0x75 {
-        return;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{TextAlign, TextElement};
+
+    #[test]
+    fn visual_key_ignores_offscreen_readings() {
+        let text = TextElement { id: "t".into(), x: 0.0, y: 0.0, text: "{liquid}°".into(), color: "#fff".into(), size: 10.0, align: TextAlign::Center, font: None };
+        let cfg = DisplayConfig { elements: vec![crate::types::DisplayElement::Text(text)], ..DisplayConfig::default() };
+        let base = Temperatures { liquid: 31.2, pump_rpm: 1500.0, ..Temperatures::default() };
+        let key = |t| visual_key(&cfg, t, 0, 1);
+        assert_eq!(key(base), key(Temperatures { pump_rpm: 1620.0, cpu: 70.0, ..base }));
+        assert_eq!(key(base), key(Temperatures { liquid: 31.4, ..base }), "same at 0 decimals");
+        assert_ne!(key(base), key(Temperatures { liquid: 32.0, ..base }));
     }
-    let liquid = data[15] as f64 + data[16] as f64 / 10.0;
-    let pump = u16::from_le_bytes([data[17], data[18]]) as f64;
-    // Sanity-check: liquid must be in a plausible range (1–59 °C)
-    if liquid >= 1.0 && liquid <= 59.0 {
-        crate::sensors::update_device_temps(liquid, pump);
-        log::trace!("device status: liquid={liquid:.1}°C pump={pump:.0}RPM");
-    }
-}
 
-// ============================================================================
-// Low-level I/O helpers
-// ============================================================================
-
-async fn write_cmd(hw: &mut Hardware, data: &[u8]) -> Result<()> {
-    // Firmware expects fixed 512-byte interrupt OUT frames (same as Electron's
-    // Buffer.alloc(PKT, 0) where PKT=512). Command bytes go at offset 0, rest is zeros.
-    let mut buf = vec![0u8; PKT_SIZE];
-    let n = data.len().min(PKT_SIZE);
-    buf[..n].copy_from_slice(&data[..n]);
-    hw.intr_out.submit(Buffer::from(buf));
-    let comp = hw.intr_out.next_complete().await;
-    comp.status
-        .map_err(|e| anyhow!("interrupt_out failed: {e:?}"))?;
-    Ok(())
-}
-
-async fn read_one(hw: &mut Hardware, timeout: Duration) -> Option<Vec<u8>> {
-    match tokio::time::timeout(timeout, hw.intr_rx.recv()).await {
-        Ok(Some(v)) => Some(v),
-        _ => None,
-    }
-}
-
-async fn drain_rx(rx: &mut mpsc::UnboundedReceiver<Vec<u8>>, total: Duration) {
-    let deadline = Instant::now() + total;
-    let mut n = 0;
-    loop {
-        let now = Instant::now();
-        if now >= deadline {
-            break;
+    #[test]
+    fn dead_links_stop_the_poller_instead_of_spinning() {
+        use std::time::Duration;
+        assert_eq!(classify_poll_error(TransferError::Disconnected, 1), PollAction::LinkLost);
+        assert_eq!(classify_poll_error(TransferError::Stall, 1), PollAction::ClearHalt);
+        assert!(matches!(classify_poll_error(TransferError::Fault, 1), PollAction::Retry(d) if d > Duration::ZERO));
+        // Whatever the error, it gives up after enough in a row.
+        for err in [TransferError::Fault, TransferError::Stall, TransferError::Unknown(5)] {
+            assert_eq!(classify_poll_error(err, MAX_POLL_ERRORS), PollAction::LinkLost);
         }
-        let remain = deadline - now;
-        match tokio::time::timeout(remain.min(Duration::from_millis(50)), rx.recv()).await {
-            Ok(Some(_)) => {
-                n += 1;
-            }
-            _ => break,
-        }
+        // Retries back off but stay bounded.
+        let PollAction::Retry(late) = classify_poll_error(TransferError::Fault, MAX_POLL_ERRORS - 1) else { panic!() };
+        assert!(late <= Duration::from_millis(500));
     }
-    if n > 0 {
-        log::debug!("drained {} stale responses", n);
+
+    #[test]
+    fn failed_uploads_back_off_and_cap() {
+        use std::time::Duration;
+        assert_eq!(push_backoff(0), Duration::ZERO);
+        assert!(push_backoff(1) < push_backoff(2) && push_backoff(2) < push_backoff(3));
+        assert_eq!(push_backoff(40), Duration::from_secs(10));
     }
-}
 
-async fn read_until(
-    hw: &mut Hardware,
-    prefix: &[u8],
-    max_attempts: u32,
-    per_read_ms: u64,
-) -> Option<Vec<u8>> {
-    for _ in 0..max_attempts {
-        let pkt = read_one(hw, Duration::from_millis(per_read_ms)).await;
-        if let Some(buf) = pkt {
-            if buf.len() >= prefix.len() && buf[..prefix.len()] == *prefix {
-                return Some(buf);
-            }
-        }
+    #[test]
+    fn long_wall_clock_gaps_mean_the_machine_slept() {
+        use std::time::{Duration, SystemTime};
+        let t = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        assert!(!woke_from_sleep(t, t + WATCH_EVERY));
+        assert!(woke_from_sleep(t, t + Duration::from_secs(3600)));
+        assert!(!woke_from_sleep(t, t - Duration::from_secs(60)), "clock stepping backwards is not a resume");
     }
-    log::warn!(
-        "TIMEOUT [{}]",
-        prefix
-            .iter()
-            .map(|b| format!("{:02x}", b))
-            .collect::<Vec<_>>()
-            .join("")
-    );
-    None
-}
 
-async fn write_read(
-    hw: &mut Hardware,
-    data: &[u8],
-    expected_prefix: &[u8],
-) -> Option<Vec<u8>> {
-    if let Err(e) = write_cmd(hw, data).await {
-        log::warn!("write_cmd failed: {e}");
-        return None;
+    #[tokio::test]
+    async fn connection_watcher_can_be_spawned_on_the_runtime() {
+        // lib.rs hands this future to `tauri::async_runtime::spawn`, which requires it to be Send.
+        tokio::spawn(KrakenDriver::new().watch_connection()).abort();
     }
-    read_until(hw, expected_prefix, 25, 800).await
-}
 
-async fn bulk_write(hw: &mut Hardware, data: Vec<u8>) -> Result<()> {
-    hw.bulk_out.submit(Buffer::from(data));
-    let comp = hw.bulk_out.next_complete().await;
-    comp.status
-        .map_err(|e| anyhow!("bulk_out failed: {e:?}"))?;
-    Ok(())
-}
-
-async fn bulk_write_all(hw: &mut Hardware, data: &[u8]) -> Result<()> {
-    let mut sent = 0;
-    while sent < data.len() {
-        let end = (sent + BULK_CHUNK).min(data.len());
-        let chunk = data[sent..end].to_vec();
-        bulk_write(hw, chunk).await?;
-        sent = end;
-        log::trace!("bulk: {}/{}", sent, data.len());
+    fn connected_driver() -> KrakenDriver {
+        let d = KrakenDriver::new();
+        d.update_status(|s| s.connected = true);
+        d
     }
-    Ok(())
-}
 
-// ============================================================================
-// sendFw3 — static RGBA frame (full reset → setup → bulk → switch)
-// ============================================================================
-#[allow(dead_code)]
-async fn send_fw3(hw: &mut Hardware, image: &[u8], bulk_info: &[u8]) -> Result<()> {
-    let data_size = ((MAGIC.len() + bulk_info.len() + image.len()) as u32).div_ceil(1024);
-    let dsz = [(data_size & 0xff) as u8, ((data_size >> 8) & 0xff) as u8];
-
-    drain_rx(&mut hw.intr_rx, Duration::from_millis(300)).await;
-    tokio::time::sleep(Duration::from_millis(50)).await;
-
-    // FW query — wakes the protocol.
-    write_cmd(hw, &[0x10, 0x01]).await?;
-    if let Some(r) = read_until(hw, &[0x11, 0x01], 20, 800).await {
-        if r.len() >= 5 {
-            log::debug!("FW: {}.{}.{}", r[2], r[3], r[4]);
-        }
+    #[tokio::test]
+    async fn link_loss_marks_the_device_disconnected_once_and_ignores_stale_reports() {
+        let d = connected_driver();
+        d.0.conn_id.store(5, Ordering::Release);
+        d.link_lost(4); // a report about an older connection
+        assert!(d.get_status().connected);
+        d.link_lost(5);
+        assert!(!d.get_status().connected);
+        d.link_lost(5); // already handled
+        assert!(!d.get_status().connected);
     }
-    drain_rx(&mut hw.intr_rx, Duration::from_millis(200)).await;
-    tokio::time::sleep(Duration::from_millis(50)).await;
 
-    // Init.
-    let init_r = write_read(hw, &[0x36, 0x03], &[0x37, 0x03]).await;
-    log::debug!("Init: code={}", init_r.as_ref().and_then(|b| b.get(14).copied()).unwrap_or(0xff));
-    tokio::time::sleep(Duration::from_millis(30)).await;
-
-    // Switch to liquid mode (releases any currently-active bucket → deletable).
-    write_cmd(hw, &[0x38, 0x01, 0x02, 0x00]).await?;
-    let liq_r = read_until(hw, &[0x39, 0x01], 10, 500).await;
-    log::debug!("Liquid reset: code={}", liq_r.as_ref().and_then(|b| b.get(14).copied()).unwrap_or(0xff));
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Find a usable bucket: delete in order until one returns code=1.
-    let mut bucket: u8 = 0;
-    for b_i in 0..8u8 {
-        write_cmd(hw, &[0x32, 0x02, b_i]).await?;
-        let r = read_until(hw, &[0x33, 0x02], 15, 600).await;
-        let code = r.as_ref().and_then(|b| b.get(14).copied()).unwrap_or(0);
-        log::debug!("Delete bucket {}: code={}", b_i, code);
-        if code == 1 {
-            bucket = b_i;
-            break;
-        }
+    #[tokio::test]
+    async fn temp_loop_does_not_render_while_the_device_is_missing() {
+        let d = KrakenDriver::new(); // never connected
+        d.set_temp_timing(50, 0);
+        let renders = Arc::new(AtomicU32::new(0));
+        let counter = renders.clone();
+        d.start_temp_mode(move |_, _| {
+            counter.fetch_add(1, Ordering::Relaxed);
+            Ok(crate::render::LcdFrame::Rgba(Vec::new()))
+        })
+        .unwrap();
+        tokio::time::sleep(Duration::from_millis(700)).await;
+        d.stop_current_mode();
+        assert_eq!(renders.load(Ordering::Relaxed), 0);
     }
-    log::debug!("Using bucket {} — dsz=[{:#x},{:#x}]", bucket, dsz[0], dsz[1]);
 
-    // Setup bucket.
-    let setup_r = write_read(
-        hw,
-        &[0x32, 0x01, bucket, bucket + 1, 0x00, 0x00, dsz[0], dsz[1], 0x01],
-        &[0x33, 0x01],
-    )
-    .await;
-    log::debug!("Setup bucket {}: code={}", bucket, setup_r.as_ref().and_then(|b| b.get(14).copied()).unwrap_or(0xff));
-    tokio::time::sleep(Duration::from_millis(30)).await;
-
-    // Start transfer.
-    write_cmd(hw, &[0x36, 0x01, bucket]).await?;
-    let start_r = read_until(hw, &[0x37, 0x01], 20, 800).await;
-    log::debug!("Start transfer: code={}", start_r.as_ref().and_then(|b| b.get(14).copied()).unwrap_or(0xff));
-    tokio::time::sleep(Duration::from_millis(30)).await;
-
-    // CRITICAL: header (MAGIC + bulk_info) must be a SEPARATE bulk transfer.
-    let mut header = Vec::with_capacity(MAGIC.len() + bulk_info.len());
-    header.extend_from_slice(&MAGIC);
-    header.extend_from_slice(bulk_info);
-    log::debug!("Bulk write: header {}B + image {}B", header.len(), image.len());
-    bulk_write(hw, header).await?;
-    bulk_write_all(hw, image).await?;
-    log::debug!("Bulk write done");
-
-    // End transfer.
-    write_cmd(hw, &[0x36, 0x02]).await?;
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Activate.
-    let act_r = write_read(hw, &[0x38, 0x01, 0x04, bucket], &[0x39, 0x01]).await;
-    log::debug!("Activate bucket {}: code={}", bucket, act_r.as_ref().and_then(|b| b.get(14).copied()).unwrap_or(0xff));
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    log::debug!("sendFw3 done (bucket {})", bucket);
-    Ok(())
-}
-
-// ============================================================================
-// Native data send (GIF or RGBA with smart bucket placement)
-// ============================================================================
-async fn send_data_native(
-    hw: &mut Hardware,
-    data: &[u8],
-    bulk_info: &[u8],
-) -> Result<()> {
-    drain_rx(&mut hw.intr_rx, Duration::from_millis(200)).await;
-
-    // 1. Preamble.
-    let preamble_r = write_read(hw, &[0x36, 0x03], &[0x37, 0x03]).await;
-    log::debug!("Preamble: code={}", preamble_r.as_ref().and_then(|b| b.get(14).copied()).unwrap_or(0xff));
-
-    // 2. Query buckets + pick.
-    let buckets = query_buckets(hw).await;
-    log::debug!("Buckets trouvés: {}", buckets.len());
-    let free = find_next_unoccupied_bucket(&buckets);
-    let mut bucket_index = prepare_bucket(
-        hw,
-        if free != -1 { free as u8 } else { 0 },
-        free == -1,
-    )
-    .await?;
-    log::debug!("Native: bucket={} (free={})", bucket_index, free);
-
-    // 3. Header + size.
-    let header = {
-        let mut h = Vec::with_capacity(MAGIC.len() + bulk_info.len());
-        h.extend_from_slice(&MAGIC);
-        h.extend_from_slice(bulk_info);
-        h
-    };
-    let data_size = ((header.len() + data.len()) as u32).div_ceil(1024);
-    let dsz = [(data_size & 0xff) as u8, ((data_size >> 8) & 0xff) as u8];
-
-    // 4. Memory offset.
-    let mem_start = match get_bucket_memory_offset(&buckets, bucket_index, data_size) {
-        Some(off) => off,
-        None => {
-            log::warn!("Mémoire saturée — reset complet de tous les buckets");
-            delete_all_buckets(hw).await;
-            bucket_index = 0;
-            [0, 0]
-        }
-    };
-    log::debug!("Native: bucket={} memStart={:?} dataSize={} dsz={:?}", bucket_index, mem_start, data_size, dsz);
-
-    // 5. Setup bucket.
-    let setup_ok = setup_bucket(hw, bucket_index, bucket_index + 1, mem_start, dsz).await;
-    log::debug!("Setup bucket {}: ok={}", bucket_index, setup_ok);
-
-    // 6. Start transfer.
-    let start_r = write_read(hw, &[0x36, 0x01, bucket_index], &[0x37, 0x01]).await;
-    log::debug!("Start transfer: code={}", start_r.as_ref().and_then(|b| b.get(14).copied()).unwrap_or(0xff));
-
-    // 7. Bulk write — header separate from data (critical rule #1).
-    log::debug!("Bulk: header={}B data={}B", header.len(), data.len());
-    bulk_write(hw, header).await?;
-    bulk_write_all(hw, data).await?;
-    log::debug!("Bulk done");
-
-    // 8. End.
-    write_cmd(hw, &[0x36, 0x02]).await?;
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // 9. Activate.
-    let act_ok = switch_bucket(hw, bucket_index, 0x04).await;
-    log::debug!("Activate bucket {}: ok={}", bucket_index, act_ok);
-    log::debug!("send_data_native done (bucket {})", bucket_index);
-    Ok(())
-}
-
-// ============================================================================
-// Bucket helpers
-// ============================================================================
-async fn query_buckets(hw: &mut Hardware) -> HashMap<u8, Vec<u8>> {
-    let mut out = HashMap::new();
-    for b_i in 0..16u8 {
-        if write_cmd(hw, &[0x30, 0x04, b_i]).await.is_err() {
-            continue;
-        }
-        if let Some(r) = read_until(hw, &[0x31, 0x04], 10, 400).await {
-            out.insert(b_i, r);
-        }
-    }
-    out
-}
-
-fn find_next_unoccupied_bucket(buckets: &HashMap<u8, Vec<u8>>) -> i32 {
-    for (&b_i, info) in buckets {
-        let mut occupied = false;
-        for j in 15..info.len() {
-            if info[j] != 0 {
-                occupied = true;
+    #[tokio::test]
+    async fn failing_uploads_back_off_then_declare_the_link_lost() {
+        // Status says connected but there are no handles, so every upload fails.
+        let d = connected_driver();
+        d.set_temp_timing(50, 0);
+        let renders = Arc::new(AtomicU32::new(0));
+        let counter = renders.clone();
+        d.start_temp_mode(move |_, _| {
+            counter.fetch_add(1, Ordering::Relaxed);
+            Ok(crate::render::LcdFrame::Rgba(vec![0; (LCD_WIDTH * LCD_HEIGHT * 4) as usize]))
+        })
+        .unwrap();
+        for _ in 0..100 {
+            if !d.get_status().connected {
                 break;
             }
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
-        if !occupied {
-            return b_i as i32;
-        }
+        d.stop_current_mode();
+        assert!(!d.get_status().connected, "gave up on the link after repeated failures");
+        assert_eq!(renders.load(Ordering::Relaxed), MAX_PUSH_FAILURES, "one render per attempt, no storm");
     }
-    -1
-}
-
-async fn delete_bucket(hw: &mut Hardware, b_i: u8) -> bool {
-    if write_cmd(hw, &[0x32, 0x02, b_i]).await.is_err() {
-        return false;
-    }
-    let r = read_until(hw, &[0x33, 0x02], 12, 500).await;
-    matches!(r.as_ref().and_then(|b| b.get(14).copied()), Some(0x01))
-}
-
-async fn prepare_bucket(hw: &mut Hardware, bucket_index: u8, bucket_filled: bool) -> Result<u8> {
-    let mut idx = bucket_index;
-    let mut filled = bucket_filled;
-    loop {
-        if idx >= 16 {
-            bail!("reached max bucket");
-        }
-        let ok = delete_bucket(hw, idx).await;
-        if !ok {
-            idx += 1;
-            filled = true;
-            continue;
-        }
-        if filled {
-            filled = false;
-            continue;
-        }
-        return Ok(idx);
-    }
-}
-
-fn get_bucket_memory_offset(
-    buckets: &HashMap<u8, Vec<u8>>,
-    bucket_index: u8,
-    data_size: u32,
-) -> Option<[u8; 2]> {
-    let cur = match buckets.get(&bucket_index) {
-        Some(b) => b,
-        None => return Some([0x00, 0x00]),
-    };
-    if cur.len() < 21 {
-        return Some([0x00, 0x00]);
-    }
-    let cur_offset = (cur[17] as u32) | ((cur[18] as u32) << 8);
-    let cur_size = (cur[19] as u32) | ((cur[20] as u32) << 8);
-
-    if data_size <= cur_size {
-        return Some([cur[17], cur[18]]);
-    }
-
-    let mut min_occupied = cur_offset;
-    let mut max_occupied: u32 = 0;
-    let mut overlap = false;
-    for (&b_i, b) in buckets {
-        if b.len() < 21 {
-            continue;
-        }
-        let start = (b[17] as u32) | ((b[18] as u32) << 8);
-        let end = start + ((b[19] as u32) | ((b[20] as u32) << 8));
-        if end > max_occupied {
-            max_occupied = end;
-        }
-        if start < min_occupied {
-            min_occupied = start;
-        }
-        let cur_end = cur_offset + data_size;
-        if (start > cur_offset && start < cur_end)
-            || (start < cur_offset && end > start)
-            || (start == cur_offset && b_i != bucket_index)
-        {
-            overlap = true;
-        }
-    }
-    if !overlap {
-        return Some([cur[17], cur[18]]);
-    }
-    if max_occupied + data_size < LCD_TOTAL_MEMORY {
-        return Some([(max_occupied & 0xff) as u8, ((max_occupied >> 8) & 0xff) as u8]);
-    }
-    if data_size < min_occupied {
-        return Some([0x00, 0x00]);
-    }
-    None
-}
-
-async fn setup_bucket(
-    hw: &mut Hardware,
-    start_b: u8,
-    end_b: u8,
-    mem_start: [u8; 2],
-    mem_size: [u8; 2],
-) -> bool {
-    let r = write_read(
-        hw,
-        &[
-            0x32, 0x01, start_b, end_b, mem_start[0], mem_start[1], mem_size[0], mem_size[1], 0x01,
-        ],
-        &[0x33, 0x01],
-    )
-    .await;
-    matches!(r.as_ref().and_then(|b| b.get(14).copied()), Some(0x01))
-}
-
-async fn switch_bucket(hw: &mut Hardware, bucket_index: u8, mode: u8) -> bool {
-    let r = write_read(hw, &[0x38, 0x01, mode, bucket_index], &[0x39, 0x01]).await;
-    matches!(r.as_ref().and_then(|b| b.get(14).copied()), Some(0x01))
-}
-
-async fn delete_all_buckets(hw: &mut Hardware) {
-    let _ = switch_bucket(hw, 0, 0x02).await;
-    for b_i in 0..16u8 {
-        let _ = delete_bucket(hw, b_i).await;
-    }
-}
-
-// ============================================================================
-// Ring LED command builder  (liquidctl KrakenX3 / KrakenZ3 protocol)
-// Ring channel ID = 0b010 = 2 ;  static value for 0b010 = 8
-// Colors on the wire are GRB (not RGB).
-// ============================================================================
-
-/// Speed timing bytes: (speed_scale, speed_index) → [lo, hi]
-fn ring_speed(scale: u8, idx: usize) -> [u8; 2] {
-    const TABLE: &[&[[u8; 2]]] = &[
-        &[[0x32,0x00],[0x32,0x00],[0x32,0x00],[0x32,0x00],[0x32,0x00]], // 0
-        &[[0x50,0x00],[0x3C,0x00],[0x28,0x00],[0x14,0x00],[0x0A,0x00]], // 1
-        &[[0x5E,0x01],[0x2C,0x01],[0xFA,0x00],[0x96,0x00],[0x50,0x00]], // 2
-        &[[0x40,0x06],[0x14,0x05],[0xE8,0x03],[0x20,0x03],[0x58,0x02]], // 3
-        &[[0x20,0x03],[0xBC,0x02],[0xF4,0x01],[0x90,0x01],[0x2C,0x01]], // 4
-        &[[0x19,0x00],[0x14,0x00],[0x0F,0x00],[0x07,0x00],[0x04,0x00]], // 5
-        &[[0x28,0x00],[0x1E,0x00],[0x14,0x00],[0x0A,0x00],[0x04,0x00]], // 6
-    ];
-    let row = TABLE.get(scale as usize).unwrap_or(&TABLE[0]);
-    row[idx.min(4)]
-}
-
-fn build_ring_cmd(channel: crate::types::RingChannel, mode: crate::types::RingMode) -> Vec<u8> {
-    use crate::types::RingMode::*;
-
-    let cid = channel.byte();
-    let static_val = channel.static_val();
-
-    let (mval, speed_scale, mode_rel, backward, rgb_colors, speed_idx, led_size_override) =
-        match &mode {
-            Off => (0x00u8, 0u8, 0x00u8, 0x00u8, vec![[0u8,0,0]], 2usize, None),
-            Fixed { r, g, b } =>
-                (0x00, 0, 0x00, 0x00, vec![[*r,*g,*b]], 2, None),
-            Breathing { r, g, b, speed } =>
-                (0x07, 6, 0x08, 0x00, vec![[*r,*g,*b]], speed.idx(), None),
-            Pulse { r, g, b, speed } =>
-                (0x06, 5, 0x08, 0x00, vec![[*r,*g,*b]], speed.idx(), None),
-            Fading { colors, speed } => {
-                let c: Vec<[u8;3]> = colors.iter().take(8).cloned().collect();
-                (0x01, 1, 0x08, 0x00, c, speed.idx(), None)
-            }
-            SpectrumWave { speed } =>
-                (0x02, 2, 0x00, 0x00, vec![], speed.idx(), None),
-            RainbowFlow { speed } =>
-                (0x0B, 2, 0x00, 0x00, vec![], speed.idx(), None),
-            RainbowPulse { speed } =>
-                (0x0D, 2, 0x00, 0x00, vec![], speed.idx(), None),
-            SuperRainbow { speed } =>
-                (0x0C, 2, 0x00, 0x00, vec![], speed.idx(), None),
-            Marquee { r, g, b, speed } =>
-                (0x04, 2, 0x00, 0x00, vec![[*r,*g,*b]], speed.idx(), Some(0x03u8)),
-            StaryNight { r, g, b, speed } =>
-                (0x09, 5, 0x01, 0x00, vec![[*r,*g,*b]], speed.idx(), None),
-        };
-
-    let spd = ring_speed(speed_scale, speed_idx);
-    let color_count = rgb_colors.len() as u8;
-
-    // Header: opcode(2) + cid×2(2) + mval(1) + speed(2) = 7 bytes
-    let mut cmd: Vec<u8> = vec![0x2A, 0x04, cid, cid, mval, spd[0], spd[1]];
-
-    // Color data: up to 16 colours × 3 bytes, in GRB order
-    // Apply sRGB→linear gamma correction (^2.2) so LED output matches UI swatch perception.
-    // LEDs are linear devices; without correction they appear much brighter than expected.
-    let mut color_bytes = [0u8; 48];
-    for (i, &[r, g, b]) in rgb_colors.iter().enumerate().take(16) {
-        let gc = |v: u8| -> u8 { ((v as f64 / 255.0).powf(2.2) * 255.0).round() as u8 };
-        color_bytes[i * 3]     = gc(g); // GRB!
-        color_bytes[i * 3 + 1] = gc(r);
-        color_bytes[i * 3 + 2] = gc(b);
-    }
-    cmd.extend_from_slice(&color_bytes);
-
-    // Footer: backward(1) + count(1) + mode_rel(1) + static(1) + led_size(1)
-    let led_size = led_size_override.unwrap_or(0x03);
-    cmd.extend_from_slice(&[backward, color_count, mode_rel, static_val, led_size]);
-
-    cmd
-}
-
-/// Linear interpolation of duty% for a given temperature, from a sorted list of (temp, duty) pairs.
-fn interp_duty(points: &[(u8, u8)], temp: u8) -> u8 {
-    if points.is_empty() { return 20; }
-    if temp <= points[0].0 { return points[0].1; }
-    if temp >= points[points.len() - 1].0 { return points[points.len() - 1].1; }
-    for i in 0..points.len() - 1 {
-        let (t0, s0) = points[i];
-        let (t1, s1) = points[i + 1];
-        if temp >= t0 && temp <= t1 {
-            if t1 == t0 { return s0; }
-            let ratio = (temp - t0) as f32 / (t1 - t0) as f32;
-            return (s0 as f32 + ratio * (s1 as f32 - s0 as f32)).round() as u8;
-        }
-    }
-    points[points.len() - 1].1
 }

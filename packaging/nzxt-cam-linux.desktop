@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=NZXT CAM Linux
+GenericName=LCD Controller
+Comment=Control the LCD of NZXT Kraken Elite coolers
+Exec=env WEBKIT_DISABLE_DMABUF_RENDERER=1 nzxt-cam-linux
+Icon=nzxt-cam-linux
+Terminal=false
+Type=Application
+Categories=Utility;System;
+Keywords=nzxt;kraken;lcd;cooling;
+StartupWMClass=nzxtcam-archlinux-rust
