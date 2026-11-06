@@ -755,7 +755,7 @@ mod tests {
             id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
             color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: false, show_label: false, label: String::new(),
-            value_size: 40.0, corner_radius: 0.0, gradient_to: None, show_range, range_angle, range_offset, value_pill: false,
+            value_size: 40.0, corner_radius: 0.0, gradient_to: None, text_position: TextPosition::default(), show_range, range_angle, range_offset, value_pill: false,
         };
         let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures::default()).unwrap() else { panic!() };
@@ -815,7 +815,7 @@ mod tests {
                 id: "g".into(), x: 320.0, y: 320.0, metric: MetricId::Cpu, radius: 300.0, thickness: 40.0, max: 100.0,
                 color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep: 270.0,
                 warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: true, show_label: false, label: String::new(),
-                value_size: 40.0, corner_radius: 0.0, gradient_to: None, show_range: false, range_angle: 0.0, range_offset: 0.0, value_pill,
+                value_size: 40.0, corner_radius: 0.0, gradient_to: None, text_position: TextPosition::default(), show_range: false, range_angle: 0.0, range_offset: 0.0, value_pill,
             };
             let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
             let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures { cpu: 100.0, ..Temperatures::default() }).unwrap() else { panic!() };
@@ -889,6 +889,7 @@ mod tests {
             color: "#ff0000".into(), track_color: "#0000ff".into(), start_angle: -135.0, sweep: 270.0,
             warn_color: "#ff0000".into(), warn_at: 1000.0, show_value: true, show_label: false, label: String::new(),
             value_size: 48.0, corner_radius: 0.0, gradient_to: None, text_position: TextPosition::Bottom,
+            show_range: false, range_angle: 0.0, range_offset: 0.0, value_pill: false,
         };
         let cfg = DisplayConfig { background: "#000000".into(), elements: vec![DisplayElement::Gauge(gauge)], ..DisplayConfig::default() };
         let LcdFrame::Rgba(rgba) = render_for_device(&cfg, Temperatures { cpu: 50.0, ..Temperatures::default() }).unwrap() else { panic!() };

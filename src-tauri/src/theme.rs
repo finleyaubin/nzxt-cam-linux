@@ -52,10 +52,22 @@ fn resolve_hex(defined: &HashMap<String, String>, name: &str) -> Option<String> 
     None
 }
 
+const STYLE_WORDS: &[&str] = &[
+    "thin", "light", "regular", "medium", "semibold", "bold", "extrabold", "black", "italic", "oblique",
+];
+
+/// GTK font names are "Family, Style Size" or "Family [Style] Size".
 fn parse_font_name(spec: &str) -> Option<(String, f32)> {
-    let (family, style_and_size) = spec.rsplit_once(',').map_or((spec, spec), |(f, s)| (f, s));
-    let size = style_and_size.split_whitespace().last()?.parse().ok()?;
-    Some((family.trim().to_string(), size))
+    if let Some((family, style_and_size)) = spec.rsplit_once(',') {
+        let size = style_and_size.split_whitespace().last()?.parse().ok()?;
+        return Some((family.trim().to_string(), size));
+    }
+    let mut words: Vec<&str> = spec.split_whitespace().collect();
+    let size = words.pop()?.parse().ok()?;
+    while words.len() > 1 && words.last().is_some_and(|w| STYLE_WORDS.contains(&w.to_lowercase().as_str())) {
+        words.pop();
+    }
+    Some((words.join(" "), size))
 }
 
 fn read_font(settings_ini: &Path) -> Result<Option<(String, f32)>, String> {
@@ -181,5 +193,6 @@ mod tests {
     fn parses_gtk_font_name() {
         assert_eq!(parse_font_name("SF Pro Display, Bold 12"), Some(("SF Pro Display".into(), 12.0)));
         assert_eq!(parse_font_name("Cantarell 11"), Some(("Cantarell".into(), 11.0)));
+        assert_eq!(parse_font_name("Noto Sans Bold 10"), Some(("Noto Sans".into(), 10.0)));
     }
 }
