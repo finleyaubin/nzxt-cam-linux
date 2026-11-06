@@ -7,7 +7,7 @@
 
 use ab_glyph::{Font, FontVec, PxScale, ScaleFont};
 use anyhow::{anyhow, Result};
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -29,9 +29,10 @@ const SYSTEM_FALLBACKS: &[&str] = &[
     "/usr/share/fonts/TTF/NotoSans-Regular.ttf",
 ];
 
-static FONT_CACHE: OnceCell<Arc<FontVec>> = OnceCell::new();
+static FONT_CACHE: OnceLock<Arc<FontVec>> = OnceLock::new();
 static CHOSEN: Mutex<Option<HashMap<String, Option<Arc<FontVec>>>>> = Mutex::new(None);
-static INSTALLED: OnceCell<Vec<InstalledFace>> = OnceCell::new();
+static INSTALLED: OnceLock<Vec<InstalledFace>> = OnceLock::new();
+static ENTRIES: OnceLock<Vec<FontEntry>> = OnceLock::new();
 
 /// Get the built-in default font, loading it from disk on first call.
 pub fn font() -> Result<Arc<FontVec>> {
@@ -71,6 +72,52 @@ struct InstalledFace {
     path: String,
 }
 
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct FontEntry {
+    pub family: String,
+    pub category: &'static str,
+}
+
+/// OS/2 table layout: sFamilyClass at byte 30, PANOSE at bytes 32..42.
+const OS2_FAMILY_CLASS_OFFSET: usize = 30;
+const OS2_PANOSE_OFFSET: usize = 32;
+const PANOSE_LEN: usize = 10;
+const PANOSE_PROPORTION_MONOSPACED: u8 = 9;
+
+/// Category from the font's own metadata: IBM family class first, PANOSE as the second opinion.
+fn categorize(family_class: u8, panose: &[u8; PANOSE_LEN], monospaced: bool) -> &'static str {
+    let [kind, serif_style, _, proportion, ..] = *panose;
+    if monospaced || proportion == PANOSE_PROPORTION_MONOSPACED {
+        return "monospace";
+    }
+    match (family_class, kind, serif_style) {
+        (1..=5 | 7, ..) => "serif",
+        (8, ..) => "sans",
+        (9, ..) => "display",
+        (10, ..) => "handwriting",
+        (_, 3, _) => "handwriting",
+        (_, 4, _) => "display",
+        (_, 2, 2..=10 | 14) => "serif",
+        (_, 2, 11..=13 | 15) => "sans",
+        _ => "other",
+    }
+}
+
+fn category_of_file(path: &str) -> Result<&'static str> {
+    let bytes = std::fs::read(path).map_err(|e| anyhow!("read {path}: {e}"))?;
+    let face = ttf_parser::Face::parse(&bytes, 0).map_err(|e| anyhow!("parse {path}: {e}"))?;
+    let os2 = face.raw_face().table(ttf_parser::Tag::from_bytes(b"OS/2"));
+    let (family_class, panose) = match os2 {
+        Some(t) if t.len() >= OS2_PANOSE_OFFSET + PANOSE_LEN => (
+            t[OS2_FAMILY_CLASS_OFFSET],
+            t[OS2_PANOSE_OFFSET..OS2_PANOSE_OFFSET + PANOSE_LEN].try_into().expect("slice length is PANOSE_LEN"),
+        ),
+        _ => (0, [0; PANOSE_LEN]),
+    };
+    Ok(categorize(family_class, &panose, face.is_monospaced()))
+}
+
 fn installed_faces() -> &'static [InstalledFace] {
     INSTALLED.get_or_init(|| {
         let out = std::process::Command::new("fc-list")
@@ -93,12 +140,25 @@ fn installed_faces() -> &'static [InstalledFace] {
     })
 }
 
-/// Family names of every installed TrueType/OpenType font, sorted and de-duplicated.
-pub fn families() -> Vec<String> {
-    let mut names: Vec<String> = installed_faces().iter().map(|f| f.family.clone()).collect();
-    names.sort_by_key(|n| n.to_lowercase());
-    names.dedup();
-    names
+/// Every installed TrueType/OpenType family with its category, sorted and de-duplicated; computed once.
+pub fn font_entries() -> Vec<FontEntry> {
+    ENTRIES
+        .get_or_init(|| {
+            let mut faces: Vec<&InstalledFace> = installed_faces().iter().collect();
+            faces.sort_by_key(|f| (f.family.to_lowercase(), face_rank(&f.style)));
+            faces.dedup_by(|later, first| later.family == first.family);
+            faces
+                .into_iter()
+                .map(|face| FontEntry {
+                    family: face.family.clone(),
+                    category: category_of_file(&face.path).unwrap_or_else(|e| {
+                        log::warn!("Font \"{}\" left uncategorised: {e}", face.family);
+                        "other"
+                    }),
+                })
+                .collect()
+        })
+        .clone()
 }
 
 /// Prefers the upright bold face (the look the display uses), then upright regular, then anything.
@@ -297,8 +357,21 @@ mod tests {
     }
 
     #[test]
+    fn categorizes_from_font_metadata() {
+        let none = [0u8; PANOSE_LEN];
+        assert_eq!(categorize(0, &none, true), "monospace");
+        assert_eq!(categorize(0, &[2, 0, 0, 9, 0, 0, 0, 0, 0, 0], false), "monospace");
+        assert_eq!(categorize(5, &none, false), "serif");
+        assert_eq!(categorize(8, &none, false), "sans");
+        assert_eq!(categorize(10, &none, false), "handwriting");
+        assert_eq!(categorize(0, &[2, 11, 0, 0, 0, 0, 0, 0, 0, 0], false), "sans");
+        assert_eq!(categorize(0, &[3, 0, 0, 0, 0, 0, 0, 0, 0, 0], false), "handwriting");
+        assert_eq!(categorize(0, &none, false), "other");
+    }
+
+    #[test]
     fn family_list_is_sorted_and_unique() {
-        let names = families();
+        let names: Vec<String> = font_entries().into_iter().map(|e| e.family).collect();
         assert!(names.windows(2).all(|w| w[0].to_lowercase() <= w[1].to_lowercase() && w[0] != w[1]));
         if let Some(first) = names.first() {
             assert!(resolve(Some(first)).is_ok());

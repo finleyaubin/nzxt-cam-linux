@@ -18,3 +18,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local packaging build output
+packaging/aur/pkg/
+packaging/aur/src/
+packaging/aur/*.tar.gz

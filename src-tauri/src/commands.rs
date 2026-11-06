@@ -40,10 +40,10 @@ pub struct CommandResult {
 }
 
 impl CommandResult {
-    fn ok() -> Self {
+    pub(crate) fn ok() -> Self {
         Self { success: true, error: None }
     }
-    fn fail(e: impl ToString) -> Self {
+    pub(crate) fn fail(e: impl ToString) -> Self {
         Self {
             success: false,
             error: Some(e.to_string()),
@@ -51,7 +51,7 @@ impl CommandResult {
     }
 }
 
-fn to_str_err<E: ToString>(e: E) -> String {
+pub(crate) fn to_str_err<E: ToString>(e: E) -> String {
     e.to_string()
 }
 
@@ -97,9 +97,9 @@ pub async fn send_color(
 
 #[tauri::command]
 pub async fn send_image(path: String, state: State<'_, AppState>) -> Result<CommandResult, String> {
-    let bytes = tokio::fs::read(&path)
+    let bytes = image_io::read_image_file_async(&path)
         .await
-        .map_err(|e| format!("Read image file: {e}"))?;
+        .map_err(to_str_err)?;
     let rgba = match image_io::image_to_device_rgba(&bytes) {
         Ok(b) => b,
         Err(e) => return Ok(CommandResult::fail(e)),
@@ -118,9 +118,9 @@ pub async fn send_image(path: String, state: State<'_, AppState>) -> Result<Comm
 
 #[tauri::command]
 pub async fn send_gif(path: String, state: State<'_, AppState>) -> Result<CommandResult, String> {
-    let bytes = tokio::fs::read(&path)
+    let bytes = image_io::read_image_file_async(&path)
         .await
-        .map_err(|e| format!("Read GIF file: {e}"))?;
+        .map_err(to_str_err)?;
     // Resize GIF in a blocking task — image decoding can be heavy.
     let resized = match tokio::task::spawn_blocking(move || image_io::resize_gif(&bytes)).await {
         Ok(Ok(b)) => b,
@@ -143,7 +143,7 @@ pub async fn send_gif(path: String, state: State<'_, AppState>) -> Result<Comman
 pub async fn start_temp_mode(state: State<'_, AppState>) -> Result<CommandResult, String> {
     let result = state
         .driver
-        .start_temp_mode(|cfg, temps| render::render_for_device(cfg, temps));
+        .start_temp_mode(render::render_for_device);
     let _ = config::update(|c| c.last_mode = Some("temperatures".into()));
     match result {
         Ok(_) => Ok(CommandResult::ok()),
@@ -260,8 +260,8 @@ pub async fn render_display_preview(config_in: DisplayConfig) -> PreviewResult {
 
 /// Installed font families the LCD renderer can use.
 #[tauri::command]
-pub async fn list_fonts() -> Vec<String> {
-    tokio::task::spawn_blocking(render::fonts::families).await.unwrap_or_default()
+pub async fn list_fonts() -> Vec<render::fonts::FontEntry> {
+    tokio::task::spawn_blocking(render::fonts::font_entries).await.unwrap_or_default()
 }
 
 // ============================================================================
@@ -272,6 +272,8 @@ pub async fn list_fonts() -> Vec<String> {
 pub fn list_gpu_sources() -> Vec<GpuSource> {
     sensors::gpu::list_gpu_sources(true)
 }
+
+const MAX_GIPHY_BYTES: usize = 32 * 1024 * 1024;
 
 /// Store a GIF downloaded from GIPHY (raw IPC body, id in the `x-giphy-id` header) and return its path.
 #[tauri::command]
@@ -285,6 +287,9 @@ pub fn save_giphy_gif(request: tauri::ipc::Request<'_>) -> Result<String, String
     }
     if !bytes.starts_with(b"GIF8") {
         return Err("Download is not a GIF".into());
+    }
+    if bytes.len() > MAX_GIPHY_BYTES {
+        return Err(format!("GIF is larger than {MAX_GIPHY_BYTES} bytes"));
     }
     let dir = dirs::cache_dir().ok_or("Cache dir not found")?.join("nzxtcam-archlinux-rust/giphy");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -331,6 +336,16 @@ pub fn save_settings(
     let mut merged = settings;
     merged.clamp();
 
+    if let Some(name) = merged.api_keys.keys().find(|name| !crate::secrets::KEY_NAMES.contains(&name.as_str())) {
+        return Err(format!("Unknown API key name: {name}"));
+    }
+    // Persist first so a locked keyring is reported before any runtime change is applied.
+    for name in previous.api_keys.keys().filter(|name| merged.api_keys.get(*name).is_none_or(|v| v.is_empty())) {
+        config::remove_api_key(name)?;
+    }
+    let to_save = merged.clone();
+    config::update(|c| c.settings = Some(to_save)).map_err(to_str_err)?;
+
     // Apply runtime changes.
     sensors::set_gpu_source(merged.gpu_source.clone());
     sensors::set_sensor_sources(merged.cpu_source.clone(), merged.sensor_sources());
@@ -347,9 +362,6 @@ pub fn save_settings(
         cfg.decimals = merged.decimals;
         state.driver.set_display_config(cfg);
     }
-
-    let s = merged.clone();
-    let _ = config::update(|c| c.settings = Some(s));
 
     Ok(SaveSettingsResult { success: true, settings: merged })
 }
@@ -443,7 +455,7 @@ pub async fn apply_profile_inner(p: &Profile, state: &AppState) -> Result<Comman
             }
         }
         ProfileLcd::Image { path } => {
-            let bytes = tokio::fs::read(path).await.map_err(|e| e.to_string())?;
+            let bytes = image_io::read_image_file_async(path).await.map_err(to_str_err)?;
             let rgba = image_io::image_to_device_rgba(&bytes).map_err(|e| e.to_string())?;
             match state.driver.send_rgba_image(rgba).await {
                 Ok(_) => { let _ = config::update(|c| { c.last_mode = Some("image".into()); c.last_image_path = Some(path.clone()); }); }
@@ -451,7 +463,7 @@ pub async fn apply_profile_inner(p: &Profile, state: &AppState) -> Result<Comman
             }
         }
         ProfileLcd::Gif { path } => {
-            let bytes = tokio::fs::read(path).await.map_err(|e| e.to_string())?;
+            let bytes = image_io::read_image_file_async(path).await.map_err(to_str_err)?;
             let resized = tokio::task::spawn_blocking(move || image_io::resize_gif(&bytes))
                 .await
                 .map_err(|e| e.to_string())?
@@ -462,7 +474,7 @@ pub async fn apply_profile_inner(p: &Profile, state: &AppState) -> Result<Comman
             }
         }
         ProfileLcd::Temperatures => {
-            let result = state.driver.start_temp_mode(|cfg, temps| render::render_for_device(cfg, temps));
+            let result = state.driver.start_temp_mode(render::render_for_device);
             let _ = config::update(|c| c.last_mode = Some("temperatures".into()));
             if let Err(e) = result { return Ok(CommandResult::fail(e)); }
         }
@@ -474,86 +486,6 @@ pub async fn apply_profile_inner(p: &Profile, state: &AppState) -> Result<Comman
     }
 
     Ok(CommandResult::ok())
-}
-
-// ============================================================================
-// GPU fan control
-// ============================================================================
-
-#[tauri::command]
-pub fn get_gpu_fan_status(state: State<'_, AppState>) -> Option<crate::fans::GpuFanStatus> {
-    state.gpu_fan.get_status()
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GpuFanCurvePoint { pub t: u8, pub s: u8 }
-
-#[tauri::command]
-pub fn set_gpu_fan_curve(points: Vec<GpuFanCurvePoint>, state: State<'_, AppState>) -> CommandResult {
-    let pairs: Vec<(u8, u8)> = points.into_iter().map(|p| (p.t, p.s)).collect();
-    match state.gpu_fan.set_curve(pairs) {
-        Ok(_) => CommandResult::ok(),
-        Err(e) => CommandResult::fail(e),
-    }
-}
-
-#[tauri::command]
-pub fn set_gpu_fan_auto(state: State<'_, AppState>) -> CommandResult {
-    match state.gpu_fan.set_auto() {
-        Ok(_) => CommandResult::ok(),
-        Err(e) => CommandResult::fail(e),
-    }
-}
-
-// ============================================================================
-// Fan control (hwmon sysfs — boitier)
-// ============================================================================
-
-#[tauri::command]
-pub fn list_drives() -> Result<Vec<crate::storage::Drive>, String> {
-    crate::storage::list_drives()
-}
-
-#[tauri::command]
-pub fn list_fan_channels() -> Vec<crate::fans::FanChannel> {
-    crate::fans::list_fan_channels()
-}
-
-#[tauri::command]
-pub fn read_fan_channels() -> Vec<crate::fans::FanChannel> {
-    crate::fans::read_fan_channels()
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SetFanDutyArgs {
-    pub hwmon_path: String,
-    pub pwm_index: u8,
-    pub duty: u8,
-}
-
-#[tauri::command]
-pub fn set_fan_duty_cmd(args: SetFanDutyArgs) -> CommandResult {
-    match crate::fans::set_fan_duty(&args.hwmon_path, args.pwm_index, args.duty) {
-        Ok(_) => CommandResult::ok(),
-        Err(e) => CommandResult::fail(e),
-    }
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SetFanAutoArgs {
-    pub hwmon_path: String,
-    pub pwm_index: u8,
-}
-
-#[tauri::command]
-pub fn set_fan_auto_cmd(args: SetFanAutoArgs) -> CommandResult {
-    match crate::fans::set_fan_auto(&args.hwmon_path, args.pwm_index) {
-        Ok(_) => CommandResult::ok(),
-        Err(e) => CommandResult::fail(e),
-    }
 }
 
 // ============================================================================
@@ -634,6 +566,9 @@ pub fn show_window(app: AppHandle, state: State<'_, AppState>) {
 #[tauri::command]
 pub fn open_external(url: String, app: AppHandle) -> CommandResult {
     use tauri_plugin_shell::ShellExt;
+    if !url.starts_with("https://") {
+        return CommandResult::fail("Only https:// links can be opened");
+    }
     #[allow(deprecated)]
     match app.shell().open(&url, None) {
         Ok(_) => CommandResult::ok(),
@@ -644,92 +579,6 @@ pub fn open_external(url: String, app: AppHandle) -> CommandResult {
 #[tauri::command]
 pub fn get_config() -> config::ConfigFile {
     config::load()
-}
-
-#[tauri::command]
-pub fn save_config(data: serde_json::Value) -> Result<CommandResult, String> {
-    // Merge arbitrary keys into the config file. The frontend uses this for ad-hoc state.
-    config::update(|c| {
-        if let serde_json::Value::Object(map) = data {
-            for (k, v) in map {
-                match k.as_str() {
-                    "settings" => c.settings = serde_json::from_value(v).ok(),
-                    "displayConfig" => c.display_config = serde_json::from_value(v).ok(),
-                    "lastMode" => c.last_mode = v.as_str().map(|s| s.to_string()),
-                    "lastImagePath" => c.last_image_path = v.as_str().map(|s| s.to_string()),
-                    "lastGifPath" => c.last_gif_path = v.as_str().map(|s| s.to_string()),
-                    "lastColor" => c.last_color = serde_json::from_value(v).ok(),
-                    _ => {}
-                }
-            }
-        }
-    })
-    .map_err(to_str_err)?;
-    Ok(CommandResult::ok())
-}
-
-// ============================================================================
-// Autostart (systemd user service + XDG fallback)
-// ============================================================================
-
-fn bin_path() -> Option<std::path::PathBuf> {
-    // Running binary path, or fallback to ~/.local/bin/nzxtcam-v1
-    std::env::current_exe().ok().or_else(|| {
-        dirs::home_dir().map(|h| h.join(".local/bin/nzxtcam-v1"))
-    })
-}
-
-#[tauri::command]
-pub fn get_autostart() -> bool {
-    // Enabled if systemd service exists OR XDG autostart exists
-    let home = match dirs::home_dir() { Some(h) => h, None => return false };
-    home.join(".config/systemd/user/nzxtcam-v1.service").exists()
-        || home.join(".config/autostart/nzxtcam-v1.desktop").exists()
-}
-
-#[tauri::command]
-pub fn set_autostart(enabled: bool) -> Result<(), String> {
-    let home = dirs::home_dir().ok_or("Home dir not found")?;
-    let exe = bin_path().ok_or("Binary not found")?;
-    let exe_str = exe.to_string_lossy();
-
-    let service_dir  = home.join(".config/systemd/user");
-    let service_path = service_dir.join("nzxtcam-v1.service");
-    let xdg_dir      = home.join(".config/autostart");
-    let xdg_path     = xdg_dir.join("nzxtcam-v1.desktop");
-
-    if enabled {
-        // ── systemd user service ─────────────────────────────────────────
-        std::fs::create_dir_all(&service_dir).map_err(to_str_err)?;
-        std::fs::write(&service_path, format!(
-            "[Unit]\nDescription=NZXT CAM v1 — LCD Controller\nAfter=graphical-session.target\n\n\
-             [Service]\nType=simple\nExecStart={exe_str}\nRestart=on-failure\nRestartSec=3\n\n\
-             [Install]\nWantedBy=graphical-session.target\n"
-        )).map_err(to_str_err)?;
-
-        let _ = std::process::Command::new("systemctl")
-            .args(["--user", "daemon-reload"])
-            .output();
-        let _ = std::process::Command::new("systemctl")
-            .args(["--user", "enable", "nzxtcam-v1.service"])
-            .output();
-
-        // ── XDG autostart (fallback pour GNOME/KDE/autres) ───────────────
-        std::fs::create_dir_all(&xdg_dir).map_err(to_str_err)?;
-        std::fs::write(&xdg_path, format!(
-            "[Desktop Entry]\nType=Application\nName=nzxtcam-v1\n\
-             Exec={exe_str}\nIcon=nzxtcam-v1\nHidden=false\n\
-             NoDisplay=false\nX-GNOME-Autostart-enabled=true\n"
-        )).map_err(to_str_err)?;
-    } else {
-        // Désactiver le service systemd
-        let _ = std::process::Command::new("systemctl")
-            .args(["--user", "disable", "nzxtcam-v1.service"])
-            .output();
-        let _ = std::fs::remove_file(&service_path);
-        let _ = std::fs::remove_file(&xdg_path);
-    }
-    Ok(())
 }
 
 // ============================================================================

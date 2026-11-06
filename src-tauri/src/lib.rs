@@ -1,16 +1,20 @@
 //! Library crate — exposes `run()` which is called from main.rs.
 
+pub mod autostart;
 pub mod cli;
 pub mod commands;
 pub mod config;
+pub mod fan_commands;
 pub mod fans;
 pub mod image_io;
 pub mod layouts;
 pub mod logos;
 pub mod profile;
+pub mod secrets;
 pub mod render;
 pub mod sensors;
 pub mod storage;
+pub mod theme;
 pub mod types;
 pub mod usb;
 
@@ -57,9 +61,7 @@ pub fn run() {
         }
         driver.set_display_config(dc);
     } else {
-        let mut dc = types::DisplayConfig::default();
-        dc.decimals = settings.decimals;
-        driver.set_display_config(dc);
+        driver.set_display_config(types::DisplayConfig { decimals: settings.decimals, ..Default::default() });
     }
 
     let state = AppState {
@@ -70,21 +72,17 @@ pub fn run() {
 
     tauri::Builder::default()
         // Must be the first plugin: later launches forward their args here and exit.
-        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| cli::forward(app, argv, cwd)))
+        .plugin(tauri_plugin_single_instance::init(cli::forward))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_fs::init())
         .manage(state)
-        .on_window_event(|window, event| match event {
-            tauri::WindowEvent::CloseRequested { api, .. } => {
-                api.prevent_close();
-                let _ = window.emit("close-requested", ());
-            }
-            _ => {}
+        .on_window_event(|window, event| if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = window.emit("close-requested", ());
         })
         .setup(move |app| {
             // Wire up the driver's callbacks so it can emit Tauri events.
-            commands::setup_callbacks(&app.handle(), &driver);
+            commands::setup_callbacks(app.handle(), &driver);
             image_io::set_lcd_rotation(config::load().lcd_rotation);
 
             // Tray icon — left click toggles window, right click shows menu.
@@ -178,17 +176,17 @@ pub fn run() {
             commands::save_settings,
             commands::open_external,
             commands::get_config,
-            commands::save_config,
             commands::set_pump_profile,
             commands::set_lcd_orientation,
-            commands::get_gpu_fan_status,
-            commands::set_gpu_fan_curve,
-            commands::set_gpu_fan_auto,
-            commands::list_fan_channels,
-            commands::list_drives,
-            commands::read_fan_channels,
-            commands::set_fan_duty_cmd,
-            commands::set_fan_auto_cmd,
+            fan_commands::get_gpu_fan_status,
+            fan_commands::set_gpu_fan_curve,
+            fan_commands::set_gpu_fan_auto,
+            fan_commands::list_fan_channels,
+            fan_commands::list_drives,
+            theme::get_system_theme,
+            fan_commands::read_fan_channels,
+            fan_commands::set_fan_duty_cmd,
+            fan_commands::set_fan_auto_cmd,
             commands::send_ring,
             commands::list_profiles,
             commands::save_profile_cmd,
@@ -204,11 +202,18 @@ pub fn run() {
             commands::quit_app,
             commands::hide_window,
             commands::show_window,
-            commands::get_autostart,
-            commands::set_autostart,
+            autostart::get_autostart,
+            autostart::set_autostart,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while starting Tauri");
+        .build(tauri::generate_context!())
+        .expect("error while starting Tauri")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                if let Err(e) = app.state::<AppState>().gpu_fan.release() {
+                    log::warn!("Could not hand the GPU fan back to the driver: {e}");
+                }
+            }
+        });
 }
 
 /// Apply a profile directly via the driver (used at startup, before Tauri State is accessible).
@@ -228,17 +233,17 @@ async fn apply_profile_to_driver(
             driver.send_color(*r, *g, *b).await?;
         }
         ProfileLcd::Image { path } => {
-            let bytes = tokio::fs::read(path).await?;
+            let bytes = image_io::read_image_file_async(path).await?;
             let rgba = image_io::image_to_device_rgba(&bytes)?;
             driver.send_rgba_image(rgba).await?;
         }
         ProfileLcd::Gif { path } => {
-            let bytes = tokio::fs::read(path).await?;
+            let bytes = image_io::read_image_file_async(path).await?;
             let resized = tokio::task::spawn_blocking(move || image_io::resize_gif(&bytes)).await??;
             driver.send_gif(resized).await?;
         }
         ProfileLcd::Temperatures => {
-            driver.start_temp_mode(|cfg, temps| render::render_for_device(cfg, temps))?;
+            driver.start_temp_mode(render::render_for_device)?;
         }
     }
 

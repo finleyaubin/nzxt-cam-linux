@@ -76,7 +76,7 @@ export function GiphyDialog({ accent, onPick, onClose }: { accent: string; onPic
   }
 
   const busy = status === 'searching' || status === 'downloading'
-  const message = (text: string) => <div style={{ padding: 24, fontSize: 12, color: '#9a9a9a', lineHeight: 1.6 }}>{text}</div>
+  const message = (text: string) => <div style={{ padding: 24, fontSize: 12, color: 'var(--fg-dim)', lineHeight: 1.6 }}>{text}</div>
   const footerStatus = error ? error : status === 'downloading' ? t('giphy.downloading') : results ? t('giphy.count', { shown: results.length, total, term }) : ''
 
   return (
@@ -84,10 +84,10 @@ export function GiphyDialog({ accent, onPick, onClose }: { accent: string; onPic
       title={t('giphy.title')} width={860} height={640} onClose={onClose}
       headerExtra={apiKey ? (
         <form onSubmit={search} style={{ flex: 1, display: 'flex', gap: 8 }}>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: '#0d0d0d', border: '1px solid #252525', borderRadius: 8, padding: '0 10px' }}>
-            <MagnifyingGlass size={13} color="#7f7f7f"/>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, background: 'var(--window)', border: '1px solid var(--border)', borderRadius: 8, padding: '0 10px' }}>
+            <MagnifyingGlass size={13} color="var(--fg-dim)"/>
             <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={t('giphy.search_placeholder')} aria-label={t('giphy.search_label')}
-              style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', color: '#e0e0e0', fontSize: 12, padding: '7px 0' }}/>
+              style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', outline: 'none', color: 'var(--fg)', fontSize: 12, padding: '7px 0' }}/>
           </div>
           <button type="submit" disabled={busy} style={{
             padding: '0 14px', borderRadius: 8, border: 'none', background: accent, color: '#fff', fontSize: 12, fontWeight: 700, cursor: busy ? 'default' : 'pointer',
@@ -96,7 +96,7 @@ export function GiphyDialog({ accent, onPick, onClose }: { accent: string; onPic
       ) : undefined}
       footer={(
         <>
-          <span style={{ flex: 1, color: error ? '#ff4757' : undefined }}>{footerStatus}</span>
+          <span style={{ flex: 1, color: error ? '#f66151' : undefined }}>{footerStatus}</span>
           <span>{t('giphy.powered_by')}</span>
         </>
       )}
@@ -111,8 +111,8 @@ export function GiphyDialog({ accent, onPick, onClose }: { accent: string; onPic
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8, alignContent: 'start' }}>
                 {results.map(gif => (
                   <button key={gif.id} onClick={() => pick(gif)} disabled={status === 'downloading'} title={gif.title} style={{
-                    position: 'relative', width: '100%', height: 0, padding: '0 0 100%', border: '1px solid #1e1e1e', borderRadius: 8,
-                    overflow: 'hidden', background: '#111', cursor: 'pointer', opacity: status === 'downloading' ? 0.5 : 1,
+                    position: 'relative', width: '100%', height: 0, padding: '0 0 100%', border: '1px solid var(--border)', borderRadius: 8,
+                    overflow: 'hidden', background: 'var(--card)', cursor: 'pointer', opacity: status === 'downloading' ? 0.5 : 1,
                   }}>
                     <img src={gif.images.fixed_width.url} alt={gif.title} loading="lazy"
                       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
@@ -122,7 +122,7 @@ export function GiphyDialog({ accent, onPick, onClose }: { accent: string; onPic
               {results.length < total && (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 4px' }}>
                   <button onClick={() => load(term, results.length)} disabled={busy} style={{
-                    padding: '7px 16px', borderRadius: 8, border: '1px solid #2a2a2a', background: '#111', color: '#b8b8b8', fontSize: 12, fontWeight: 600, cursor: busy ? 'default' : 'pointer',
+                    padding: '7px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--fg)', fontSize: 12, fontWeight: 600, cursor: busy ? 'default' : 'pointer',
                   }}>{status === 'searching' ? t('giphy.loading') : t('giphy.load_more')}</button>
                 </div>
               )}

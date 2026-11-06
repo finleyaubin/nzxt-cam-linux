@@ -27,9 +27,9 @@ fn usage(mount: &str) -> Result<(u64, u64), String> {
         return Err(format!("statvfs {mount}: {}", std::io::Error::last_os_error()));
     }
     let stat = unsafe { stat.assume_init() };
-    let block = stat.f_frsize as u64;
-    let total = stat.f_blocks as u64 * block;
-    let used = total - stat.f_bfree as u64 * block;
+    let block = stat.f_frsize;
+    let total = stat.f_blocks * block;
+    let used = total - stat.f_bfree * block;
     Ok((used, total))
 }
 
@@ -46,7 +46,14 @@ pub fn list_drives() -> Result<Vec<Drive>, String> {
             continue;
         }
         let mount = unescape_mount_field(mount);
-        let (used_bytes, total_bytes) = usage(&mount)?;
+        // One stale or inaccessible mount must not hide every other drive.
+        let (used_bytes, total_bytes) = match usage(&mount) {
+            Ok(sizes) => sizes,
+            Err(e) => {
+                log::warn!("Skipping drive: {e}");
+                continue;
+            }
+        };
         if total_bytes > 0 {
             drives.push(Drive { device: device.to_string(), mount, used_bytes, total_bytes });
         }

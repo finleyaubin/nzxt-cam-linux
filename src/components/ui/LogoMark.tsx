@@ -3,7 +3,7 @@ interface Props {
   size?: number
 }
 
-export function LogoMark({ accent = '#9d4edd', size = 36 }: Props) {
+export function LogoMark({ accent = '#3584e4', size = 36 }: Props) {
   const S = size, C = S / 2
 
   const hex = (r: number, offset = 0) =>

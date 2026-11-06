@@ -14,6 +14,9 @@ import { DisplayConfig } from '@shared/display'
 // ============================================================================
 // Types — mirror Rust types
 // ============================================================================
+export type FontCategory = 'sans' | 'serif' | 'monospace' | 'handwriting' | 'display' | 'other'
+export interface FontEntry { family: string; category: FontCategory }
+
 export interface DeviceStatus {
   connected: boolean
   productName: string
@@ -23,12 +26,12 @@ export interface DeviceStatus {
 }
 
 export interface Temperatures {
-  cpu: number
-  gpu: number
-  liquid: number
-  pumpRpm: number
+  cpu: number | null
+  gpu: number | null
+  liquid: number | null
+  pumpRpm: number | null
   /** Indexed by sensor slot; `sensor{i+1}` metric. */
-  sensors: number[]
+  sensors: (number | null)[]
 }
 
 export interface SensorSlot {
@@ -142,7 +145,7 @@ export const api = {
     invoke<CommandResult>('save_display_config', { configIn: config }),
   renderDisplayPreview: (config: DisplayConfig) =>
     invoke<PreviewResult>('render_display_preview', { configIn: config }),
-  listFonts: () => invoke<string[]>('list_fonts'),
+  listFonts: () => invoke<FontEntry[]>('list_fonts'),
 
   // --- Settings ---
   saveGiphyGif: (id: string, bytes: ArrayBuffer) =>

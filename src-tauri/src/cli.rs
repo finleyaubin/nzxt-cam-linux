@@ -5,7 +5,7 @@ use crate::types::DisplayElement;
 use crate::{config, image_io, render};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// Whether this instance's window should open once the UI has painted.
 pub static START_VISIBLE: AtomicBool = AtomicBool::new(true);
@@ -177,12 +177,12 @@ async fn apply(app: &AppHandle, action: Action) -> anyhow::Result<()> {
     let path_str = |p: &Path| p.to_string_lossy().into_owned();
     match action {
         Action::Image(p) => {
-            let rgba = image_io::image_to_device_rgba(&tokio::fs::read(&p).await?)?;
+            let rgba = image_io::image_to_device_rgba(&image_io::read_image_file_async(&p).await?)?;
             driver.send_rgba_image(rgba).await?;
             config::update(|c| { c.last_mode = Some("image".into()); c.last_image_path = Some(path_str(&p)) })?;
         }
         Action::Gif(p) => {
-            let bytes = tokio::fs::read(&p).await?;
+            let bytes = image_io::read_image_file_async(&p).await?;
             let gif = tokio::task::spawn_blocking(move || image_io::resize_gif(&bytes)).await??;
             driver.send_gif(gif).await?;
             config::update(|c| { c.last_mode = Some("gif".into()); c.last_gif_path = Some(path_str(&p)) })?;
@@ -235,6 +235,10 @@ pub async fn run_actions(app: AppHandle, actions: Vec<Action>) {
         if let Err(e) = apply(&app, action).await {
             log::warn!("CLI {label} failed: {e}");
         }
+    }
+    // The open window holds its own copy of the layout; without this its next Apply overwrites what the CLI just set.
+    if let Err(e) = app.emit("display-config-changed", ()) {
+        log::warn!("display-config-changed event failed: {e}");
     }
 }
 

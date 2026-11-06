@@ -1,15 +1,25 @@
-import { useEffect, useRef, useState } from 'react'
-import { CaretDown } from '@phosphor-icons/react'
-import { api } from '../../lib/api'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { CaretDown, MagnifyingGlass } from '@phosphor-icons/react'
+import { api, FontCategory, FontEntry } from '../../lib/api'
 import { Field } from './fields'
 import { useLanguage } from '../../i18n/LangContext'
 
 const MAX_ROWS = 200
 
-let families: Promise<string[]> | null = null
+const CATEGORIES: ('all' | FontCategory)[] = ['all', 'sans', 'serif', 'monospace', 'handwriting', 'display', 'other']
+
+let families: Promise<FontEntry[]> | null = null
 const installedFonts = () => (families ??= api.listFonts().catch(() => []))
 
 const quoted = (name: string) => `"${name.replace(/"/g, '')}", sans-serif`
+
+function searchFonts(fonts: string[], query: string): string[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return fonts
+  const first = words[0]
+  const hits = fonts.filter(f => words.every(w => f.toLowerCase().includes(w)))
+  return [...hits.filter(f => f.toLowerCase().startsWith(first)), ...hits.filter(f => !f.toLowerCase().startsWith(first))]
+}
 
 interface Props {
   /** Chosen family, or null for the default. */
@@ -21,12 +31,15 @@ interface Props {
 }
 
 /** Searchable list of installed fonts, each shown in its own typeface. */
-export function FontPicker({ value, defaultLabel, accent, onChange }: Props) {
+export function FontPicker({ value, defaultLabel, onChange }: Props) {
   const { t } = useLanguage()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [installed, setInstalled] = useState<string[] | null>(null)
+  const [highlighted, setHighlighted] = useState(0)
+  const [category, setCategory] = useState<'all' | FontCategory>('all')
+  const [installed, setInstalled] = useState<FontEntry[] | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const highlightedRow = useRef<HTMLDivElement>(null)
 
   useEffect(() => { installedFonts().then(setInstalled) }, [])
   useEffect(() => {
@@ -34,50 +47,77 @@ export function FontPicker({ value, defaultLabel, accent, onChange }: Props) {
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [])
+  useEffect(() => { highlightedRow.current?.scrollIntoView({ block: 'nearest' }) }, [highlighted, open])
 
-  const q = query.trim().toLowerCase()
-  const matches = (installed ?? []).filter(f => !q || f.toLowerCase().includes(q))
-  const missing = !!value && installed !== null && !installed.includes(value)
+  const inCategory = useMemo(
+    () => (installed ?? []).filter(f => category === 'all' || f.category === category).map(f => f.family),
+    [installed, category],
+  )
+  const matches = useMemo(() => searchFonts(inCategory, query), [inCategory, query])
+  const rows: (string | null)[] = useMemo(
+    () => [...(query.trim() ? [] : [null]), ...matches.slice(0, MAX_ROWS)],
+    [matches, query],
+  )
+  const missing = !!value && installed !== null && !installed.some(f => f.family === value)
 
-  const pick = (font: string | null) => { setOpen(false); setQuery(''); onChange(font) }
-  const row = (key: string, label: string, font: string | null, style?: React.CSSProperties) => {
-    const active = font === (value ?? null)
-    return (
-      <div key={key} onClick={() => pick(font)} style={{
-        padding: '6px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 14, color: active ? accent : '#d0d0d0',
-        background: active ? `${accent}1a` : 'transparent', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', ...style,
-      }}
-      onMouseEnter={e => { if (!active) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
-      onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent' }}>{label}</div>
-    )
+  const close = () => { setOpen(false); setQuery('') }
+  const pick = (font: string | null) => { close(); onChange(font) }
+  const search = (text: string) => { setQuery(text); setHighlighted(0) }
+  const chooseCategory = (c: 'all' | FontCategory) => { setCategory(c); setHighlighted(0) }
+
+  const onSearchKey = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlighted(h => Math.min(rows.length - 1, h + 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlighted(h => Math.max(0, h - 1)) }
+    else if (e.key === 'Enter' && rows.length > 0) { e.preventDefault(); pick(rows[highlighted]) }
+    else if (e.key === 'Escape') { e.stopPropagation(); close() }
   }
 
   return (
     <Field label={t('font.label')}>
       <div ref={ref} style={{ position: 'relative', width: '100%' }}>
         <div onClick={() => setOpen(o => !o)} style={{
-          background: '#1c1c1c', border: `1px solid ${open ? accent : '#2c2c2c'}`, borderRadius: 8, height: 28, padding: '0 28px 0 10px',
-          cursor: 'pointer', fontSize: 13, color: '#ddd', display: 'flex', alignItems: 'center', position: 'relative', userSelect: 'none',
+          background: 'var(--hover)', borderRadius: 6, height: 28, padding: '0 28px 0 10px',
+          cursor: 'pointer', fontSize: 13, color: 'var(--fg)', display: 'flex', alignItems: 'center', position: 'relative', userSelect: 'none',
         }}>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: value ? quoted(value) : undefined }}>
             {value ?? defaultLabel}
           </span>
-          {missing && <span style={{ marginLeft: 6, fontSize: 10, color: '#ffb347', flexShrink: 0 }}>{t('font.not_installed')}</span>}
-          <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', color: '#9a9a9a', display: 'flex' }}><CaretDown size={10}/></span>
+          {missing && <span style={{ marginLeft: 6, fontSize: 11, color: '#f5c211', flexShrink: 0 }}>{t('font.not_installed')}</span>}
+          <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-dim)', display: 'flex' }}><CaretDown size={10}/></span>
         </div>
         {open && (
           <div style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: '#1c1c1c', border: '1px solid #2c2c2c',
-            borderRadius: 8, padding: 4, zIndex: 400, boxShadow: '0 12px 36px rgba(0,0,0,0.7)',
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--popover)',
+            borderRadius: 12, padding: 6, zIndex: 400, boxShadow: 'var(--shadow-popover)',
           }}>
-            <input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder={t('font.search')} aria-label={t('font.search_label')}
-              style={{ width: '100%', boxSizing: 'border-box', background: '#0d0d0d', border: '1px solid #252525', borderRadius: 8, color: '#e0e0e0', fontSize: 12, padding: '4px 8px', marginBottom: 4 }}/>
-            <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-              {!q && row('default', defaultLabel, null, { fontSize: 12, fontStyle: 'italic' })}
-              {matches.slice(0, MAX_ROWS).map(f => row(f, f, f, { fontFamily: quoted(f) }))}
-              {installed === null && <div style={{ padding: 10, fontSize: 11, color: '#7f7f7f' }}>{t('font.loading')}</div>}
-              {installed !== null && matches.length === 0 && <div style={{ padding: 10, fontSize: 11, color: '#7f7f7f' }}>{t('font.no_matches')}</div>}
-              {matches.length > MAX_ROWS && <div style={{ padding: 10, fontSize: 11, color: '#7f7f7f' }}>{t('font.showing', { shown: MAX_ROWS, total: matches.length })}</div>}
+            <div style={{ position: 'relative', marginBottom: 6 }}>
+              <MagnifyingGlass size={13} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-dim)' }}/>
+              <input autoFocus value={query} onChange={e => search(e.target.value)} onKeyDown={onSearchKey}
+                placeholder={t('font.search')} aria-label={t('font.search_label')}
+                style={{ width: '100%', boxSizing: 'border-box', background: 'var(--hover)', border: 'none', borderRadius: 6, fontSize: 13, padding: '6px 8px 6px 28px' }}/>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+              {CATEGORIES.map(c => (
+                <button key={c} onClick={() => chooseCategory(c)} style={{
+                  border: 'none', borderRadius: 12, padding: '2px 10px', fontSize: 12, cursor: 'pointer',
+                  background: category === c ? 'var(--accent)' : 'var(--hover)', color: category === c ? 'var(--accent-fg)' : undefined,
+                }}>{t(`font.category.${c}`)}</button>
+              ))}
+            </div>
+            <div style={{ maxHeight: 340, overflowY: 'auto' }}>
+              {rows.map((font, i) => (
+                <div key={font ?? 'default'} ref={i === highlighted ? highlightedRow : undefined}
+                  onClick={() => pick(font)} onMouseMove={() => setHighlighted(i)}
+                  style={{
+                    padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: font ? 15 : 13, fontStyle: font ? undefined : 'italic',
+                    fontFamily: font ? quoted(font) : undefined, fontWeight: font === (value ?? null) ? 700 : 400,
+                    background: i === highlighted ? 'var(--selected)' : 'transparent',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>{font ?? defaultLabel}</div>
+              ))}
+              {installed === null && <div style={{ padding: 10, fontSize: 12, color: 'var(--fg-dim)' }}>{t('font.loading')}</div>}
+              {installed !== null && matches.length === 0 && <div style={{ padding: 10, fontSize: 12, color: 'var(--fg-dim)' }}>{t('font.no_matches')}</div>}
+              {matches.length > MAX_ROWS && <div style={{ padding: 10, fontSize: 12, color: 'var(--fg-dim)' }}>{t('font.showing', { shown: MAX_ROWS, total: matches.length })}</div>}
             </div>
           </div>
         )}
