@@ -1,13 +1,16 @@
 //! Library crate — exposes `run()` which is called from main.rs.
 
+pub mod autostart;
 pub mod cli;
 pub mod commands;
 pub mod config;
+pub mod fan_commands;
 pub mod fans;
 pub mod image_io;
 pub mod layouts;
 pub mod logos;
 pub mod profile;
+pub mod secrets;
 pub mod render;
 pub mod sensors;
 pub mod storage;
@@ -175,15 +178,15 @@ pub fn run() {
             commands::get_config,
             commands::set_pump_profile,
             commands::set_lcd_orientation,
-            commands::get_gpu_fan_status,
-            commands::set_gpu_fan_curve,
-            commands::set_gpu_fan_auto,
-            commands::list_fan_channels,
-            commands::list_drives,
+            fan_commands::get_gpu_fan_status,
+            fan_commands::set_gpu_fan_curve,
+            fan_commands::set_gpu_fan_auto,
+            fan_commands::list_fan_channels,
+            fan_commands::list_drives,
             theme::get_system_theme,
-            commands::read_fan_channels,
-            commands::set_fan_duty_cmd,
-            commands::set_fan_auto_cmd,
+            fan_commands::read_fan_channels,
+            fan_commands::set_fan_duty_cmd,
+            fan_commands::set_fan_auto_cmd,
             commands::send_ring,
             commands::list_profiles,
             commands::save_profile_cmd,
@@ -199,8 +202,8 @@ pub fn run() {
             commands::quit_app,
             commands::hide_window,
             commands::show_window,
-            commands::get_autostart,
-            commands::set_autostart,
+            autostart::get_autostart,
+            autostart::set_autostart,
         ])
         .build(tauri::generate_context!())
         .expect("error while starting Tauri")

@@ -56,7 +56,7 @@ fn pick_cpu_sensor() -> Option<CpuSensor> {
                 .map(|s| s.trim().to_string())
                 .unwrap_or_default();
             let score = label_priority(&label);
-            if best.as_ref().map_or(true, |(b, _)| score < *b) {
+            if best.as_ref().is_none_or(|(b, _)| score < *b) {
                 best = Some((score, p));
             }
         }

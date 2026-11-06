@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 const HWMON_ROOT: &str = "/sys/class/hwmon/";
 const MAX_PWM_INDEX: u8 = 8;
+const UNREADABLE_TEMP_DUTY: u8 = 100;
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -210,12 +211,15 @@ fn write_fan_duty(hwmon_path: &str, pwm_index: u8, duty: u8) -> Result<()> {
     fs::write(pwm_file(hwmon_path, pwm_index, "")?, format!("{pwm_val}\n")).map_err(|e| anyhow!("pwm write: {e}"))
 }
 
-/// A failed temperature read skips the tick: guessing a temperature could drive the fan too low.
+/// Without a temperature reading the curve is blind, so the fan runs flat out rather than stay at a possibly low speed.
 fn apply_curve_tick(hwmon: &str, points: &[(u8, u8)]) {
     let temp = match read_sysfs(&PathBuf::from(hwmon).join("temp1_input")).and_then(|s| s.parse::<f32>().ok()) {
         Some(milli) => milli / 1000.0,
         None => {
-            log::warn!("GPU fan curve: temperature unreadable, leaving the fan unchanged");
+            log::warn!("GPU fan curve: temperature unreadable, forcing {UNREADABLE_TEMP_DUTY}% duty");
+            if let Err(e) = write_fan_duty(hwmon, 1, UNREADABLE_TEMP_DUTY) {
+                log::warn!("GPU fan write failed: {e}");
+            }
             return;
         }
     };

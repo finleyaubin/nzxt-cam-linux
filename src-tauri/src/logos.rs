@@ -125,7 +125,7 @@ fn index_icons(roots: &[PathBuf], wanted: &HashSet<String>) -> HashMap<String, (
             if known_small || std::fs::metadata(&path).map_or(true, |m| m.len() > MAX_FILE_BYTES) {
                 continue;
             }
-            if found.get(&stem).map_or(true, |(best, _)| size > *best) {
+            if found.get(&stem).is_none_or(|(best, _)| size > *best) {
                 found.insert(stem, (size, path));
             }
         }

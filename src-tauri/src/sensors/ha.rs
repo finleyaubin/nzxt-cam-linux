@@ -117,7 +117,7 @@ fn parse_states(states: &[Value]) -> Vec<(String, Entity)> {
 
 pub fn list() -> Vec<super::all::Sensor> {
     // Throttled so an unreachable server costs one timeout per poll interval, not one per call.
-    let stale = LAST_ATTEMPT.lock().map_or(true, |at| at.elapsed() >= POLL);
+    let stale = LAST_ATTEMPT.lock().is_none_or(|at| at.elapsed() >= POLL);
     if configured() && stale {
         let _ = refresh();
     }

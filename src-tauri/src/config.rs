@@ -5,8 +5,11 @@
 //! `version` is the schema version; files without it (pre-versioning) are v0
 //! and are migrated on load. Writes are atomic (temp file + rename).
 
+use crate::secrets;
 use crate::types::{AppSettings, DisplayConfig};
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 
@@ -94,13 +97,79 @@ pub fn try_load() -> Result<ConfigFile, String> {
 /// Like `try_load`, but a bad file is kept as `config.json.bad.<unix time>` (so the next save
 /// cannot silently destroy it) and defaults are used.
 pub fn load() -> ConfigFile {
-    try_load().unwrap_or_else(|e| {
+    let mut cfg = try_load().unwrap_or_else(|e| {
         log::warn!("Config ignored: {e}");
         let path = config_file_path();
         let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
         let _ = fs::rename(&path, path.with_extension(format!("json.bad.{stamp}")));
         ConfigFile { version: CONFIG_VERSION, ..Default::default() }
-    })
+    });
+    let had_plaintext_keys = cfg.settings.as_ref().is_some_and(|s| s.api_keys.values().any(|v| !v.is_empty()));
+    fill_api_keys_from_keyring(&mut cfg);
+    if had_plaintext_keys {
+        match save(&cfg) {
+            Ok(()) => log::info!("Moved API keys from config.json into the system keyring"),
+            Err(e) => log::error!("API keys are still in config.json, keyring unavailable: {e}"),
+        }
+    }
+    cfg
+}
+
+// Keys live in the keyring, not in config.json. This mirrors what the keyring holds so it is
+// only queried on first load and written when a value actually changes.
+static KEYRING_MIRROR: Mutex<Option<BTreeMap<String, String>>> = Mutex::new(None);
+
+fn fill_api_keys_from_keyring(cfg: &mut ConfigFile) {
+    let Some(settings) = cfg.settings.as_mut() else { return };
+    let mut mirror = KEYRING_MIRROR.lock();
+    if mirror.is_none() {
+        let mut keys = BTreeMap::new();
+        for name in secrets::KEY_NAMES {
+            match secrets::get(name) {
+                Ok(Some(value)) => {
+                    keys.insert(name.to_string(), value);
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    log::error!("Cannot read API keys from the system keyring: {e}");
+                    return;
+                }
+            }
+        }
+        *mirror = Some(keys);
+    }
+    for (name, value) in mirror.iter().flatten() {
+        // A key still in the file is newer than the keyring (pre-migration config).
+        if settings.api_keys.get(name).is_none_or(|v| v.is_empty()) {
+            settings.api_keys.insert(name.clone(), value.clone());
+        }
+    }
+}
+
+fn store_changed_keys(
+    keys: &BTreeMap<String, String>,
+    mirror: &mut Option<BTreeMap<String, String>>,
+    mut store: impl FnMut(&str, &str) -> Result<(), String>,
+) -> Result<(), String> {
+    for (name, value) in keys.iter().filter(|(_, v)| !v.is_empty()) {
+        if mirror.as_ref().is_some_and(|m| m.get(name) == Some(value)) {
+            continue;
+        }
+        store(name, value)?;
+        if let Some(m) = mirror.as_mut() {
+            m.insert(name.clone(), value.clone());
+        }
+    }
+    Ok(())
+}
+
+/// Clear a key the user removed; an empty value in `save` never deletes, so a failed keyring read cannot wipe keys.
+pub fn remove_api_key(name: &str) -> Result<(), String> {
+    secrets::delete(name)?;
+    if let Some(mirror) = KEYRING_MIRROR.lock().as_mut() {
+        mirror.remove(name);
+    }
+    Ok(())
 }
 
 /// Write `data` to `path` via a temp file in the same directory, then rename over it.
@@ -111,7 +180,7 @@ pub fn write_atomic(path: &std::path::Path, data: &[u8], private: bool) -> anyho
     f.write_all(data)?;
     f.sync_all()?;
     if private {
-        // Holds API keys, so keep it private to the user.
+        // Settings and paths are private to the user.
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600))?;
     }
@@ -123,6 +192,10 @@ pub fn save(cfg: &ConfigFile) -> anyhow::Result<()> {
     ensure_config_dir();
     let mut cfg = cfg.clone();
     cfg.version = CONFIG_VERSION;
+    if let Some(settings) = cfg.settings.as_mut() {
+        store_changed_keys(&settings.api_keys, &mut KEYRING_MIRROR.lock(), secrets::set).map_err(anyhow::Error::msg)?;
+        settings.api_keys.clear();
+    }
     write_atomic(&config_file_path(), serde_json::to_string_pretty(&cfg)?.as_bytes(), true)
 }
 
@@ -167,6 +240,24 @@ mod tests {
         assert!(e.contains("lcdRotation"), "{e}");
         let e = parse(r##"{"displayConfig": {"background": "#000", "elements": [], "backgroundDim": 95}}"##, "cfg.json").unwrap_err();
         assert!(e.contains("backgroundDim"), "{e}");
+    }
+
+    #[test]
+    fn only_changed_non_empty_keys_reach_the_keyring() {
+        let keys: BTreeMap<String, String> =
+            [("giphy", "new"), ("homeassistant", "same"), ("empty", "")].map(|(k, v)| (k.to_string(), v.to_string())).into();
+        let mut mirror = Some(BTreeMap::from([("homeassistant".to_string(), "same".to_string())]));
+        let mut stored = Vec::new();
+        store_changed_keys(&keys, &mut mirror, |name, value| {
+            stored.push((name.to_string(), value.to_string()));
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(stored, [("giphy".to_string(), "new".to_string())]);
+        assert_eq!(mirror.unwrap().get("giphy").map(String::as_str), Some("new"));
+
+        let failure = store_changed_keys(&keys, &mut None, |_, _| Err("locked".into()));
+        assert_eq!(failure, Err("locked".to_string()));
     }
 
     #[test]

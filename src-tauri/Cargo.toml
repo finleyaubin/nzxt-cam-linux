@@ -5,7 +5,7 @@ description = "NZXT Kraken Elite LCD controller for Arch Linux — Tauri + Rust"
 authors = ["Cypher"]
 license = "MIT"
 edition = "2021"
-rust-version = "1.80"
+rust-version = "1.82"
 
 [lib]
 name = "nzxtcam_lib"
@@ -53,6 +53,7 @@ libc = "0.2"
 resvg = { version = "0.45", default-features = false }
 ureq = { version = "3", features = ["json"] }
 tauri-plugin-single-instance = "2"
+keyring = { version = "3", default-features = false, features = ["async-secret-service", "tokio", "crypto-rust"] }
 
 [features]
 # Default features

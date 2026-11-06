@@ -40,10 +40,10 @@ pub struct CommandResult {
 }
 
 impl CommandResult {
-    fn ok() -> Self {
+    pub(crate) fn ok() -> Self {
         Self { success: true, error: None }
     }
-    fn fail(e: impl ToString) -> Self {
+    pub(crate) fn fail(e: impl ToString) -> Self {
         Self {
             success: false,
             error: Some(e.to_string()),
@@ -51,7 +51,7 @@ impl CommandResult {
     }
 }
 
-fn to_str_err<E: ToString>(e: E) -> String {
+pub(crate) fn to_str_err<E: ToString>(e: E) -> String {
     e.to_string()
 }
 
@@ -336,6 +336,16 @@ pub fn save_settings(
     let mut merged = settings;
     merged.clamp();
 
+    if let Some(name) = merged.api_keys.keys().find(|name| !crate::secrets::KEY_NAMES.contains(&name.as_str())) {
+        return Err(format!("Unknown API key name: {name}"));
+    }
+    // Persist first so a locked keyring is reported before any runtime change is applied.
+    for name in previous.api_keys.keys().filter(|name| merged.api_keys.get(*name).is_none_or(|v| v.is_empty())) {
+        config::remove_api_key(name)?;
+    }
+    let to_save = merged.clone();
+    config::update(|c| c.settings = Some(to_save)).map_err(to_str_err)?;
+
     // Apply runtime changes.
     sensors::set_gpu_source(merged.gpu_source.clone());
     sensors::set_sensor_sources(merged.cpu_source.clone(), merged.sensor_sources());
@@ -352,9 +362,6 @@ pub fn save_settings(
         cfg.decimals = merged.decimals;
         state.driver.set_display_config(cfg);
     }
-
-    let s = merged.clone();
-    let _ = config::update(|c| c.settings = Some(s));
 
     Ok(SaveSettingsResult { success: true, settings: merged })
 }
@@ -482,86 +489,6 @@ pub async fn apply_profile_inner(p: &Profile, state: &AppState) -> Result<Comman
 }
 
 // ============================================================================
-// GPU fan control
-// ============================================================================
-
-#[tauri::command]
-pub fn get_gpu_fan_status(state: State<'_, AppState>) -> Option<crate::fans::GpuFanStatus> {
-    state.gpu_fan.get_status()
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GpuFanCurvePoint { pub t: u8, pub s: u8 }
-
-#[tauri::command]
-pub fn set_gpu_fan_curve(points: Vec<GpuFanCurvePoint>, state: State<'_, AppState>) -> CommandResult {
-    let pairs: Vec<(u8, u8)> = points.into_iter().map(|p| (p.t, p.s)).collect();
-    match state.gpu_fan.set_curve(pairs) {
-        Ok(_) => CommandResult::ok(),
-        Err(e) => CommandResult::fail(e),
-    }
-}
-
-#[tauri::command]
-pub fn set_gpu_fan_auto(state: State<'_, AppState>) -> CommandResult {
-    match state.gpu_fan.set_auto() {
-        Ok(_) => CommandResult::ok(),
-        Err(e) => CommandResult::fail(e),
-    }
-}
-
-// ============================================================================
-// Fan control (hwmon sysfs — boitier)
-// ============================================================================
-
-#[tauri::command]
-pub fn list_drives() -> Result<Vec<crate::storage::Drive>, String> {
-    crate::storage::list_drives()
-}
-
-#[tauri::command]
-pub fn list_fan_channels() -> Vec<crate::fans::FanChannel> {
-    crate::fans::list_fan_channels()
-}
-
-#[tauri::command]
-pub fn read_fan_channels() -> Vec<crate::fans::FanChannel> {
-    crate::fans::list_fan_channels()
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SetFanDutyArgs {
-    pub hwmon_path: String,
-    pub pwm_index: u8,
-    pub duty: u8,
-}
-
-#[tauri::command]
-pub fn set_fan_duty_cmd(args: SetFanDutyArgs) -> CommandResult {
-    match crate::fans::set_fan_duty(&args.hwmon_path, args.pwm_index, args.duty) {
-        Ok(_) => CommandResult::ok(),
-        Err(e) => CommandResult::fail(e),
-    }
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SetFanAutoArgs {
-    pub hwmon_path: String,
-    pub pwm_index: u8,
-}
-
-#[tauri::command]
-pub fn set_fan_auto_cmd(args: SetFanAutoArgs) -> CommandResult {
-    match crate::fans::set_fan_auto(&args.hwmon_path, args.pwm_index) {
-        Ok(_) => CommandResult::ok(),
-        Err(e) => CommandResult::fail(e),
-    }
-}
-
-// ============================================================================
 // Pump speed profile
 // ============================================================================
 
@@ -654,107 +581,6 @@ pub fn get_config() -> config::ConfigFile {
     config::load()
 }
 
-// Autostart: systemd user service plus an XDG autostart entry for desktops that don't run `systemd --user`.
-
-const SERVICE_NAME: &str = "nzxtcam-v1.service";
-
-fn quote_exec_path(path: &str, escape: fn(char) -> Option<&'static str>) -> Result<String, String> {
-    if path.contains(['\n', '\r']) {
-        return Err("Binary path contains a line break".into());
-    }
-    let mut quoted = String::from("\"");
-    for c in path.chars() {
-        match escape(c) {
-            Some(replacement) => quoted.push_str(replacement),
-            None => quoted.push(c),
-        }
-    }
-    quoted.push('"');
-    Ok(quoted)
-}
-
-fn escape_for_systemd(c: char) -> Option<&'static str> {
-    match c {
-        '"' => Some("\\\""),
-        '\\' => Some("\\\\"),
-        '%' => Some("%%"),
-        '$' => Some("$$"),
-        _ => None,
-    }
-}
-
-fn escape_for_desktop_entry(c: char) -> Option<&'static str> {
-    match c {
-        '"' => Some("\\\""),
-        '`' => Some("\\`"),
-        '$' => Some("\\$"),
-        '\\' => Some("\\\\"),
-        '%' => Some("%%"),
-        _ => None,
-    }
-}
-
-fn run_systemctl_user(args: &[&str]) -> Result<(), String> {
-    let output = std::process::Command::new("systemctl")
-        .arg("--user")
-        .args(args)
-        .output()
-        .map_err(|e| format!("systemctl: {e}"))?;
-    if output.status.success() {
-        return Ok(());
-    }
-    Err(format!("systemctl --user {}: {}", args.join(" "), String::from_utf8_lossy(&output.stderr).trim()))
-}
-
-#[tauri::command]
-pub fn get_autostart() -> bool {
-    let Some(home) = dirs::home_dir() else { return false };
-    home.join(".config/systemd/user").join(SERVICE_NAME).exists()
-        || home.join(".config/autostart/nzxtcam-v1.desktop").exists()
-}
-
-#[tauri::command]
-pub fn set_autostart(enabled: bool) -> Result<(), String> {
-    let home = dirs::home_dir().ok_or("Home dir not found")?;
-    let service_dir = home.join(".config/systemd/user");
-    let service_path = service_dir.join(SERVICE_NAME);
-    let xdg_dir = home.join(".config/autostart");
-    let xdg_path = xdg_dir.join("nzxtcam-v1.desktop");
-
-    if !enabled {
-        let _ = run_systemctl_user(&["disable", SERVICE_NAME]);
-        for path in [&service_path, &xdg_path] {
-            match std::fs::remove_file(path) {
-                Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(format!("{}: {e}", path.display())),
-                _ => {}
-            }
-        }
-        return Ok(());
-    }
-
-    let exe = std::env::current_exe().map_err(to_str_err)?;
-    let exe = exe.to_string_lossy();
-    let systemd_exe = quote_exec_path(&exe, escape_for_systemd)?;
-    let desktop_exe = quote_exec_path(&exe, escape_for_desktop_entry)?;
-
-    std::fs::create_dir_all(&xdg_dir).map_err(to_str_err)?;
-    std::fs::write(&xdg_path, format!(
-        "[Desktop Entry]\nType=Application\nName=nzxtcam-v1\n\
-         Exec={desktop_exe}\nIcon=nzxtcam-v1\nHidden=false\n\
-         NoDisplay=false\nX-GNOME-Autostart-enabled=true\n"
-    )).map_err(to_str_err)?;
-
-    std::fs::create_dir_all(&service_dir).map_err(to_str_err)?;
-    std::fs::write(&service_path, format!(
-        "[Unit]\nDescription=NZXT CAM v1 — LCD Controller\nAfter=graphical-session.target\n\n\
-         [Service]\nType=simple\nExecStart={systemd_exe}\nRestart=on-failure\nRestartSec=3\n\n\
-         [Install]\nWantedBy=graphical-session.target\n"
-    )).map_err(to_str_err)?;
-    run_systemctl_user(&["daemon-reload"])?;
-    run_systemctl_user(&["enable", SERVICE_NAME])
-}
-
-
 // ============================================================================
 // Bootstrap helper — wired by `lib::run()`
 // ============================================================================
@@ -769,17 +595,4 @@ pub fn setup_callbacks(app: &AppHandle, driver: &KrakenDriver) {
     driver.set_temps_callback(Arc::new(move |temps: &Temperatures| {
         let _ = app_for_temps.emit("temperatures-update", temps);
     }));
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn exec_paths_are_quoted_and_escaped() {
-        assert_eq!(quote_exec_path("/opt/my app/bin", escape_for_systemd).unwrap(), "\"/opt/my app/bin\"");
-        assert_eq!(quote_exec_path("/a%b$c\"d", escape_for_systemd).unwrap(), "\"/a%%b$$c\\\"d\"");
-        assert_eq!(quote_exec_path("/a`b$c", escape_for_desktop_entry).unwrap(), "\"/a\\`b\\$c\"");
-        assert!(quote_exec_path("/a\nb", escape_for_systemd).is_err());
-    }
 }
