@@ -143,7 +143,7 @@ pub async fn send_gif(path: String, state: State<'_, AppState>) -> Result<Comman
 pub async fn start_temp_mode(state: State<'_, AppState>) -> Result<CommandResult, String> {
     let result = state
         .driver
-        .start_temp_mode(|cfg, temps| render::render_for_device(cfg, temps));
+        .start_temp_mode(render::render_for_device);
     let _ = config::update(|c| c.last_mode = Some("temperatures".into()));
     match result {
         Ok(_) => Ok(CommandResult::ok()),
@@ -467,7 +467,7 @@ pub async fn apply_profile_inner(p: &Profile, state: &AppState) -> Result<Comman
             }
         }
         ProfileLcd::Temperatures => {
-            let result = state.driver.start_temp_mode(|cfg, temps| render::render_for_device(cfg, temps));
+            let result = state.driver.start_temp_mode(render::render_for_device);
             let _ = config::update(|c| c.last_mode = Some("temperatures".into()));
             if let Err(e) = result { return Ok(CommandResult::fail(e)); }
         }

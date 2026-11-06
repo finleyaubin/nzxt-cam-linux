@@ -7,7 +7,6 @@ pub mod ha;
 pub mod history;
 
 use crate::types::Temperatures;
-use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 
 static SELECTED_GPU: RwLock<Option<String>> = RwLock::new(None);
@@ -15,7 +14,7 @@ static SELECTED_CPU: RwLock<Option<String>> = RwLock::new(None);
 static SENSOR_SOURCES: RwLock<Vec<Option<String>>> = RwLock::new(Vec::new());
 
 /// Device-provided liquid temp (°C) and pump RPM, updated from USB status packets.
-static DEVICE_TEMPS: Lazy<RwLock<Option<(f64, f64)>>> = Lazy::new(|| RwLock::new(None));
+static DEVICE_TEMPS: RwLock<Option<(f64, f64)>> = RwLock::new(None);
 
 pub fn set_gpu_source(id: Option<String>) {
     *SELECTED_GPU.write() = id;

@@ -100,6 +100,7 @@
   "settings.ha.token_placeholder": "Collez le jeton",
   "settings.ha.token_help": "Créez-en un dans votre profil Home Assistant > Sécurité.",
   "settings.ha.entities_found": "{count} entités trouvées.",
+  "settings.ha.http_warning": "Cette URL n’est pas chiffrée : le jeton d’accès est envoyé en clair. Ne l’utilisez que sur un réseau de confiance, ou passez à https://.",
   "settings.aio.title": "AIO watercooling",
   "settings.aio.desc": "Testé sur le NZXT Kraken Elite V2 (2024) et le Kraken 2023 Elite. Les autres modèles attendent la prise en charge matérielle.",
   "settings.aio.supported": "Pris en charge",

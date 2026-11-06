@@ -205,7 +205,7 @@ fn fill_solid(pm: &mut Pixmap, r: u8, g: u8, b: u8) {
 
 /// Copy a straight-RGBA frame into the pixmap as opaque pixels, darkened by `dim` percent.
 fn fill_image(pm: &mut Pixmap, rgba: &[u8], dim: u8) {
-    let keep = (100 - dim as u16) as u16;
+    let keep = 100 - dim as u16;
     for (dst, src) in pm.data_mut().chunks_exact_mut(4).zip(rgba.chunks_exact(4)) {
         for c in 0..3 {
             dst[c] = (src[c] as u16 * keep / 100) as u8;
@@ -327,6 +327,7 @@ fn metric_value(metric: MetricId, t: Temperatures) -> f64 {
     metric.value_from(t)
 }
 
+#[allow(clippy::manual_clamp)] // unlike clamp, max/min turn NaN into a bound instead of propagating it
 fn clamp01(v: f64) -> f64 {
     v.max(0.0).min(1.0)
 }

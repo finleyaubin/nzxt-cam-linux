@@ -9,7 +9,7 @@
 use crate::types::{LCD_HEIGHT, LCD_WIDTH};
 use anyhow::{anyhow, Result};
 use image::{imageops::FilterType, ImageBuffer, Rgba};
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
 use std::io::Cursor;
 use std::path::Path;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -85,8 +85,8 @@ pub fn image_to_device_rgba(bytes: &[u8]) -> Result<Vec<u8>> {
 }
 
 /// Fixed palette (216-colour cube + 40 greys) and its nearest-colour LUT, built once per process.
-static PALETTE: Lazy<Vec<u8>> = Lazy::new(build_fixed_palette);
-static LUT: Lazy<Vec<u8>> = Lazy::new(|| build_palette_lut(&PALETTE));
+static PALETTE: LazyLock<Vec<u8>> = LazyLock::new(build_fixed_palette);
+static LUT: LazyLock<Vec<u8>> = LazyLock::new(|| build_palette_lut(&PALETTE));
 
 /// A GIF background decoded, scaled, dimmed and dithered to palette indices once,
 /// so live stats only re-quantise the pixels they cover.
@@ -233,6 +233,7 @@ fn decode_frames(bytes: &[u8], mut on_frame: impl FnMut(Vec<u8>, u16)) -> Result
 
 // ── GIF helpers ─────────────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 fn gif_composite(
     canvas: &mut ImageBuffer<Rgba<u8>, Vec<u8>>,
     cw: u32, ch: u32,
@@ -272,6 +273,7 @@ fn gif_resize(
     rgba
 }
 
+#[allow(clippy::too_many_arguments)]
 fn gif_apply_disposal(
     canvas: &mut ImageBuffer<Rgba<u8>, Vec<u8>>,
     cw: u32, ch: u32,
@@ -301,16 +303,14 @@ fn make_gif_frame(
     w: u16, h: u16, delay: u16,
     buffer: std::borrow::Cow<[u8]>,
 ) -> gif::Frame<'static> {
-    let mut f = gif::Frame::default();
-    f.width   = w;
-    f.height  = h;
-    f.delay   = delay;
-    f.dispose = gif::DisposalMethod::Keep;
-    f.buffer  = match buffer {
-        std::borrow::Cow::Owned(v)    => std::borrow::Cow::Owned(v),
-        std::borrow::Cow::Borrowed(s) => std::borrow::Cow::Owned(s.to_vec()),
-    };
-    f
+    gif::Frame {
+        width: w,
+        height: h,
+        delay,
+        dispose: gif::DisposalMethod::Keep,
+        buffer: std::borrow::Cow::Owned(buffer.into_owned()),
+        ..Default::default()
+    }
 }
 
 /// Map (r,g,b) to a 5-bit-per-channel index into the LUT.

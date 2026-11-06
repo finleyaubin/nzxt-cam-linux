@@ -58,9 +58,7 @@ pub fn run() {
         }
         driver.set_display_config(dc);
     } else {
-        let mut dc = types::DisplayConfig::default();
-        dc.decimals = settings.decimals;
-        driver.set_display_config(dc);
+        driver.set_display_config(types::DisplayConfig { decimals: settings.decimals, ..Default::default() });
     }
 
     let state = AppState {
@@ -71,20 +69,17 @@ pub fn run() {
 
     tauri::Builder::default()
         // Must be the first plugin: later launches forward their args here and exit.
-        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| cli::forward(app, argv, cwd)))
+        .plugin(tauri_plugin_single_instance::init(cli::forward))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(state)
-        .on_window_event(|window, event| match event {
-            tauri::WindowEvent::CloseRequested { api, .. } => {
-                api.prevent_close();
-                let _ = window.emit("close-requested", ());
-            }
-            _ => {}
+        .on_window_event(|window, event| if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = window.emit("close-requested", ());
         })
         .setup(move |app| {
             // Wire up the driver's callbacks so it can emit Tauri events.
-            commands::setup_callbacks(&app.handle(), &driver);
+            commands::setup_callbacks(app.handle(), &driver);
             image_io::set_lcd_rotation(config::load().lcd_rotation);
 
             // Tray icon — left click toggles window, right click shows menu.
@@ -245,7 +240,7 @@ async fn apply_profile_to_driver(
             driver.send_gif(resized).await?;
         }
         ProfileLcd::Temperatures => {
-            driver.start_temp_mode(|cfg, temps| render::render_for_device(cfg, temps))?;
+            driver.start_temp_mode(render::render_for_device)?;
         }
     }
 

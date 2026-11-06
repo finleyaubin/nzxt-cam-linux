@@ -47,7 +47,8 @@ pub struct Sensor {
 }
 
 static PATHS: Mutex<Option<HashMap<String, PathBuf>>> = Mutex::new(None);
-static NVIDIA_CACHE: Mutex<Option<(Instant, Vec<Vec<Option<f64>>>)>> = Mutex::new(None);
+type GpuReadings = Vec<Vec<Option<f64>>>;
+static NVIDIA_CACHE: Mutex<Option<(Instant, GpuReadings)>> = Mutex::new(None);
 static CPU_LAST: Mutex<Option<(u64, u64, f64)>> = Mutex::new(None);
 
 fn hwmon_kind(file: &str) -> Option<(&'static str, f64, &'static str, &str)> {

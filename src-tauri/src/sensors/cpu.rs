@@ -2,9 +2,9 @@
 //!
 //! Label priority for AMD (k10temp): Tccd1/Tccd2 (real die CCD temp, matches btop)
 //! > Tdie > Package > Tctl (has +27°C offset on some Ryzen) > first input.
-//! For Intel (coretemp): "Package id 0" > first input.
+//! > For Intel (coretemp): "Package id 0" > first input.
 
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
 use parking_lot::Mutex;
 use std::fs;
 use std::path::PathBuf;
@@ -17,7 +17,7 @@ struct CpuSensor {
     preferred: PathBuf,
 }
 
-static SENSOR_CACHE: OnceCell<Mutex<Option<CpuSensor>>> = OnceCell::new();
+static SENSOR_CACHE: OnceLock<Mutex<Option<CpuSensor>>> = OnceLock::new();
 
 fn cache() -> &'static Mutex<Option<CpuSensor>> {
     SENSOR_CACHE.get_or_init(|| Mutex::new(pick_cpu_sensor()))

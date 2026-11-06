@@ -27,9 +27,9 @@ fn usage(mount: &str) -> Result<(u64, u64), String> {
         return Err(format!("statvfs {mount}: {}", std::io::Error::last_os_error()));
     }
     let stat = unsafe { stat.assume_init() };
-    let block = stat.f_frsize as u64;
-    let total = stat.f_blocks as u64 * block;
-    let used = total - stat.f_bfree as u64 * block;
+    let block = stat.f_frsize;
+    let total = stat.f_blocks * block;
+    let used = total - stat.f_bfree * block;
     Ok((used, total))
 }
 

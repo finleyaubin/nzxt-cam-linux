@@ -100,6 +100,7 @@
   "settings.ha.token_placeholder": "Paste token",
   "settings.ha.token_help": "Create one under your Home Assistant profile > Security.",
   "settings.ha.entities_found": "{count} entities found.",
+  "settings.ha.http_warning": "This URL is not encrypted: the access token is sent in plain text. Use it only on a network you trust, or switch to https://.",
   "settings.aio.title": "Watercooling AIO",
   "settings.aio.desc": "Tested on the NZXT Kraken Elite V2 (2024) and Kraken 2023 Elite. Other models are pending hardware support.",
   "settings.aio.supported": "Supported",

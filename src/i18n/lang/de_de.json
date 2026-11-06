@@ -100,6 +100,7 @@
   "settings.ha.token_placeholder": "Token einfügen",
   "settings.ha.token_help": "Erstelle eines in deinem Home-Assistant-Profil unter Sicherheit.",
   "settings.ha.entities_found": "{count} Entitäten gefunden.",
+  "settings.ha.http_warning": "Diese URL ist nicht verschlüsselt: Das Zugriffstoken wird im Klartext gesendet. Nutze sie nur in einem vertrauenswürdigen Netzwerk oder wechsle zu https://.",
   "settings.aio.title": "Wasserkühlung (AIO)",
   "settings.aio.desc": "Getestet mit dem NZXT Kraken Elite V2 (2024) und dem Kraken 2023 Elite. Andere Modelle warten noch auf Hardware-Unterstützung.",
   "settings.aio.supported": "Unterstützt",

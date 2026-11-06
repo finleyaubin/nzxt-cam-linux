@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -129,6 +129,12 @@ impl GpuFanController {
     }
 }
 
+impl Default for GpuFanController {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // ── Hwmon scan (case fans) ────────────────────────────────────────────────────
 
 pub fn list_fan_channels() -> Vec<FanChannel> {
@@ -238,7 +244,7 @@ fn find_amdgpu_hwmon() -> Option<(String, String)> {
 const PCI_IDS_PATHS: &[&str] = &["/usr/share/hwdata/pci.ids", "/usr/share/misc/pci.ids"];
 
 /// Marketing name from the PCI id database, e.g. "Radeon RX 6700/6700 XT / 6800M".
-fn gpu_product_name(hwmon: &PathBuf) -> Option<String> {
+fn gpu_product_name(hwmon: &Path) -> Option<String> {
     let device_dir = hwmon.join("device");
     let hex = |file: &str| read_sysfs(&device_dir.join(file)).map(|s| s.trim_start_matches("0x").to_ascii_lowercase());
     let (vendor, device) = (hex("vendor")?, hex("device")?);
@@ -278,7 +284,7 @@ fn read_sysfs(path: &PathBuf) -> Option<String> {
     fs::read_to_string(path).ok().map(|s| s.trim().to_string())
 }
 
-fn make_label(driver: &str, hwmon_path: &PathBuf, pwm_idx: u8) -> String {
+fn make_label(driver: &str, hwmon_path: &Path, pwm_idx: u8) -> String {
     if let Some(l) = read_sysfs(&hwmon_path.join(format!("fan{pwm_idx}_label"))) {
         if !l.is_empty() { return format!("{} — {}", friendly_driver(driver), l); }
     }

@@ -136,8 +136,7 @@ mod tests {
 
     #[test]
     fn rejects_invalid_layout() {
-        let mut c = DisplayConfig::default();
-        c.background_dim = 99;
+        let c = DisplayConfig { background_dim: 99, ..Default::default() };
         assert!(save_in(&std::env::temp_dir().join("nzxt-never"), &SavedLayout { name: "a".into(), config: c }).is_err());
     }
 }

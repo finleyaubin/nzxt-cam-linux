@@ -255,7 +255,8 @@ export function Settings({ page }: { page: SettingsPage }) {
       <SectionHeader icon={<IChip/>} title={t('settings.ha.title')} description={t('settings.ha.desc')}/>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <ApiKeyField
-          label={t('settings.ha.url')} secret={false} placeholder="http://homeassistant.local:8123" help=""
+          label={t('settings.ha.url')} secret={false} placeholder="http://homeassistant.local:8123"
+          help={settings?.homeAssistantUrl?.trim().toLowerCase().startsWith('http://') ? t('settings.ha.http_warning') : ''}
           value={settings?.homeAssistantUrl ?? ''}
           onSave={v => update({ homeAssistantUrl: v })}
         />

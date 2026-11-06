@@ -133,6 +133,7 @@ enum Push {
 // ============================================================================
 pub type StatusCallback = Arc<dyn Fn(&DeviceStatus) + Send + Sync>;
 pub type TempsCallback = Arc<dyn Fn(&Temperatures) + Send + Sync>;
+pub type RenderFn = dyn Fn(&DisplayConfig, Temperatures) -> Result<crate::render::LcdFrame> + Send + Sync;
 
 struct Inner {
     status: RwLock<DeviceStatus>,
@@ -513,7 +514,7 @@ impl KrakenDriver {
     async fn temp_loop(
         &self,
         my_gen: u32,
-        render_fn: Arc<dyn Fn(&DisplayConfig, Temperatures) -> Result<crate::render::LcdFrame> + Send + Sync>,
+        render_fn: Arc<RenderFn>,
     ) {
         let mut last_visual_key: Option<String> = None;
         let mut last_push_at: Option<Instant> = None;
@@ -654,6 +655,12 @@ impl KrakenDriver {
     }
 }
 
+impl Default for KrakenDriver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // ============================================================================
 // Visual key — stable representation of what the LCD will display
 // ============================================================================
@@ -678,118 +685,6 @@ fn visual_key(cfg: &DisplayConfig, t: Temperatures, decimals: u8, config_version
         }
     }
     key
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::types::{TextAlign, TextElement};
-
-    #[test]
-    fn visual_key_ignores_offscreen_readings() {
-        let text = TextElement { id: "t".into(), x: 0.0, y: 0.0, text: "{liquid}°".into(), color: "#fff".into(), size: 10.0, align: TextAlign::Center, font: None };
-        let cfg = DisplayConfig { elements: vec![crate::types::DisplayElement::Text(text)], ..DisplayConfig::default() };
-        let base = Temperatures { liquid: 31.2, pump_rpm: 1500.0, ..Temperatures::default() };
-        let key = |t| visual_key(&cfg, t, 0, 1);
-        assert_eq!(key(base), key(Temperatures { pump_rpm: 1620.0, cpu: 70.0, ..base }));
-        assert_eq!(key(base), key(Temperatures { liquid: 31.4, ..base }), "same at 0 decimals");
-        assert_ne!(key(base), key(Temperatures { liquid: 32.0, ..base }));
-    }
-
-    #[test]
-    fn dead_links_stop_the_poller_instead_of_spinning() {
-        use std::time::Duration;
-        assert_eq!(classify_poll_error(TransferError::Disconnected, 1), PollAction::LinkLost);
-        assert_eq!(classify_poll_error(TransferError::Stall, 1), PollAction::ClearHalt);
-        assert!(matches!(classify_poll_error(TransferError::Fault, 1), PollAction::Retry(d) if d > Duration::ZERO));
-        // Whatever the error, it gives up after enough in a row.
-        for err in [TransferError::Fault, TransferError::Stall, TransferError::Unknown(5)] {
-            assert_eq!(classify_poll_error(err, MAX_POLL_ERRORS), PollAction::LinkLost);
-        }
-        // Retries back off but stay bounded.
-        let PollAction::Retry(late) = classify_poll_error(TransferError::Fault, MAX_POLL_ERRORS - 1) else { panic!() };
-        assert!(late <= Duration::from_millis(500));
-    }
-
-    #[test]
-    fn failed_uploads_back_off_and_cap() {
-        use std::time::Duration;
-        assert_eq!(push_backoff(0), Duration::ZERO);
-        assert!(push_backoff(1) < push_backoff(2) && push_backoff(2) < push_backoff(3));
-        assert_eq!(push_backoff(40), Duration::from_secs(10));
-    }
-
-    #[test]
-    fn long_wall_clock_gaps_mean_the_machine_slept() {
-        use std::time::{Duration, SystemTime};
-        let t = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
-        assert!(!woke_from_sleep(t, t + WATCH_EVERY));
-        assert!(woke_from_sleep(t, t + Duration::from_secs(3600)));
-        assert!(!woke_from_sleep(t, t - Duration::from_secs(60)), "clock stepping backwards is not a resume");
-    }
-
-    #[tokio::test]
-    async fn connection_watcher_can_be_spawned_on_the_runtime() {
-        // lib.rs hands this future to `tauri::async_runtime::spawn`, which requires it to be Send.
-        tokio::spawn(KrakenDriver::new().watch_connection()).abort();
-    }
-
-    fn connected_driver() -> KrakenDriver {
-        let d = KrakenDriver::new();
-        d.update_status(|s| s.connected = true);
-        d
-    }
-
-    #[tokio::test]
-    async fn link_loss_marks_the_device_disconnected_once_and_ignores_stale_reports() {
-        let d = connected_driver();
-        d.0.conn_id.store(5, Ordering::Release);
-        d.link_lost(4); // a report about an older connection
-        assert!(d.get_status().connected);
-        d.link_lost(5);
-        assert!(!d.get_status().connected);
-        d.link_lost(5); // already handled
-        assert!(!d.get_status().connected);
-    }
-
-    #[tokio::test]
-    async fn temp_loop_does_not_render_while_the_device_is_missing() {
-        let d = KrakenDriver::new(); // never connected
-        d.set_temp_timing(50, 0);
-        let renders = Arc::new(AtomicU32::new(0));
-        let counter = renders.clone();
-        d.start_temp_mode(move |_, _| {
-            counter.fetch_add(1, Ordering::Relaxed);
-            Ok(crate::render::LcdFrame::Rgba(Vec::new()))
-        })
-        .unwrap();
-        tokio::time::sleep(Duration::from_millis(700)).await;
-        d.stop_current_mode();
-        assert_eq!(renders.load(Ordering::Relaxed), 0);
-    }
-
-    #[tokio::test]
-    async fn failing_uploads_back_off_then_declare_the_link_lost() {
-        // Status says connected but there are no handles, so every upload fails.
-        let d = connected_driver();
-        d.set_temp_timing(50, 0);
-        let renders = Arc::new(AtomicU32::new(0));
-        let counter = renders.clone();
-        d.start_temp_mode(move |_, _| {
-            counter.fetch_add(1, Ordering::Relaxed);
-            Ok(crate::render::LcdFrame::Rgba(vec![0; (LCD_WIDTH * LCD_HEIGHT * 4) as usize]))
-        })
-        .unwrap();
-        for _ in 0..100 {
-            if !d.get_status().connected {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-        d.stop_current_mode();
-        assert!(!d.get_status().connected, "gave up on the link after repeated failures");
-        assert_eq!(renders.load(Ordering::Relaxed), MAX_PUSH_FAILURES, "one render per attempt, no storm");
-    }
 }
 
 // ============================================================================
@@ -859,7 +754,7 @@ fn parse_device_status(data: &[u8]) {
     let liquid = data[15] as f64 + data[16] as f64 / 10.0;
     let pump = u16::from_le_bytes([data[17], data[18]]) as f64;
     // Sanity-check: liquid must be in a plausible range (1–59 °C)
-    if liquid >= 1.0 && liquid <= 59.0 {
+    if (1.0..=59.0).contains(&liquid) {
         crate::sensors::update_device_temps(liquid, pump);
         log::trace!("device status: liquid={liquid:.1}°C pump={pump:.0}RPM");
     }
@@ -1190,14 +1085,7 @@ async fn query_buckets(hw: &mut Hardware) -> HashMap<u8, Vec<u8>> {
 
 fn find_next_unoccupied_bucket(buckets: &HashMap<u8, Vec<u8>>) -> i32 {
     for (&b_i, info) in buckets {
-        let mut occupied = false;
-        for j in 15..info.len() {
-            if info[j] != 0 {
-                occupied = true;
-                break;
-            }
-        }
-        if !occupied {
+        if info.iter().skip(15).all(|&b| b == 0) {
             return b_i as i32;
         }
     }
@@ -1411,4 +1299,116 @@ fn interp_duty(points: &[(u8, u8)], temp: u8) -> u8 {
         }
     }
     points[points.len() - 1].1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{TextAlign, TextElement};
+
+    #[test]
+    fn visual_key_ignores_offscreen_readings() {
+        let text = TextElement { id: "t".into(), x: 0.0, y: 0.0, text: "{liquid}°".into(), color: "#fff".into(), size: 10.0, align: TextAlign::Center, font: None };
+        let cfg = DisplayConfig { elements: vec![crate::types::DisplayElement::Text(text)], ..DisplayConfig::default() };
+        let base = Temperatures { liquid: 31.2, pump_rpm: 1500.0, ..Temperatures::default() };
+        let key = |t| visual_key(&cfg, t, 0, 1);
+        assert_eq!(key(base), key(Temperatures { pump_rpm: 1620.0, cpu: 70.0, ..base }));
+        assert_eq!(key(base), key(Temperatures { liquid: 31.4, ..base }), "same at 0 decimals");
+        assert_ne!(key(base), key(Temperatures { liquid: 32.0, ..base }));
+    }
+
+    #[test]
+    fn dead_links_stop_the_poller_instead_of_spinning() {
+        use std::time::Duration;
+        assert_eq!(classify_poll_error(TransferError::Disconnected, 1), PollAction::LinkLost);
+        assert_eq!(classify_poll_error(TransferError::Stall, 1), PollAction::ClearHalt);
+        assert!(matches!(classify_poll_error(TransferError::Fault, 1), PollAction::Retry(d) if d > Duration::ZERO));
+        // Whatever the error, it gives up after enough in a row.
+        for err in [TransferError::Fault, TransferError::Stall, TransferError::Unknown(5)] {
+            assert_eq!(classify_poll_error(err, MAX_POLL_ERRORS), PollAction::LinkLost);
+        }
+        // Retries back off but stay bounded.
+        let PollAction::Retry(late) = classify_poll_error(TransferError::Fault, MAX_POLL_ERRORS - 1) else { panic!() };
+        assert!(late <= Duration::from_millis(500));
+    }
+
+    #[test]
+    fn failed_uploads_back_off_and_cap() {
+        use std::time::Duration;
+        assert_eq!(push_backoff(0), Duration::ZERO);
+        assert!(push_backoff(1) < push_backoff(2) && push_backoff(2) < push_backoff(3));
+        assert_eq!(push_backoff(40), Duration::from_secs(10));
+    }
+
+    #[test]
+    fn long_wall_clock_gaps_mean_the_machine_slept() {
+        use std::time::{Duration, SystemTime};
+        let t = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        assert!(!woke_from_sleep(t, t + WATCH_EVERY));
+        assert!(woke_from_sleep(t, t + Duration::from_secs(3600)));
+        assert!(!woke_from_sleep(t, t - Duration::from_secs(60)), "clock stepping backwards is not a resume");
+    }
+
+    #[tokio::test]
+    async fn connection_watcher_can_be_spawned_on_the_runtime() {
+        // lib.rs hands this future to `tauri::async_runtime::spawn`, which requires it to be Send.
+        tokio::spawn(KrakenDriver::new().watch_connection()).abort();
+    }
+
+    fn connected_driver() -> KrakenDriver {
+        let d = KrakenDriver::new();
+        d.update_status(|s| s.connected = true);
+        d
+    }
+
+    #[tokio::test]
+    async fn link_loss_marks_the_device_disconnected_once_and_ignores_stale_reports() {
+        let d = connected_driver();
+        d.0.conn_id.store(5, Ordering::Release);
+        d.link_lost(4); // a report about an older connection
+        assert!(d.get_status().connected);
+        d.link_lost(5);
+        assert!(!d.get_status().connected);
+        d.link_lost(5); // already handled
+        assert!(!d.get_status().connected);
+    }
+
+    #[tokio::test]
+    async fn temp_loop_does_not_render_while_the_device_is_missing() {
+        let d = KrakenDriver::new(); // never connected
+        d.set_temp_timing(50, 0);
+        let renders = Arc::new(AtomicU32::new(0));
+        let counter = renders.clone();
+        d.start_temp_mode(move |_, _| {
+            counter.fetch_add(1, Ordering::Relaxed);
+            Ok(crate::render::LcdFrame::Rgba(Vec::new()))
+        })
+        .unwrap();
+        tokio::time::sleep(Duration::from_millis(700)).await;
+        d.stop_current_mode();
+        assert_eq!(renders.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn failing_uploads_back_off_then_declare_the_link_lost() {
+        // Status says connected but there are no handles, so every upload fails.
+        let d = connected_driver();
+        d.set_temp_timing(50, 0);
+        let renders = Arc::new(AtomicU32::new(0));
+        let counter = renders.clone();
+        d.start_temp_mode(move |_, _| {
+            counter.fetch_add(1, Ordering::Relaxed);
+            Ok(crate::render::LcdFrame::Rgba(vec![0; (LCD_WIDTH * LCD_HEIGHT * 4) as usize]))
+        })
+        .unwrap();
+        for _ in 0..100 {
+            if !d.get_status().connected {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        d.stop_current_mode();
+        assert!(!d.get_status().connected, "gave up on the link after repeated failures");
+        assert_eq!(renders.load(Ordering::Relaxed), MAX_PUSH_FAILURES, "one render per attempt, no storm");
+    }
 }

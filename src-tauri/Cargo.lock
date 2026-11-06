@@ -2438,7 +2438,6 @@ dependencies = [
  "libc",
  "log",
  "nusb",
- "once_cell",
  "parking_lot",
  "resvg",
  "serde",

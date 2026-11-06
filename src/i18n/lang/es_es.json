@@ -100,6 +100,7 @@
   "settings.ha.token_placeholder": "Pega el token",
   "settings.ha.token_help": "Crea uno en tu perfil de Home Assistant > Seguridad.",
   "settings.ha.entities_found": "{count} entidades encontradas.",
+  "settings.ha.http_warning": "Esta URL no está cifrada: el token de acceso se envía en texto plano. Úsala solo en una red de confianza o cambia a https://.",
   "settings.aio.title": "Refrigeración líquida AIO",
   "settings.aio.desc": "Probado en el NZXT Kraken Elite V2 (2024) y el Kraken 2023 Elite. Otros modelos están pendientes de soporte de hardware.",
   "settings.aio.supported": "Compatible",
