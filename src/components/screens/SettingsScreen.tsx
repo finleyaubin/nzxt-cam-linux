@@ -134,7 +134,7 @@ export function SettingsScreen() {
           {/* Language */}
           <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 10, color: '#7f7f7f', textTransform: 'uppercase', letterSpacing: '0.9px', marginBottom: 12, fontWeight: 700 }}>{t('settings.language')}</div>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {LANGS.map(l => (
                 <button key={l.id} onClick={() => setLang(l.id)} style={{
                   padding: '7px 18px', borderRadius: 8, border: `1px solid ${lang === l.id ? accent : '#2c2c2c'}`,
