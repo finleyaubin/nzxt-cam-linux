@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [kraken-2023-elite]
+    branches: [main]
 
 jobs:
   check:
