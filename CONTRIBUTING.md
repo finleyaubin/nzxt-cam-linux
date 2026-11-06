@@ -5,7 +5,7 @@ Merci de l'intérêt pour le projet. nzxt-cam-linux est gratuit, open-source, et
 ## Comment contribuer
 
 ### Signaler un bug
-Ouvre une [issue GitHub](https://github.com/cypherxdev77/nzxt-cam-linux/issues/new) en décrivant :
+Ouvre une [issue GitHub](https://github.com/finleyaubin/nzxt-cam-linux/issues/new) en décrivant :
 - Le comportement observé vs attendu
 - Ton modèle de Kraken (PID si possible : `lsusb | grep 1e71`)
 - Ta distro et version du kernel

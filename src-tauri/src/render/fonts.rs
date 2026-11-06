@@ -7,7 +7,7 @@
 
 use ab_glyph::{Font, FontVec, PxScale, ScaleFont};
 use anyhow::{anyhow, Result};
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -29,10 +29,10 @@ const SYSTEM_FALLBACKS: &[&str] = &[
     "/usr/share/fonts/TTF/NotoSans-Regular.ttf",
 ];
 
-static FONT_CACHE: OnceCell<Arc<FontVec>> = OnceCell::new();
+static FONT_CACHE: OnceLock<Arc<FontVec>> = OnceLock::new();
 static CHOSEN: Mutex<Option<HashMap<String, Option<Arc<FontVec>>>>> = Mutex::new(None);
-static INSTALLED: OnceCell<Vec<InstalledFace>> = OnceCell::new();
-static ENTRIES: OnceCell<Vec<FontEntry>> = OnceCell::new();
+static INSTALLED: OnceLock<Vec<InstalledFace>> = OnceLock::new();
+static ENTRIES: OnceLock<Vec<FontEntry>> = OnceLock::new();
 
 /// Get the built-in default font, loading it from disk on first call.
 pub fn font() -> Result<Arc<FontVec>> {

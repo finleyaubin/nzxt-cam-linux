@@ -125,7 +125,7 @@ fn index_icons(roots: &[PathBuf], wanted: &HashSet<String>) -> HashMap<String, (
             if known_small || std::fs::metadata(&path).map_or(true, |m| m.len() > MAX_FILE_BYTES) {
                 continue;
             }
-            if found.get(&stem).map_or(true, |(best, _)| size > *best) {
+            if found.get(&stem).is_none_or(|(best, _)| size > *best) {
                 found.insert(stem, (size, path));
             }
         }
@@ -294,7 +294,7 @@ mod tests {
             std::fs::write(root.join(dir).join(name), b"x").unwrap();
         }
         let wanted: HashSet<String> = ["tux", "tiny", "skipped", "vec"].iter().map(|s| s.to_string()).collect();
-        let found = index_icons(&[root.clone()], &wanted);
+        let found = index_icons(std::slice::from_ref(&root), &wanted);
         assert_eq!(found.len(), 2, "tux and vec: unwanted, too-small and skipped-folder files are ignored");
         assert!(found["tux"].1.to_string_lossy().contains("256x256"));
         assert!(found["vec"].1.to_string_lossy().ends_with(".svg"), "the vector wins over a bitmap");

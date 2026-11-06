@@ -154,7 +154,11 @@ export interface DisplayConfig {
   font?: string | null
 }
 
-export function formatMetric(v: number, decimals = 0): string {
+/** Shown wherever a sensor has no reading. */
+export const NO_READING = '--'
+
+export function formatMetric(v: number | null | undefined, decimals = 0): string {
+  if (v == null || !Number.isFinite(v)) return NO_READING
   const d = Math.max(0, Math.min(2, Math.floor(decimals)))
   return v.toFixed(d)
 }
@@ -393,11 +397,11 @@ export const TEXT_VARIABLES: { token: string; label: TranslationKey; short: Tran
 ]
 
 export interface Readings {
-  cpu: number
-  gpu: number
-  liquid: number
-  pumpRpm: number
-  sensors?: number[]
+  cpu: number | null
+  gpu: number | null
+  liquid: number | null
+  pumpRpm: number | null
+  sensors?: (number | null)[]
 }
 
 /** Mirrors the backend's `resolve_text`: `{metric}`, `{metric:decimals}`, `{time}`, `{date}`; unknown tokens stay as typed. */
@@ -407,14 +411,14 @@ export function resolveText(text: string, temps: Readings, decimals = 0): string
     const now = new Date()
     if (d == null && k === 'time') return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
     if (d == null && k === 'date') return now.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }).replace(',', '')
-    let v: number | undefined
+    let v: number | null | undefined
     if (k === 'cpu') v = temps.cpu
     else if (k === 'gpu') v = temps.gpu
     else if (k === 'liquid') v = temps.liquid
     else if (k === 'pump') v = temps.pumpRpm
     else {
       const n = /^sensor([1-8])$/.exec(k)
-      if (n) v = temps.sensors?.[Number(n[1]) - 1] ?? 0
+      if (n) v = temps.sensors?.[Number(n[1]) - 1] ?? null
     }
     return v === undefined ? whole : formatMetric(v, d != null ? parseInt(d, 10) : decimals)
   })

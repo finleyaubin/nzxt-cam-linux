@@ -4,7 +4,7 @@
 
 use crate::sensors::cpu::read_milli_temp;
 use crate::types::GpuSource;
-use once_cell::sync::OnceCell;
+use std::sync::OnceLock;
 use parking_lot::RwLock;
 use std::fs;
 use std::path::PathBuf;
@@ -12,7 +12,7 @@ use std::path::PathBuf;
 const HWMON_DIR: &str = "/sys/class/hwmon";
 const GPU_NAMES: &[&str] = &["amdgpu", "nvidia", "radeon", "i915", "xe"];
 
-static GPU_CACHE: OnceCell<RwLock<Vec<GpuSource>>> = OnceCell::new();
+static GPU_CACHE: OnceLock<RwLock<Vec<GpuSource>>> = OnceLock::new();
 
 fn cache() -> &'static RwLock<Vec<GpuSource>> {
     GPU_CACHE.get_or_init(|| RwLock::new(scan_gpus()))

@@ -9,7 +9,7 @@ import { SensorDialog } from './display/SensorPicker'
 import { Cpu, Clock, Monitor, Drop, Key, Eye, EyeSlash } from '@phosphor-icons/react'
 import { useLanguage } from '../i18n/LangContext'
 
-const GITHUB_ISSUES_URL = 'https://github.com/cypherxdev77/nzxt-cam-linux/issues/new?template=device_support.md'
+const GITHUB_ISSUES_URL = 'https://github.com/finleyaubin/nzxt-cam-linux/issues/new'
 
 const IChip = () => <Cpu size={13} weight="regular" />
 const IClock = () => <Clock size={13} weight="regular" />
@@ -165,7 +165,7 @@ export function Settings({ page }: { page: SettingsPage }) {
 
   const requestAccess = useCallback((id: string, name: string, brand: string) => {
     const params = new URLSearchParams({ title: `Device support: ${brand} ${name}` })
-    api.openExternal(`${GITHUB_ISSUES_URL}&${params.toString()}`)
+    api.openExternal(`${GITHUB_ISSUES_URL}?${params.toString()}`)
     setRequested(prev => new Set(prev).add(id))
   }, [])
 
@@ -255,7 +255,8 @@ export function Settings({ page }: { page: SettingsPage }) {
       <SectionHeader icon={<IChip/>} title={t('settings.ha.title')} description={t('settings.ha.desc')}/>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <ApiKeyField
-          label={t('settings.ha.url')} secret={false} placeholder="http://homeassistant.local:8123" help=""
+          label={t('settings.ha.url')} secret={false} placeholder="http://homeassistant.local:8123"
+          help={settings?.homeAssistantUrl?.trim().toLowerCase().startsWith('http://') ? t('settings.ha.http_warning') : ''}
           value={settings?.homeAssistantUrl ?? ''}
           onSave={v => update({ homeAssistantUrl: v })}
         />
