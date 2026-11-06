@@ -74,7 +74,6 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| cli::forward(app, argv, cwd)))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_fs::init())
         .manage(state)
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::CloseRequested { api, .. } => {
@@ -179,7 +178,6 @@ pub fn run() {
             commands::save_settings,
             commands::open_external,
             commands::get_config,
-            commands::save_config,
             commands::set_pump_profile,
             commands::set_lcd_orientation,
             commands::get_gpu_fan_status,
@@ -209,8 +207,15 @@ pub fn run() {
             commands::get_autostart,
             commands::set_autostart,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while starting Tauri");
+        .build(tauri::generate_context!())
+        .expect("error while starting Tauri")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                if let Err(e) = app.state::<AppState>().gpu_fan.release() {
+                    log::warn!("Could not hand the GPU fan back to the driver: {e}");
+                }
+            }
+        });
 }
 
 /// Apply a profile directly via the driver (used at startup, before Tauri State is accessible).
@@ -230,12 +235,12 @@ async fn apply_profile_to_driver(
             driver.send_color(*r, *g, *b).await?;
         }
         ProfileLcd::Image { path } => {
-            let bytes = tokio::fs::read(path).await?;
+            let bytes = image_io::read_image_file_async(path).await?;
             let rgba = image_io::image_to_device_rgba(&bytes)?;
             driver.send_rgba_image(rgba).await?;
         }
         ProfileLcd::Gif { path } => {
-            let bytes = tokio::fs::read(path).await?;
+            let bytes = image_io::read_image_file_async(path).await?;
             let resized = tokio::task::spawn_blocking(move || image_io::resize_gif(&bytes)).await??;
             driver.send_gif(resized).await?;
         }

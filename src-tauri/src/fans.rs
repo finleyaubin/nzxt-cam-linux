@@ -6,7 +6,10 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+
+const HWMON_ROOT: &str = "/sys/class/hwmon/";
+const MAX_PWM_INDEX: u8 = 8;
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -41,6 +44,8 @@ pub struct GpuFanController(Arc<GpuFanInner>);
 
 struct GpuFanInner {
     running: AtomicBool,
+    // A superseded loop thread sees a newer generation and exits, so stop() + start() never leaves two writers.
+    generation: AtomicU64,
     curve: Mutex<Option<Vec<(u8, u8)>>>, // None = auto
 }
 
@@ -48,6 +53,7 @@ impl GpuFanController {
     pub fn new() -> Self {
         Self(Arc::new(GpuFanInner {
             running: AtomicBool::new(false),
+            generation: AtomicU64::new(0),
             curve: Mutex::new(None),
         }))
     }
@@ -56,20 +62,13 @@ impl GpuFanController {
     pub fn start(&self) {
         if self.0.running.swap(true, Ordering::SeqCst) { return; }
         let inner = self.0.clone();
+        let generation = inner.generation.fetch_add(1, Ordering::SeqCst) + 1;
         std::thread::spawn(move || {
-            while inner.running.load(Ordering::Relaxed) {
+            while inner.running.load(Ordering::Relaxed) && inner.generation.load(Ordering::Relaxed) == generation {
                 let curve = inner.curve.lock().clone();
                 if let Some(pts) = curve {
                     if let Some((hwmon, _)) = find_amdgpu_hwmon() {
-                        let temp = read_sysfs(&PathBuf::from(&hwmon).join("temp1_input"))
-                            .and_then(|s| s.parse::<f32>().ok())
-                            .map(|t| t / 1000.0)
-                            .unwrap_or(50.0);
-                        let duty = interp_duty(&pts, temp.round() as u8).clamp(0, 100);
-                        match write_fan_duty(&hwmon, 1, duty) {
-                            Ok(_) => log::debug!("GPU fan curve tick: temp={:.1}°C → duty={}%", temp, duty),
-                            Err(e) => log::warn!("GPU fan write failed (temp={:.1}°C): {e}", temp),
-                        }
+                        apply_curve_tick(&hwmon, &pts);
                     }
                 }
                 std::thread::sleep(std::time::Duration::from_millis(1500));
@@ -81,8 +80,19 @@ impl GpuFanController {
         self.0.running.store(false, Ordering::SeqCst);
     }
 
+    /// Hand the fan back to the driver if a curve is driving it; call on app exit.
+    pub fn release(&self) -> Result<()> {
+        if self.0.curve.lock().is_none() {
+            return Ok(());
+        }
+        self.set_auto()
+    }
+
     /// Set a predefined or manual curve — starts the loop.
     pub fn set_curve(&self, pts: Vec<(u8, u8)>) -> Result<()> {
+        if pts.is_empty() {
+            return Err(anyhow!("Fan curve needs at least one point"));
+        }
         let (hwmon, _) = find_amdgpu_hwmon().ok_or_else(|| anyhow!("AMD GPU not found"))?;
         // Switch to manual first
         fs::write(PathBuf::from(&hwmon).join("pwm1_enable"), b"1\n")
@@ -162,26 +172,52 @@ pub fn list_fan_channels() -> Vec<FanChannel> {
     channels
 }
 
-pub fn read_fan_channels() -> Vec<FanChannel> { list_fan_channels() }
-
 pub fn set_fan_duty(hwmon_path: &str, pwm_index: u8, duty: u8) -> Result<()> {
-    let base = PathBuf::from(hwmon_path);
-    fs::write(base.join(format!("pwm{pwm_index}_enable")), b"1\n")
-        .map_err(|e| anyhow!("pwm_enable: {e}"))?;
+    fs::write(pwm_file(hwmon_path, pwm_index, "_enable")?, b"1\n").map_err(|e| anyhow!("pwm_enable: {e}"))?;
     write_fan_duty(hwmon_path, pwm_index, duty)
 }
 
 pub fn set_fan_auto(hwmon_path: &str, pwm_index: u8) -> Result<()> {
-    fs::write(PathBuf::from(hwmon_path).join(format!("pwm{pwm_index}_enable")), b"2\n")
-        .map_err(|e| anyhow!("pwm_enable: {e}"))
+    fs::write(pwm_file(hwmon_path, pwm_index, "_enable")?, b"2\n").map_err(|e| anyhow!("pwm_enable: {e}"))
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/// Only `/sys/class/hwmon/hwmon<N>` is accepted, since the path comes from the webview.
+fn validated_hwmon_dir(hwmon_path: &str) -> Result<PathBuf> {
+    let id = hwmon_path.strip_prefix(HWMON_ROOT).and_then(|rest| rest.strip_prefix("hwmon"));
+    match id {
+        Some(n) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => Ok(PathBuf::from(hwmon_path)),
+        _ => Err(anyhow!("Not a hwmon device: {hwmon_path}")),
+    }
+}
+
+fn pwm_file(hwmon_path: &str, pwm_index: u8, suffix: &str) -> Result<PathBuf> {
+    if !(1..=MAX_PWM_INDEX).contains(&pwm_index) {
+        return Err(anyhow!("PWM index must be 1-{MAX_PWM_INDEX}, got {pwm_index}"));
+    }
+    Ok(validated_hwmon_dir(hwmon_path)?.join(format!("pwm{pwm_index}{suffix}")))
+}
+
 fn write_fan_duty(hwmon_path: &str, pwm_index: u8, duty: u8) -> Result<()> {
     let pwm_val = ((duty.clamp(0, 100) as f32 / 100.0) * 255.0).round() as u8;
-    fs::write(PathBuf::from(hwmon_path).join(format!("pwm{pwm_index}")), format!("{pwm_val}\n"))
-        .map_err(|e| anyhow!("pwm write: {e}"))
+    fs::write(pwm_file(hwmon_path, pwm_index, "")?, format!("{pwm_val}\n")).map_err(|e| anyhow!("pwm write: {e}"))
+}
+
+/// A failed temperature read skips the tick: guessing a temperature could drive the fan too low.
+fn apply_curve_tick(hwmon: &str, points: &[(u8, u8)]) {
+    let temp = match read_sysfs(&PathBuf::from(hwmon).join("temp1_input")).and_then(|s| s.parse::<f32>().ok()) {
+        Some(milli) => milli / 1000.0,
+        None => {
+            log::warn!("GPU fan curve: temperature unreadable, leaving the fan unchanged");
+            return;
+        }
+    };
+    let duty = interp_duty(points, temp.round() as u8).clamp(0, 100);
+    match write_fan_duty(hwmon, 1, duty) {
+        Ok(_) => log::debug!("GPU fan curve tick: temp={temp:.1}°C → duty={duty}%"),
+        Err(e) => log::warn!("GPU fan write failed (temp={temp:.1}°C): {e}"),
+    }
 }
 
 fn find_amdgpu_hwmon() -> Option<(String, String)> {
@@ -255,5 +291,25 @@ fn friendly_driver(d: &str) -> &str {
         "it87" => "Motherboard",
         "asus" | "asusec" => "ASUS EC",
         other => other,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_hwmon_devices_with_valid_pwm_index_are_writable() {
+        assert!(pwm_file("/sys/class/hwmon/hwmon3", 2, "_enable").is_ok());
+        for bad in ["/sys/class/hwmon/hwmon3/../../x", "/sys/class/hwmon/hwmon", "/etc", "/sys/class/hwmon/hwmonx", "../hwmon3"] {
+            assert!(pwm_file(bad, 1, "").is_err(), "{bad}");
+        }
+        assert!(pwm_file("/sys/class/hwmon/hwmon3", 0, "").is_err());
+        assert!(pwm_file("/sys/class/hwmon/hwmon3", 9, "").is_err());
+    }
+
+    #[test]
+    fn empty_curve_is_rejected() {
+        assert!(GpuFanController::new().set_curve(vec![]).is_err());
     }
 }

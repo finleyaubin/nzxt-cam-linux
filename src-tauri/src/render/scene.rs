@@ -56,7 +56,7 @@ fn load_background(path: &str) -> Result<Arc<Background>> {
             return Ok(bg.clone());
         }
     }
-    let bytes = std::fs::read(path).map_err(|e| anyhow::anyhow!("Read background {path}: {e}"))?;
+    let bytes = image_io::read_image_file(path)?;
     let first = image_io::image_to_device_rgba(&bytes)?;
     let bg = Arc::new(if bytes.starts_with(b"GIF8") {
         Background::Gif { bytes, first, prepared: Mutex::new(None) }

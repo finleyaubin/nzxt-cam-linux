@@ -2,26 +2,28 @@
 # Fix fan control permissions for NZXT CAM v1
 # Run with: sudo ./fix-fan-permissions.sh
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if [ "$EUID" -ne 0 ]; then
-  echo "✗ Ce script doit être lancé avec sudo"
+  echo "✗ This script must be run with sudo"
   echo "  sudo ./fix-fan-permissions.sh"
   exit 1
 fi
 
-echo "→ Installation de la règle udev..."
+getent group plugdev >/dev/null || groupadd -r plugdev
+
+echo "→ Installing the udev rule..."
 cp "$SCRIPT_DIR/src-tauri/resources/99-nzxt-kraken.rules" /etc/udev/rules.d/
 echo "✓ /etc/udev/rules.d/99-nzxt-kraken.rules"
 
-echo "→ Rechargement des règles udev..."
+echo "→ Reloading udev rules..."
 udevadm control --reload-rules
 udevadm trigger --subsystem-match=hwmon
-echo "✓ udev rechargé"
+echo "✓ udev reloaded"
 
-echo "→ Application immédiate des permissions (sans reboot)..."
+echo "→ Applying permissions now (no reboot needed)..."
 fixed=0
 for h in /sys/class/hwmon/hwmon*; do
   name=$(cat "$h/name" 2>/dev/null || echo "")
@@ -29,7 +31,8 @@ for h in /sys/class/hwmon/hwmon*; do
     amdgpu|it87|nct6775|nct6776|nct6779)
       for f in "$h"/pwm[0-9] "$h"/pwm[0-9]_enable "$h"/fan[0-9]_target; do
         if [ -f "$f" ]; then
-          chmod a+rw "$f"
+          chgrp plugdev "$f"
+          chmod g+w "$f"
           fixed=$((fixed + 1))
         fi
       done
@@ -39,9 +42,10 @@ for h in /sys/class/hwmon/hwmon*; do
 done
 
 echo ""
-echo "✓ $fixed fichiers PWM rendus accessibles en écriture"
+echo "✓ $fixed PWM files are now writable by the plugdev group"
+echo "  Add yourself to it if needed: sudo usermod -aG plugdev \$USER (then log out and back in)"
 echo ""
-echo "Vérification :"
-ls -l /sys/class/hwmon/hwmon*/pwm1 2>/dev/null | sed 's|^|  |'
+echo "Check:"
+ls -l /sys/class/hwmon/hwmon*/pwm1 2>/dev/null | sed 's|^|  |' || true
 echo ""
-echo "Relance l'app nzxtcam-v1 pour tester le contrôle des ventilateurs."
+echo "Restart nzxtcam-v1 to test fan control."

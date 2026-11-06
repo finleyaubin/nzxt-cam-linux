@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+const MAX_IMPORT_BYTES: u64 = 16 * 1024 * 1024;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SavedLayout {
@@ -102,6 +104,10 @@ fn parse_bundle(json: &str, origin: &str) -> Result<Vec<SavedLayout>> {
 
 /// Import a bundle written by `export_all`; layouts with the same name are replaced.
 pub fn import_all(path: &Path) -> Result<usize> {
+    let size = fs::metadata(path).map_err(|e| anyhow!("{}: {e}", path.display()))?.len();
+    if size > MAX_IMPORT_BYTES {
+        return Err(anyhow!("{}: file is too large ({size} bytes, limit {MAX_IMPORT_BYTES})", path.display()));
+    }
     let json = fs::read_to_string(path).map_err(|e| anyhow!("{}: {e}", path.display()))?;
     let layouts = parse_bundle(&json, &path.display().to_string())?;
     for l in &layouts {

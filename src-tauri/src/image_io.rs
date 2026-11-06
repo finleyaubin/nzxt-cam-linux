@@ -11,8 +11,36 @@ use anyhow::{anyhow, Result};
 use image::{imageops::FilterType, ImageBuffer, Rgba};
 use once_cell::sync::Lazy;
 use std::io::Cursor;
+use std::path::Path;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Instant;
+
+const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_IMAGE_SIDE: u32 = 8192;
+const MAX_GIF_SIDE: u32 = 4096;
+const MAX_GIF_FRAMES: usize = 600;
+
+fn check_file_size(path: &Path, len: u64) -> Result<()> {
+    if len > MAX_FILE_BYTES {
+        return Err(anyhow!("{} is too large ({len} bytes, limit {MAX_FILE_BYTES})", path.display()));
+    }
+    Ok(())
+}
+
+/// Read a user-supplied image file, refusing anything above the size limit.
+pub fn read_image_file(path: impl AsRef<Path>) -> Result<Vec<u8>> {
+    let path = path.as_ref();
+    let io_err = |e: std::io::Error| anyhow!("Read {}: {e}", path.display());
+    check_file_size(path, std::fs::metadata(path).map_err(io_err)?.len())?;
+    std::fs::read(path).map_err(io_err)
+}
+
+pub async fn read_image_file_async(path: impl AsRef<Path>) -> Result<Vec<u8>> {
+    let path = path.as_ref();
+    let io_err = |e: std::io::Error| anyhow!("Read {}: {e}", path.display());
+    check_file_size(path, tokio::fs::metadata(path).await.map_err(io_err)?.len())?;
+    tokio::fs::read(path).await.map_err(io_err)
+}
 
 static LCD_QUARTER_TURNS: AtomicU8 = AtomicU8::new(0);
 
@@ -38,7 +66,12 @@ pub fn rotate_for_lcd(rgba: Vec<u8>) -> Vec<u8> {
 /// Decode an image (jpg/png/webp/bmp), cover-fit it to 640×640, return RGBA
 /// with alpha forced to 0x00 (firmware requirement).
 pub fn image_to_device_rgba(bytes: &[u8]) -> Result<Vec<u8>> {
-    let img = image::load_from_memory(bytes).map_err(|e| anyhow!("Image decode: {e}"))?;
+    let mut reader = image::ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(MAX_IMAGE_SIDE);
+    limits.max_image_height = Some(MAX_IMAGE_SIDE);
+    reader.limits(limits);
+    let img = reader.decode().map_err(|e| anyhow!("Image decode: {e}"))?;
     let resized = img.resize_to_fill(LCD_WIDTH, LCD_HEIGHT, FilterType::Lanczos3);
     let rgba = resized.to_rgba8();
     let mut out = rgba.into_raw();
@@ -170,7 +203,11 @@ fn decode_frames(bytes: &[u8], mut on_frame: impl FnMut(Vec<u8>, u16)) -> Result
     let repeat   = dec.repeat();
     let canvas_w = dec.width()  as u32;
     let canvas_h = dec.height() as u32;
+    if canvas_w > MAX_GIF_SIDE || canvas_h > MAX_GIF_SIDE {
+        return Err(anyhow!("GIF is {canvas_w}×{canvas_h}, limit is {MAX_GIF_SIDE}×{MAX_GIF_SIDE}"));
+    }
     let same_size = canvas_w == tw32 && canvas_h == th32;
+    let mut frame_count = 0;
 
     // Opaque-black canvas: transparent GIF areas → black rather than ghost
     // pixels from a previous frame.
@@ -179,6 +216,10 @@ fn decode_frames(bytes: &[u8], mut on_frame: impl FnMut(Vec<u8>, u16)) -> Result
     );
 
     while let Some(frame) = dec.read_next_frame().map_err(|e| anyhow!("GIF read: {e}"))? {
+        frame_count += 1;
+        if frame_count > MAX_GIF_FRAMES {
+            return Err(anyhow!("GIF has more than {MAX_GIF_FRAMES} frames"));
+        }
         let (delay, dispose) = (frame.delay, frame.dispose);
         let (left, top, fw, fh) = (frame.left as i32, frame.top as i32, frame.width as i32, frame.height as i32);
         let prev_snap = matches!(dispose, gif::DisposalMethod::Previous).then(|| canvas.clone());

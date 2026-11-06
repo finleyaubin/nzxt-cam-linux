@@ -159,12 +159,12 @@ async fn apply(app: &AppHandle, action: Action) -> anyhow::Result<()> {
     let path_str = |p: &Path| p.to_string_lossy().into_owned();
     match action {
         Action::Image(p) => {
-            let rgba = image_io::image_to_device_rgba(&tokio::fs::read(&p).await?)?;
+            let rgba = image_io::image_to_device_rgba(&image_io::read_image_file_async(&p).await?)?;
             driver.send_rgba_image(rgba).await?;
             config::update(|c| { c.last_mode = Some("image".into()); c.last_image_path = Some(path_str(&p)) })?;
         }
         Action::Gif(p) => {
-            let bytes = tokio::fs::read(&p).await?;
+            let bytes = image_io::read_image_file_async(&p).await?;
             let gif = tokio::task::spawn_blocking(move || image_io::resize_gif(&bytes)).await??;
             driver.send_gif(gif).await?;
             config::update(|c| { c.last_mode = Some("gif".into()); c.last_gif_path = Some(path_str(&p)) })?;

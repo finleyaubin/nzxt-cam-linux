@@ -21,6 +21,11 @@ static CONFIG: RwLock<Option<(String, String)>> = RwLock::new(None);
 static ENTITIES: RwLock<Vec<(String, Entity)>> = RwLock::new(Vec::new());
 static UNITS: Mutex<Option<HashSet<&'static str>>> = Mutex::new(None);
 static POLLER: OnceLock<Thread> = OnceLock::new();
+static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
+
+// Units are leaked to get 'static strs, so a server cannot grow them without bound.
+const MAX_UNITS: usize = 64;
+const MAX_UNIT_LEN: usize = 16;
 static LAST_ATTEMPT: Mutex<Option<Instant>> = Mutex::new(None);
 
 pub fn configure(url: &str, token: &str) {
@@ -59,8 +64,8 @@ fn poll_forever() {
 pub fn refresh() -> Result<(), String> {
     let Some((url, token)) = CONFIG.read().clone() else { return Ok(()) };
     *LAST_ATTEMPT.lock() = Some(Instant::now());
-    let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(5))).build().into();
-    let states: Vec<Value> = agent
+    let states: Vec<Value> = AGENT
+        .get_or_init(|| ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(5))).build().into())
         .get(format!("{url}/api/states"))
         .header("Authorization", format!("Bearer {token}"))
         .call()
@@ -85,6 +90,9 @@ fn intern(unit: &str) -> &'static str {
     let set = set.get_or_insert_with(HashSet::new);
     if let Some(&known) = set.get(unit) {
         return known;
+    }
+    if unit.chars().count() > MAX_UNIT_LEN || set.len() >= MAX_UNITS {
+        return "";
     }
     let leaked: &'static str = Box::leak(unit.to_string().into_boxed_str());
     set.insert(leaked);

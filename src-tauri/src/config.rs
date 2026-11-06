@@ -38,7 +38,7 @@ pub struct LastColor {
 
 pub fn config_dir() -> PathBuf {
     dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("/tmp"))
+        .expect("no config directory: set HOME or XDG_CONFIG_HOME")
         .join(APP_DIRNAME)
 }
 
@@ -91,13 +91,14 @@ pub fn try_load() -> Result<ConfigFile, String> {
     }
 }
 
-/// Like `try_load`, but a bad file is kept as `config.json.bad` (so the next save
+/// Like `try_load`, but a bad file is kept as `config.json.bad.<unix time>` (so the next save
 /// cannot silently destroy it) and defaults are used.
 pub fn load() -> ConfigFile {
     try_load().unwrap_or_else(|e| {
         log::warn!("Config ignored: {e}");
         let path = config_file_path();
-        let _ = fs::rename(&path, path.with_extension("json.bad"));
+        let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+        let _ = fs::rename(&path, path.with_extension(format!("json.bad.{stamp}")));
         ConfigFile { version: CONFIG_VERSION, ..Default::default() }
     })
 }

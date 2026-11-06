@@ -46,7 +46,14 @@ pub fn list_drives() -> Result<Vec<Drive>, String> {
             continue;
         }
         let mount = unescape_mount_field(mount);
-        let (used_bytes, total_bytes) = usage(&mount)?;
+        // One stale or inaccessible mount must not hide every other drive.
+        let (used_bytes, total_bytes) = match usage(&mount) {
+            Ok(sizes) => sizes,
+            Err(e) => {
+                log::warn!("Skipping drive: {e}");
+                continue;
+            }
+        };
         if total_bytes > 0 {
             drives.push(Drive { device: device.to_string(), mount, used_bytes, total_bytes });
         }
