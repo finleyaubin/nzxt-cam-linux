@@ -10,6 +10,7 @@ depends=('webkit2gtk-4.1' 'gtk3')
 makedepends=('rust' 'nodejs' 'npm')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('6dd4f140cd6dd6039641b9273dad73e516c7ecf84388a42836418cf8661be71a')
+options=('!lto')
 
 prepare() {
   cd "$pkgname-$pkgver"

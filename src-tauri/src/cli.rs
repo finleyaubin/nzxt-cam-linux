@@ -1,6 +1,7 @@
 //! Command-line interface. A second `nzxtcam-v1 …` invocation forwards its args to the running instance.
 
 use crate::commands::AppState;
+use crate::types::DisplayElement;
 use crate::{config, image_io, render};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
@@ -21,6 +22,8 @@ LCD:
   --lcd-temps                 Switch to the temperature display
   --lcd-background <path|none>
                               Photo/GIF behind the temperature display (switches to it)
+  --lcd-gauge-colors <#from:#to,...>
+                              Gradient for each temperature gauge, outermost ring first (repeats if fewer than gauges)
   --lcd-dim <0-90>            Darken the background image by this percentage
   --rotation <0|90|180|270>   Rotate the LCD to match how the cooler is mounted
   --profile <name>            Apply a saved profile
@@ -45,6 +48,7 @@ pub enum Action {
     Temps,
     Background(Option<PathBuf>),
     Dim(u8),
+    GaugeColors(Vec<(String, String)>),
     Rotation(u16),
     Profile(String),
     LcdConfig(PathBuf),
@@ -76,6 +80,19 @@ fn parse_hex(s: &str) -> Option<(u8, u8, u8)> {
     Some((byte(0)?, byte(2)?, byte(4)?))
 }
 
+fn parse_gauge_colors(s: &str) -> Result<Vec<(String, String)>, String> {
+    let hex = |c: &str| parse_hex(c).map(|(r, g, b)| format!("#{r:02x}{g:02x}{b:02x}"));
+    s.split(',')
+        .map(|pair| {
+            let (from, to) = pair.split_once(':').ok_or_else(|| format!("--lcd-gauge-colors expects #from:#to pairs, got {pair}"))?;
+            Ok((
+                hex(from).ok_or_else(|| format!("--lcd-gauge-colors expects #rrggbb, got {from}"))?,
+                hex(to).ok_or_else(|| format!("--lcd-gauge-colors expects #rrggbb, got {to}"))?,
+            ))
+        })
+        .collect()
+}
+
 /// Parse args (without argv[0]); relative paths resolve against `cwd`.
 pub fn parse(args: &[String], cwd: &Path) -> Result<Cli, String> {
     let mut cli = Cli::default();
@@ -104,6 +121,7 @@ pub fn parse(args: &[String], cwd: &Path) -> Result<Cli, String> {
                 let v = value()?;
                 Action::Dim(v.parse().ok().filter(|d| *d <= 90).ok_or_else(|| format!("--lcd-dim expects 0-90, got {v}"))?)
             }
+            "--lcd-gauge-colors" => Action::GaugeColors(parse_gauge_colors(value()?)?),
             "--rotation" => {
                 let v = value()?;
                 Action::Rotation(v.parse().ok().filter(|d| [0, 90, 180, 270].contains(d)).ok_or_else(|| format!("--rotation expects 0, 90, 180 or 270, got {v}"))?)
@@ -181,6 +199,14 @@ async fn apply(app: &AppHandle, action: Action) -> anyhow::Result<()> {
             update_display(app, |cfg| cfg.background_image = p.as_deref().map(path_str))?;
             start_temps(app)?;
         }
+        Action::GaugeColors(pairs) => update_display(app, |cfg| {
+            let mut gauges: Vec<_> = cfg.elements.iter_mut().filter_map(|e| match e { DisplayElement::Gauge(g) => Some(g), _ => None }).collect();
+            gauges.sort_by(|a, b| b.radius.total_cmp(&a.radius));
+            for (gauge, (from, to)) in gauges.into_iter().zip(pairs.iter().cycle()) {
+                gauge.color = from.clone();
+                gauge.gradient_to = Some(to.clone());
+            }
+        })?,
         Action::Dim(d) => update_display(app, |cfg| cfg.background_dim = d)?,
         Action::Rotation(deg) => {
             image_io::set_lcd_rotation(deg);
@@ -262,6 +288,17 @@ mod tests {
         assert!(parse(&args("--lcd-color red"), Path::new("/")).is_err());
         assert!(parse(&args("--lcd-image"), Path::new("/")).is_err());
         assert!(parse(&args("--bogus"), Path::new("/")).is_err());
+    }
+
+    #[test]
+    fn parses_gauge_colors() {
+        let cli = parse(&args("--lcd-gauge-colors #FF0000:#00ff00,#000001:#000002"), Path::new("/")).unwrap();
+        assert_eq!(cli.actions, vec![Action::GaugeColors(vec![
+            ("#ff0000".into(), "#00ff00".into()),
+            ("#000001".into(), "#000002".into()),
+        ])]);
+        assert!(parse(&args("--lcd-gauge-colors #ff0000"), Path::new("/")).is_err());
+        assert!(parse(&args("--lcd-gauge-colors #ff0000:blue"), Path::new("/")).is_err());
     }
 
     #[test]

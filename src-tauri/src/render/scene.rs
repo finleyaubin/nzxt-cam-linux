@@ -11,6 +11,7 @@ use crate::types::{hex_to_rgb, DisplayConfig, DisplayElement, Temperatures, LCD_
 use anyhow::Result;
 use parking_lot::Mutex;
 use std::sync::Arc;
+use std::time::SystemTime;
 use tiny_skia::Pixmap;
 
 // ============================================================================
@@ -42,12 +43,15 @@ enum Base<'a> {
     Transparent,
 }
 
-static BACKGROUND: Mutex<Option<(String, Arc<Background>)>> = Mutex::new(None);
+type BackgroundKey = (String, SystemTime);
+static BACKGROUND: Mutex<Option<(BackgroundKey, Arc<Background>)>> = Mutex::new(None);
 
 fn load_background(path: &str) -> Result<Arc<Background>> {
+    let modified = std::fs::metadata(path).and_then(|m| m.modified()).map_err(|e| anyhow::anyhow!("Read background {path}: {e}"))?;
+    let key = (path.to_string(), modified);
     let mut cache = BACKGROUND.lock();
     if let Some((cached, bg)) = cache.as_ref() {
-        if cached == path {
+        if *cached == key {
             return Ok(bg.clone());
         }
     }
@@ -58,7 +62,7 @@ fn load_background(path: &str) -> Result<Arc<Background>> {
     } else {
         Background::Still(first)
     });
-    *cache = Some((path.to_string(), bg.clone()));
+    *cache = Some((key, bg.clone()));
     Ok(bg)
 }
 
