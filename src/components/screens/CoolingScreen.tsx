@@ -1,3 +1,4 @@
+import { NO_READING } from '../../shared/display'
 import { useRef, useState, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useApp } from '../../context/AppContext'
@@ -42,7 +43,7 @@ function ProfileButton({ label, color, active, onClick }: { id: string; label: T
 }
 
 function FanCurveChart({ chartId, tempSource, currentTemp, accent, pts, onChange, editable }: {
-  chartId: string; tempSource: string; currentTemp: number; accent: string
+  chartId: string; tempSource: string; currentTemp: number | null; accent: string
   pts: FanPoint[]; onChange?: (pts: FanPoint[]) => void; editable: boolean
 }) {
   const W = 2000, H = 300
@@ -94,14 +95,14 @@ function FanCurveChart({ chartId, tempSource, currentTemp, accent, pts, onChange
   const curveColor = editable ? accent : '#33d17a'
   const TICKS_T = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
   const TICKS_S = [0, 25, 50, 75, 100]
-  const curX = tX(currentTemp)
+  const curX = currentTemp == null ? null : tX(currentTemp)
   const gradId = `grad-${chartId}`
   const clipId = `clip-${chartId}`
 
   return (
     <div style={{ userSelect: 'none' }}>
       <div style={{ fontSize: 11, color: 'var(--fg-dim)', marginBottom: 6, fontVariantNumeric: 'tabular-nums' }}>
-        {tempSource}: <span style={{ color: curveColor }}>{Math.round(currentTemp)}°</span>
+        {tempSource}: <span style={{ color: curveColor }}>{currentTemp == null ? NO_READING : `${Math.round(currentTemp)}°`}</span>
         {!editable && <span style={{ color: 'var(--fg-dim)', marginLeft: 10, fontSize: 11 }}>(read-only - preset profile)</span>}
         {editable && <span style={{ color: 'var(--fg-dim)', marginLeft: 10, fontSize: 11 }}>drag points to edit</span>}
       </div>
@@ -130,8 +131,10 @@ function FanCurveChart({ chartId, tempSource, currentTemp, accent, pts, onChange
         <path d={areaPath()} fill={`url(#${gradId})`} clipPath={`url(#${clipId})`}/>
         <path d={curvePath()} fill="none" stroke={curveColor} strokeWidth="2" strokeLinecap="round" clipPath={`url(#${clipId})`}
           style={{ filter: 'none' }}/>
-        <line x1={curX} y1={PAD.t} x2={curX} y2={PAD.t + PH} stroke={accent} strokeWidth="1.5" strokeDasharray="5,4" opacity="0.55"/>
-        <text x={curX + 6} y={PAD.t + 14} fill={accent} fontSize="11"  opacity="0.7">{Math.round(currentTemp)}°</text>
+        {curX != null && currentTemp != null && <>
+          <line x1={curX} y1={PAD.t} x2={curX} y2={PAD.t + PH} stroke={accent} strokeWidth="1.5" strokeDasharray="5,4" opacity="0.55"/>
+          <text x={curX + 6} y={PAD.t + 14} fill={accent} fontSize="11"  opacity="0.7">{Math.round(currentTemp)}°</text>
+        </>}
         {pts.map((p, i) => {
           const sx = tX(p.t), sy = sY(p.s), active = hov === i || drag === i
           return (
@@ -305,7 +308,9 @@ function CaseFanSection({ accent }: { accent: string }) {
   useEffect(() => {
     if (profile === 'auto' || channels.length === 0) return
     const curve = profile === 'manual' ? manualPts : CASE_PROFILES[profile as Exclude<CaseFanProfileId, 'auto' | 'manual'>].pts
-    const duty = interpDuty(curve, state.temperatures.cpu)
+    const cpu = state.temperatures.cpu
+    if (cpu == null) return
+    const duty = interpDuty(curve, cpu)
     channels.filter(ch => ch.controllable).forEach(ch => {
       invoke('set_fan_duty_cmd', { args: { hwmonPath: ch.hwmonPath, pwmIndex: ch.pwmIndex, duty } }).catch(() => {})
     })
@@ -321,7 +326,9 @@ function CaseFanSection({ accent }: { accent: string }) {
       })
     } else {
       const curve = CASE_PROFILES[p as Exclude<CaseFanProfileId, 'auto' | 'manual'>]?.pts ?? manualPts
-      const duty = interpDuty(curve, state.temperatures.cpu)
+      const cpu = state.temperatures.cpu
+      if (cpu == null) { setError(t('cooling.no_cpu_reading')); return }
+      const duty = interpDuty(curve, cpu)
       controllable.forEach(ch => {
         invoke('set_fan_duty_cmd', { args: { hwmonPath: ch.hwmonPath, pwmIndex: ch.pwmIndex, duty } })
           .then(() => setError(null)).catch(e => setError(String(e)))
@@ -331,7 +338,9 @@ function CaseFanSection({ accent }: { accent: string }) {
 
   const handleManualCurve = (pts: FanPoint[]) => {
     setManualPts(pts)
-    const duty = interpDuty(pts, state.temperatures.cpu)
+    const cpu = state.temperatures.cpu
+    if (cpu == null) { setError(t('cooling.no_cpu_reading')); return }
+    const duty = interpDuty(pts, cpu)
     channels.filter(ch => ch.controllable).forEach(ch => {
       invoke('set_fan_duty_cmd', { args: { hwmonPath: ch.hwmonPath, pwmIndex: ch.pwmIndex, duty } })
         .then(() => setError(null)).catch(e => setError(String(e)))
@@ -411,10 +420,10 @@ function CaseFanSection({ accent }: { accent: string }) {
 
 // ── Temperature / pump cards ─────────────────────────────────────────────────
 
-function TempCard({ label, value, tempUnit, accent }: { label: string; value: number; tempUnit: string; accent: string }) {
-  const pct = Math.min(value / 100, 1) * 100
-  const color = value > 75 ? '#f66151' : value > 55 ? '#f5c211' : value > 40 ? accent : '#33d17a'
-  const disp = tempUnit === '°F' ? Math.round(value * 9 / 5 + 32) : Math.round(value)
+function TempCard({ label, value, tempUnit, accent }: { label: string; value: number | null; tempUnit: string; accent: string }) {
+  const pct = value == null ? 0 : Math.min(value / 100, 1) * 100
+  const color = value == null ? 'var(--fg-dim)' : value > 75 ? '#f66151' : value > 55 ? '#f5c211' : value > 40 ? accent : '#33d17a'
+  const disp = value == null ? NO_READING : tempUnit === '°F' ? Math.round(value * 9 / 5 + 32) : Math.round(value)
   const unit = tempUnit === '°F' ? '°F' : '°C'
   return (
     <Card style={{ padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
@@ -430,10 +439,10 @@ function TempCard({ label, value, tempUnit, accent }: { label: string; value: nu
   )
 }
 
-function PumpCard({ rpm, accent }: { rpm: number; accent: string }) {
+function PumpCard({ rpm, accent }: { rpm: number | null; accent: string }) {
   const { t } = useLanguage()
   const MAX_RPM = 3200
-  const pct = Math.min(rpm / MAX_RPM, 1) * 100
+  const pct = rpm == null ? 0 : Math.min(rpm / MAX_RPM, 1) * 100
   const color = pct > 85 ? '#f66151' : pct > 65 ? '#f5c211' : accent
   return (
     <Card style={{ padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
@@ -441,7 +450,7 @@ function PumpCard({ rpm, accent }: { rpm: number; accent: string }) {
       <div style={{ position: 'relative', width: 90, height: 90 }}>
         <CircularGauge value={pct} max={100} size={90} stroke={8} color={color}/>
         <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 8 }}>
-          <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 16, fontWeight: 700, color: 'var(--fg)', lineHeight: 1 }}>{rpm}</span>
+          <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 16, fontWeight: 700, color: 'var(--fg)', lineHeight: 1 }}>{rpm ?? NO_READING}</span>
           <span style={{ fontSize: 11, color: 'var(--fg-dim)', marginTop: 3 }}>RPM</span>
         </div>
       </div>
@@ -504,7 +513,7 @@ export function CoolingScreen() {
             <div style={{ fontSize: 11, color: 'var(--fg-dim)', marginTop: 3 }}>{t('cooling.pump_desc')}</div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>{temperatures.pumpRpm}</span>
+            <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 16, fontWeight: 700, color: 'var(--fg)' }}>{temperatures.pumpRpm ?? NO_READING}</span>
             <span style={{ fontSize: 11, color: 'var(--fg-dim)' }}>RPM</span>
           </div>
         </div>
@@ -556,7 +565,7 @@ export function CoolingScreen() {
           </div>
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontVariantNumeric: 'tabular-nums', fontSize: 18, fontWeight: 700, color: 'var(--fg-dim)' }}>
-              {tempUnit === '°F' ? Math.round(temperatures.gpu * 9/5 + 32) : Math.round(temperatures.gpu)}
+              {temperatures.gpu == null ? NO_READING : tempUnit === '°F' ? Math.round(temperatures.gpu * 9/5 + 32) : Math.round(temperatures.gpu)}
               <span style={{ fontSize: 11, color: 'var(--fg-dim)', marginLeft: 3 }}>{tempUnit === '°F' ? '°F' : '°C'}</span>
             </div>
           </div>

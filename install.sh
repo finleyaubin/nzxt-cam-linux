@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ─────────────────────────────────────────────
-#  nzxtcam-v1 — Install script
-#  Tested on Arch Linux / Hyprland
-# ─────────────────────────────────────────────
+# nzxtcam-v1 install script (tested on Arch Linux / Hyprland)
 
 APP="nzxtcam-v1"
 BINARY_NAME="nzxtcam-archlinux-rust"
@@ -23,44 +20,41 @@ echo "  nzxtcam-v1 — NZXT Kraken LCD Controller"
 echo "  ─────────────────────────────────────────"
 echo ""
 
-# ── Dépendances ──────────────────────────────
-info "Vérification des dépendances..."
+info "Checking dependencies..."
 for dep in cargo npm node; do
-  command -v "$dep" &>/dev/null || fail "Dépendance manquante : $dep\n  Installe via: sudo pacman -S rust nodejs npm"
+  command -v "$dep" &>/dev/null || fail "Missing dependency: $dep\n  Install with: sudo pacman -S rust nodejs npm"
 done
-ok "Dépendances OK"
+ok "Dependencies OK"
 
-# ── Build ─────────────────────────────────────
-info "Installation des packages Node..."
-npm install --silent
+info "Installing Node packages..."
+npm ci --silent
 
-info "Compilation en cours (peut prendre 1-2 minutes)..."
-npm run tauri build -- --no-bundle 2>&1 | grep -E "Compiling|Finished|error|Built" || true
+info "Building (can take 1-2 minutes)..."
+npm run tauri build -- --no-bundle
 
 BINARY="src-tauri/target/release/$BINARY_NAME"
-[ -f "$BINARY" ] || fail "Build échoué — binaire introuvable"
-ok "Build terminé"
+[ -f "$BINARY" ] || fail "Build failed — binary not found"
+ok "Build finished"
 
-# ── Installation des fichiers ─────────────────
-info "Installation du binaire..."
+info "Installing the binary..."
 mkdir -p "$HOME/.local/bin"
 cp "$BINARY" "$INSTALL_BIN"
 chmod +x "$INSTALL_BIN"
-ok "Binaire → $INSTALL_BIN"
+ok "Binary → $INSTALL_BIN"
 
-info "Installation de l'icône..."
+info "Installing the icon..."
 mkdir -p "$ICON_DIR"
 cp "src-tauri/icons/128x128.png" "$ICON_DIR/$APP.png"
-ok "Icône → $ICON_DIR/$APP.png"
+ok "Icon → $ICON_DIR/$APP.png"
 
-info "Création de l'entrée dashboard..."
+info "Creating the desktop entry..."
 mkdir -p "$DESKTOP_DIR"
 cat > "$DESKTOP_FILE" << DESKTOP
 [Desktop Entry]
 Name=nzxtcam-v1
 GenericName=LCD Controller
 Comment=Control the LCD of NZXT Kraken Elite coolers
-Exec=$INSTALL_BIN
+Exec="$INSTALL_BIN"
 Icon=$APP
 Terminal=false
 Type=Application
@@ -70,32 +64,29 @@ StartupWMClass=$BINARY_NAME
 DESKTOP
 ok "Desktop entry → $DESKTOP_FILE"
 
-# ── Règles USB (udev) ─────────────────────────
-info "Installation des règles USB (nécessite sudo)..."
-if sudo cp src-tauri/resources/99-nzxt-kraken.rules /etc/udev/rules.d/ 2>/dev/null; then
+# The rules grant the active seat's user (uaccess) and the plugdev group access to the Kraken
+# USB/hidraw devices and to GPU/motherboard fan PWM files. Read them before installing.
+info "Installing udev rules (needs sudo): src-tauri/resources/99-nzxt-kraken.rules"
+if sudo getent group plugdev >/dev/null || sudo groupadd -r plugdev; then
+  sudo cp src-tauri/resources/99-nzxt-kraken.rules /etc/udev/rules.d/
   sudo udevadm control --reload-rules
   sudo udevadm trigger
-  ok "Règles udev installées — accès USB sans sudo"
+  ok "udev rules installed"
 else
-  echo -e "${YELLOW}⚠${NC}  Règles udev non installées (skip sudo)"
-  echo "   Pour accéder au Kraken sans sudo, exécute :"
-  echo "   sudo cp src-tauri/resources/99-nzxt-kraken.rules /etc/udev/rules.d/"
-  echo "   sudo udevadm control --reload-rules && sudo udevadm trigger"
+  fail "Could not create the plugdev group"
 fi
 
-# Ajouter l'utilisateur au groupe plugdev si nécessaire
-if ! groups | grep -q plugdev; then
-  info "Ajout au groupe plugdev..."
-  sudo usermod -aG plugdev "$USER" && ok "Groupe plugdev → reconnecte-toi pour que ça soit effectif" || true
+if ! id -nG "$USER" | grep -qw plugdev; then
+  info "Adding $USER to the plugdev group (needed for fan control)..."
+  sudo usermod -aG plugdev "$USER"
+  ok "plugdev → log out and back in for it to take effect"
 fi
 
-# ── Mise à jour des caches ────────────────────
 update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
 gtk-update-icon-cache -f "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
 
-# ── Fin ───────────────────────────────────────
 echo ""
-echo -e "  ${GREEN}Installation terminée !${NC}"
-echo "  Lance l'app depuis ton dashboard : nzxtcam-v1"
-echo "  Ou via terminal : $APP"
+echo -e "  ${GREEN}Installation complete!${NC}"
+echo "  Launch from your app launcher: nzxtcam-v1"
+echo "  Or from a terminal: $APP"
 echo ""

@@ -1,5 +1,6 @@
 //! LCD scene renderer — tiny-skia + ab_glyph.
 
+pub mod draw;
 pub mod fonts;
 pub mod scene;
 pub mod svg;
