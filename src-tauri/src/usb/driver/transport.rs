@@ -292,9 +292,11 @@ pub(super) async fn send_data_steps(
     let buckets = query_buckets(hw).await;
     log::debug!("Buckets trouvés: {}", buckets.len());
     let free = find_next_unoccupied_bucket(&buckets);
+    // Never delete the bucket on screen to make room: the LCD goes black until the new one activates.
+    let fallback_bucket = if hw.active_bucket == Some(0) { 1 } else { 0 };
     let mut bucket_index = prepare_bucket(
         hw,
-        if free != -1 { free as u8 } else { 0 },
+        if free != -1 { free as u8 } else { fallback_bucket },
         free == -1,
     )
     .await?;
@@ -350,6 +352,10 @@ pub(super) async fn send_data_steps(
     // 9. Activate.
     let act_ok = switch_bucket(hw, bucket_index, 0x04).await;
     if act_ok {
+        // Free the replaced frame now, or buckets pile up and the next big GIF forces a blanking full reset.
+        if let Some(previous) = hw.active_bucket.filter(|&p| p != bucket_index) {
+            delete_bucket(hw, previous).await;
+        }
         hw.active_bucket = Some(bucket_index);
     }
     log::debug!("Activate bucket {}: ok={}", bucket_index, act_ok);
