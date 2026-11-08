@@ -19,6 +19,8 @@ const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_IMAGE_SIDE: u32 = 8192;
 const MAX_GIF_SIDE: u32 = 4096;
 const MAX_GIF_FRAMES: usize = 600;
+/// Every stat change re-uploads the whole GIF, so long animations are thinned to keep uploads small.
+const MAX_OVERLAY_GIF_FRAMES: usize = 60;
 
 fn check_file_size(path: &Path, len: u64) -> Result<()> {
     if len > MAX_FILE_BYTES {
@@ -122,8 +124,19 @@ pub fn prepare_gif(bytes: &[u8], dim: u8) -> Result<PreparedGif> {
         }
         frames.push((to_indices(&rgba), delay));
     })?;
+    let frames = thin_frames(frames);
     log::debug!("GIF background prepared: {} frames in {:?}", frames.len(), t0.elapsed());
     Ok(PreparedGif { repeat, frames })
+}
+
+/// Keep every Nth frame, adding the dropped frames' delays so the animation runs at the same speed.
+fn thin_frames(frames: Vec<(Vec<u8>, u16)>) -> Vec<(Vec<u8>, u16)> {
+    let step = frames.len().div_ceil(MAX_OVERLAY_GIF_FRAMES);
+    if step <= 1 {
+        return frames;
+    }
+    let delays: Vec<u16> = frames.chunks(step).map(|c| c.iter().fold(0u16, |sum, f| sum.saturating_add(f.1))).collect();
+    frames.into_iter().step_by(step).zip(delays).map(|((pixels, _), delay)| (pixels, delay)).collect()
 }
 
 /// Composite a premultiplied RGBA overlay (640×640) onto every prepared frame and encode.
@@ -395,6 +408,21 @@ pub fn png_bytes_to_device_rgba(bytes: &[u8]) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn thin_frames_caps_count_and_keeps_duration() {
+        let frames: Vec<_> = (0..130u8).map(|i| (vec![i], 4u16)).collect();
+        let thinned = thin_frames(frames);
+        assert!(thinned.len() <= MAX_OVERLAY_GIF_FRAMES);
+        assert_eq!(thinned.iter().map(|f| f.1 as u32).sum::<u32>(), 130 * 4);
+        assert_eq!(thinned[1].0, vec![3]);
+    }
+
+    #[test]
+    fn thin_frames_leaves_short_gifs_alone() {
+        let frames: Vec<_> = (0..MAX_OVERLAY_GIF_FRAMES as u8).map(|i| (vec![i], 4u16)).collect();
+        assert_eq!(thin_frames(frames).len(), MAX_OVERLAY_GIF_FRAMES);
+    }
 
     fn quantise(px: [u8; 3], x: usize, y: usize, pal: &[u8], lut: &[u8]) -> [u8; 3] {
         let i = lut[dithered_lut_idx(&[px[0], px[1], px[2], 255], x, y)] as usize * 3;
