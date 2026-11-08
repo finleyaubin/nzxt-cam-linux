@@ -313,13 +313,13 @@ pub(super) async fn send_data_steps(
     let dsz = [(data_size & 0xff) as u8, ((data_size >> 8) & 0xff) as u8];
 
     // 4. Memory offset.
-    let mem_start = match get_bucket_memory_offset(&buckets, bucket_index, data_size) {
-        Some(off) => off,
-        None => match reclaim_around_active(hw, &buckets, data_size).await {
-            Some((idx, off)) => {
-                bucket_index = idx;
-                off
-            }
+    let mem_start = match reclaim_around_active(hw, &buckets, data_size).await {
+        Some((idx, off)) => {
+            bucket_index = idx;
+            off
+        }
+        None => match get_bucket_memory_offset(&buckets, bucket_index, data_size) {
+            Some(off) => off,
             None => {
                 log::warn!("LCD memory full: resetting all buckets (screen blanks briefly)");
                 delete_all_buckets(hw).await;
@@ -363,8 +363,9 @@ pub(super) async fn send_data_steps(
     Ok(())
 }
 
-/// Memory is full: delete every bucket except the one on screen and place the new
-/// frame beside it. Returns (bucket index, memory offset), or None if it still won't fit.
+/// Place the new frame in whichever end of LCD memory the on-screen frame isn't using, after deleting
+/// every other bucket. Alternating ends keeps one gap large enough even when frame sizes vary.
+/// Returns (bucket index, memory offset), or None if there is no active bucket or it won't fit.
 pub(super) async fn reclaim_around_active(hw: &mut Hardware, buckets: &HashMap<u8, Vec<u8>>, data_size: u32) -> Option<(u8, [u8; 2])> {
     let active = hw.active_bucket?;
     let info = buckets.get(&active).filter(|b| b.len() >= 21)?;
@@ -372,14 +373,13 @@ pub(super) async fn reclaim_around_active(hw: &mut Hardware, buckets: &HashMap<u
     let end = start + u16::from_le_bytes([info[19], info[20]]) as u32;
     let offset = if data_size <= start {
         0
-    } else if end + data_size < LCD_TOTAL_MEMORY {
-        end
     } else {
-        return None;
+        LCD_TOTAL_MEMORY.checked_sub(data_size).filter(|&o| o >= end)?
     };
-    log::info!("LCD memory full: clearing inactive buckets, keeping bucket {active} on screen");
-    for b in (0..16u8).filter(|&b| b != active) {
-        delete_bucket(hw, b).await;
+    for (&b, bucket_info) in buckets.iter().filter(|(&b, _)| b != active) {
+        if bucket_info.iter().skip(15).any(|&x| x != 0) {
+            delete_bucket(hw, b).await;
+        }
     }
     let idx = if active == 0 { 1 } else { 0 };
     Some((idx, [(offset & 0xff) as u8, ((offset >> 8) & 0xff) as u8]))
