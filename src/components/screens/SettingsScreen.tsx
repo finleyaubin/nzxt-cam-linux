@@ -76,7 +76,7 @@ function SupportTab() {
     <>
       <Group>
         {links.map(({ title, desc, Icon, url }, i) => (
-          <Row key={title} title={title} subtitle={desc} last={i === links.length - 1} onClick={() => window.open(url, '_blank')}>
+          <Row key={title} title={title} subtitle={desc} last={i === links.length - 1} onClick={() => api.openExternal(url)}>
             <Icon size={18} style={{ color: 'var(--fg-dim)' }}/>
             <CaretRight size={14} weight="bold" style={{ color: 'var(--fg-dim)' }}/>
           </Row>
